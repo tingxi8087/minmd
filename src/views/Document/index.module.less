@@ -168,6 +168,14 @@
       margin: 14px 0 6px;
       line-height: 1.6;
     }
+    h4, h5, h6 {
+      font-weight: 600;
+      margin: 12px 0 6px;
+      line-height: 1.6;
+    }
+    h4 { font-size: 16px; }
+    h5 { font-size: 15px; }
+    h6 { font-size: 14px; color: var(--text-secondary); }
     > p:first-child {
       color: var(--text-secondary);
       font-size: 15px;
@@ -190,6 +198,10 @@
           margin: 0;
         }
       }
+    }
+    ol > li::marker {
+      color: var(--accent);
+      font-weight: 500;
     }
     ul[data-type="taskList"] {
       list-style: none;
@@ -320,17 +332,41 @@
   margin-top: 0;
   border-left: 1px solid var(--border);
   padding-left: 12px;
-  > div:first-child {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    color: var(--text-secondary);
-    font-size: 11px;
-    margin-bottom: 12px;
-    button {
-      margin-left: auto;
-    }
+  overflow: hidden;
+  transition:
+    width var(--outline-motion),
+    border-color var(--outline-motion),
+    padding var(--outline-motion);
+}
+.outlineHeader {
+  position: relative;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  margin-bottom: 12px;
+  button {
+    position: absolute;
+    right: 0;
+    top: 0;
   }
+}
+.outlineHeading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  padding-right: 32px;
+  transition: opacity var(--outline-motion);
+}
+.outlineContent {
+  width: calc(var(--outline-width) - 13px);
+  transition:
+    opacity var(--outline-motion),
+    transform var(--outline-motion),
+    visibility var(--outline-motion);
   > button {
     display: block;
     padding: 5px 8px;
@@ -358,8 +394,23 @@
     padding: 10px;
   }
 }
-.noOutline .paper {
-  max-width: none;
+.outlineCollapsed {
+  width: 32px;
+  padding-left: 0;
+  border-color: transparent;
+  .outlineHeading {
+    opacity: 0;
+    visibility: hidden;
+  }
+  .outlineContent {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(8px);
+    pointer-events: none;
+  }
+}
+.bubbleLayer {
+  z-index: 50;
 }
 .bubble {
   background: var(--surface);
@@ -444,8 +495,7 @@
     gap: var(--content-gap);
   }
   .outline {
-    width: 150px;
-    padding-left: 14px;
+    --outline-width: 150px;
   }
   .title {
     font-size: 27px;
@@ -510,6 +560,8 @@
 .title {
   margin-bottom: 12px;
   line-height: 1.4;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
 }
 .documentStats,
 .visibility {

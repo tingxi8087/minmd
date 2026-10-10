@@ -4,6 +4,9 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  Heading4,
+  Heading5,
+  Heading6,
   Type,
   List,
   ListOrdered,
@@ -32,14 +35,14 @@ export function useSlashMenu(editor: Editor | null, onImage: () => void) {
       icon: Type,
       run: () => editor!.chain().focus().setParagraph().run(),
     },
-    ...([1, 2, 3] as const).map((level) => ({
+    ...([1, 2, 3, 4, 5, 6] as const).map((level) => ({
       id: `h${level}`,
       title: `标题 ${level}`,
-      hint: ["大标题，划分章节", "小标题，组织内容", "三级标题，细化结构"][
+      hint: ["大标题，划分章节", "小标题，组织内容", "三级标题，细化结构", "四级标题", "五级标题", "六级标题"][
         level - 1
       ],
       keywords: `heading h${level}`,
-      icon: [Heading1, Heading2, Heading3][level - 1],
+      icon: [Heading1, Heading2, Heading3, Heading4, Heading5, Heading6][level - 1],
       run: () => editor!.chain().focus().setHeading({ level }).run(),
     })),
     {

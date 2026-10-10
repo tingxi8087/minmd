@@ -2,17 +2,20 @@ import { useEffect, useState } from "react";
 import { App, Input, Modal, Select, Switch } from "antd";
 import { Copy, Globe2, LockKeyhole } from "lucide-react";
 import { Entry, FileKind, kindNames, useWorkspace } from "@/store/workspace";
+import { canMove, entryPath } from "@/utils/fileTree";
 export type FileAction =
   | { type: "create"; kind: FileKind; parent: string | null }
   | { type: "rename" | "share" | "move"; file: Entry };
 export default function FileDialogs({
   action,
   close,
+  onCreated,
 }: {
   action: FileAction | null;
   close: () => void;
+  onCreated?: (id: string) => void;
 }) {
-  const { add, patch, files, space } = useWorkspace();
+  const { add, patch, files, space, relocate } = useWorkspace();
   const { message } = App.useApp();
   const [name, setName] = useState("");
   const [shared, setShared] = useState(false);
@@ -40,7 +43,7 @@ export default function FileDialogs({
       : action.type === "rename"
         ? "重命名"
         : action.type === "move"
-          ? "移动到文件夹"
+          ? "移动到…"
           : "分享设置";
   const save = () => {
     if (action.type === "create" || action.type === "rename") {
@@ -48,10 +51,15 @@ export default function FileDialogs({
         message.warning("请输入名称");
         return;
       }
-      if (action.type === "create") add(name.trim(), action.kind, parent);
+      if (action.type === "create")
+        onCreated?.(add(name.trim(), action.kind, parent));
       else patch(action.file.id, { name: name.trim() });
-    } else if (action.type === "move") patch(action.file.id, { parent });
-    else
+    } else if (action.type === "move") {
+      if (!relocate(action.file.id, parent)) {
+        message.warning("无法移动到该位置");
+        return;
+      }
+    } else
       patch(action.file.id, {
         public: shared,
         password: shared ? password : "",
@@ -97,12 +105,9 @@ export default function FileDialogs({
               ...files
                 .filter(
                   (f) =>
-                    f.space === space &&
-                    f.kind === "folder" &&
-                    !f.deleted &&
-                    f.id !== action.file.id,
+                    f.space === space && canMove(files, action.file.id, f.id),
                 )
-                .map((f) => ({ value: f.id, label: f.name })),
+                .map((f) => ({ value: f.id, label: entryPath(files, f) })),
             ]}
           />
         </div>

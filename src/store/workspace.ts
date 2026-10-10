@@ -1,6 +1,7 @@
 import type { JSONContent } from "@tiptap/core";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { canMove, siblings } from "@/utils/fileTree";
 export type FileKind = "doc" | "sheet" | "slide" | "folder";
 export type Entry = {
   id: string;
@@ -8,6 +9,7 @@ export type Entry = {
   kind: FileKind;
   space: string;
   parent: string | null;
+  order?: number;
   favorite: boolean;
   public: boolean;
   deleted: boolean;
@@ -99,6 +101,7 @@ type State = {
     content?: string,
   ) => string;
   patch: (id: string, patch: Partial<Entry>) => void;
+  relocate: (id: string, parent: string | null, index?: number) => boolean;
   purge: (id: string) => void;
   addKey: (key: DemoKey) => void;
   removeKey: (id: string) => void;
@@ -125,6 +128,13 @@ export const useWorkspace = create<State>()(
               parent,
               content,
               space: get().space,
+              order:
+                Math.max(
+                  -1,
+                  ...siblings(get().files, get().space, parent).map(
+                    (f) => f.order ?? get().files.indexOf(f),
+                  ),
+                ) + 1,
               updated: new Date().toISOString(),
             },
             ...get().files,
@@ -142,6 +152,38 @@ export const useWorkspace = create<State>()(
         }),
       purge: (id) =>
         set({ files: get().files.filter((file) => file.id !== id) }),
+      relocate: (id, parent, index) => {
+        const files = get().files;
+        if (!canMove(files, id, parent)) return false;
+        const file = files.find((f) => f.id === id)!;
+        const destination = siblings(files, file.space, parent).filter(
+          (f) => f.id !== id,
+        );
+        destination.splice(
+          Math.max(
+            0,
+            Math.min(index ?? destination.length, destination.length),
+          ),
+          0,
+          file,
+        );
+        const orders = new Map(destination.map((f, i) => [f.id, i]));
+        set({
+          files: files.map((f) =>
+            f.id === id
+              ? {
+                  ...f,
+                  parent,
+                  order: orders.get(id),
+                  updated: new Date().toISOString(),
+                }
+              : orders.has(f.id)
+                ? { ...f, order: orders.get(f.id) }
+                : f,
+          ),
+        });
+        return true;
+      },
       addKey: (key) => set({ keys: [key, ...get().keys] }),
       removeKey: (id) =>
         set({ keys: get().keys.filter((key) => key.id !== id) }),

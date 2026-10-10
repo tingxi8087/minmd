@@ -17,6 +17,7 @@ import {
   Redo2,
   Link2,
 } from "lucide-react";
+import TooltipButton from "@/components/TooltipButton";
 import styles from "../index.module.less";
 export default function Formatting({
   editor,
@@ -63,20 +64,20 @@ export default function Formatting({
     <div className={styles.formatting}>
       {!compact && (
         <>
-          <button
+          <TooltipButton
             aria-label="撤销"
             disabled={!editor.can().undo()}
             onClick={() => editor.chain().focus().undo().run()}
           >
             <Undo2 size={15} />
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             aria-label="重做"
             disabled={!editor.can().redo()}
             onClick={() => editor.chain().focus().redo().run()}
           >
             <Redo2 size={15} />
-          </button>
+          </TooltipButton>
           <i />
           <Dropdown
             trigger={["click"]}
@@ -86,6 +87,9 @@ export default function Formatting({
                 { key: "1", label: "标题 1" },
                 { key: "2", label: "标题 2" },
                 { key: "3", label: "标题 3" },
+                { key: "4", label: "标题 4" },
+                { key: "5", label: "标题 5" },
+                { key: "6", label: "标题 6" },
               ],
               onClick: ({ key }) =>
                 key === "0"
@@ -93,41 +97,39 @@ export default function Formatting({
                   : editor
                       .chain()
                       .focus()
-                      .toggleHeading({ level: Number(key) as 1 | 2 | 3 })
+                      .toggleHeading({ level: Number(key) as 1 | 2 | 3 | 4 | 5 | 6 })
                       .run(),
             }}
           >
-            <button className={styles.blockSelect}>
+            <TooltipButton className={styles.blockSelect} tooltip="段落格式">
               {editor.isActive("heading")
                 ? `标题 ${editor.getAttributes("heading").level}`
                 : "正文"}
               <ChevronDown size={12} />
-            </button>
+            </TooltipButton>
           </Dropdown>
           <i />
         </>
       )}
       {marks.map(({ name, icon: Icon, active, run }) => (
-        <button
+        <TooltipButton
           key={name}
           aria-label={name}
-          title={name}
           aria-pressed={editor.isActive(active)}
           className={editor.isActive(active) ? styles.activeFormat : ""}
           onMouseDown={(e) => e.preventDefault()}
           onClick={run}
         >
           <Icon size={15} />
-        </button>
+        </TooltipButton>
       ))}
-      <button
+      <TooltipButton
         aria-label="插入链接"
-        title="插入链接"
         onMouseDown={(e) => e.preventDefault()}
         onClick={onLink}
       >
         <Link2 size={15} />
-      </button>
+      </TooltipButton>
       {!compact && (
         <>
           <i />
@@ -157,20 +159,18 @@ export default function Formatting({
               active: "blockquote",
             },
           ].map(({ name, icon: Icon, run, active }) => (
-            <button
+            <TooltipButton
               key={name}
               aria-label={name}
-              title={name}
               className={editor.isActive(active) ? styles.activeFormat : ""}
               onClick={run}
             >
               <Icon size={16} />
-            </button>
+            </TooltipButton>
           ))}
           <i />
-          <button
+          <TooltipButton
             aria-label="插入表格"
-            title="插入表格"
             onClick={() =>
               editor
                 .chain()
@@ -180,14 +180,13 @@ export default function Formatting({
             }
           >
             <Table2 size={16} />
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             aria-label="插入分割线"
-            title="插入分割线"
             onClick={() => editor.chain().focus().setHorizontalRule().run()}
           >
             <Minus size={16} />
-          </button>
+          </TooltipButton>
         </>
       )}
     </div>

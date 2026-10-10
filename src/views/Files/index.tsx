@@ -121,8 +121,8 @@ export default function Files() {
     );
   };
   const remove = (file: Entry) => {
-    if (file.kind === "folder" && files.some((f) => f.parent === file.id)) {
-      message.info("请先移动或删除文件夹中的文件");
+    if (files.some((f) => f.parent === file.id)) {
+      message.info("请先移动或删除其下的文件");
       return;
     }
     modal.confirm({
@@ -156,6 +156,7 @@ export default function Files() {
             icon: <ArrowRight size={15} />,
           },
           { key: "rename", label: "重命名" },
+          { key: "move", label: "移动到…" },
           ...(file.kind !== "folder"
             ? [
                 {
@@ -164,7 +165,6 @@ export default function Files() {
                   icon: <Star size={15} />,
                 },
                 { key: "share", label: "分享设置", icon: <Share2 size={15} /> },
-                { key: "move", label: "移动到…" },
               ]
             : []),
           {

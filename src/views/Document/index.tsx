@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import { App, Dropdown, Input, Modal } from "antd";
@@ -24,15 +24,17 @@ import {
   Share2,
   Star,
   Upload,
-  X,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
 import { Entry, useWorkspace } from "@/store/workspace";
 import FileDialogs, { FileAction } from "@/components/FileDialogs";
+import TooltipButton from "@/components/TooltipButton";
 import Formatting from "./components/Formatting";
 import { useSlashMenu } from "./components/useSlashMenu";
 import { samples } from "./content";
 import styles from "./index.module.less";
-const bubbleOptions = { placement: "top" as const, offset: 8 };
+const bubbleContainer = () => document.body;
 export default function Document() {
   const { id } = useParams();
   const space = useWorkspace((s) => s.space);
@@ -89,7 +91,7 @@ function DocumentEditor({ file }: { file: Entry }) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
+        heading: { levels: [1, 2, 3, 4, 5, 6] },
         link: { openOnClick: false },
       }),
       Placeholder.configure({ placeholder: "输入文字，或按 / 插入内容…" }),
@@ -118,6 +120,15 @@ function DocumentEditor({ file }: { file: Entry }) {
     onSelectionUpdate: () => setRevision((r) => r + 1),
   });
   const slash = useSlashMenu(editor, () => imageInput.current?.click());
+  const bubbleOptions = useMemo(
+    () => ({
+      placement: "top" as const,
+      strategy: "fixed" as const,
+      offset: 8,
+      shift: { boundary: editor?.view.dom, padding: 8 },
+    }),
+    [editor],
+  );
   keyHandler.current = slash.onKeyDown;
   useEffect(() => {
     visit(file.id);
@@ -220,13 +231,13 @@ function DocumentEditor({ file }: { file: Entry }) {
   };
   const documentHeader = (
     <div className={styles.docHeader}>
-      <button
+      <TooltipButton
         className="icon-button"
         aria-label="返回空间"
         onClick={() => navigate("/files")}
       >
         <ArrowLeft size={18} />
-      </button>
+      </TooltipButton>
       <FileText size={17} className={styles.docIcon} />
       <span className={styles.headerTitle}>{file.name}</span>
       {status !== "saved" && (
@@ -240,22 +251,27 @@ function DocumentEditor({ file }: { file: Entry }) {
           {file.public ? <Globe2 size={13} /> : <LockKeyhole size={13} />}
           {file.public ? "公开" : "私有"}
         </span>
-        <button
+        <TooltipButton
           className="icon-button"
           aria-label="收藏文档"
           aria-pressed={file.favorite}
           onClick={() => patch(file.id, { favorite: !file.favorite })}
         >
           <Star size={16} fill={file.favorite ? "currentColor" : "none"} />
-        </button>
-        <button
+        </TooltipButton>
+        <TooltipButton
           className="icon-button"
-          aria-label="切换文档目录"
-          aria-pressed={outlineOpen}
+          aria-label={outlineOpen ? "收起文档目录" : "展开文档目录"}
+          aria-expanded={outlineOpen}
+          aria-controls="document-outline"
           onClick={() => setOutlineOpen(!outlineOpen)}
         >
-          <ListTree size={17} />
-        </button>
+          {outlineOpen ? (
+            <PanelRightClose size={17} />
+          ) : (
+            <PanelRightOpen size={17} />
+          )}
+        </TooltipButton>
         <button
           className="secondary-button"
           onClick={() => setAction({ type: "share", file })}
@@ -297,9 +313,9 @@ function DocumentEditor({ file }: { file: Entry }) {
             },
           }}
         >
-          <button className="icon-button" aria-label="文档更多操作">
+          <TooltipButton className="icon-button" aria-label="文档更多操作">
             <MoreHorizontal size={18} />
-          </button>
+          </TooltipButton>
         </Dropdown>
       </div>
     </div>
@@ -309,14 +325,13 @@ function DocumentEditor({ file }: { file: Entry }) {
       {headerHost ? createPortal(documentHeader, headerHost) : documentHeader}
       <div className={styles.toolbar}>
         <Formatting editor={editor} onLink={openLink} />
-        <button
+        <TooltipButton
           className={styles.insertImage}
           onClick={() => imageInput.current?.click()}
-          title="插入图片"
           aria-label="插入图片"
         >
           <ImagePlus size={16} />
-        </button>
+        </TooltipButton>
         {editor.isActive("table") && (
           <Dropdown
             trigger={["click"]}
@@ -348,9 +363,7 @@ function DocumentEditor({ file }: { file: Entry }) {
           </Dropdown>
         )}
       </div>
-      <div
-        className={`${styles.writingArea} ${!outlineOpen ? styles.noOutline : ""}`}
-      >
+      <div className={styles.writingArea}>
         <article className={styles.paper}>
           <input
             className={styles.title}
@@ -358,6 +371,16 @@ function DocumentEditor({ file }: { file: Entry }) {
             value={title}
             maxLength={100}
             placeholder="未命名文档"
+            onKeyDown={(e) => {
+              if (
+                e.key === "Enter" &&
+                !e.nativeEvent.isComposing &&
+                e.keyCode !== 229
+              ) {
+                e.preventDefault();
+                editor.commands.focus("start");
+              }
+            }}
             onChange={(e) => {
               setTitle(e.target.value);
               save({ name: e.target.value.trim() || "未命名文档" });
@@ -368,20 +391,36 @@ function DocumentEditor({ file }: { file: Entry }) {
           />
           <EditorContent editor={editor} className={styles.editor} />
         </article>
-        {outlineOpen && (
-          <aside className={styles.outline}>
-            <div>
+        <aside
+          className={`${styles.outline} ${!outlineOpen ? styles.outlineCollapsed : ""}`}
+          aria-label="文档目录"
+        >
+          <div className={styles.outlineHeader}>
+            <span className={styles.outlineHeading} aria-hidden={!outlineOpen}>
               <ListTree size={14} />
               文档目录
-              <button
-                className="icon-button"
-                aria-label="收起目录"
-                onClick={() => setOutlineOpen(false)}
-              >
-                <X size={13} />
-              </button>
-            </div>
+            </span>
+            <TooltipButton
+              className="icon-button"
+              aria-label={outlineOpen ? "收起目录" : "展开目录"}
+              aria-expanded={outlineOpen}
+              aria-controls="document-outline"
+              onClick={() => setOutlineOpen((open) => !open)}
+            >
+              {outlineOpen ? (
+                <PanelRightClose size={15} />
+              ) : (
+                <PanelRightOpen size={15} />
+              )}
+            </TooltipButton>
+          </div>
+          <div
+            id="document-outline"
+            className={styles.outlineContent}
+            aria-hidden={!outlineOpen}
+          >
             <button
+              tabIndex={outlineOpen ? 0 : -1}
               className={styles.outlineTitle}
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             >
@@ -390,7 +429,8 @@ function DocumentEditor({ file }: { file: Entry }) {
             {headings.map((h) => (
               <button
                 key={h.pos}
-                style={{ paddingLeft: 12 + (h.level - 1) * 12 }}
+                tabIndex={outlineOpen ? 0 : -1}
+                style={{ paddingLeft: 12 + (h.level - 1) * 8 }}
                 onClick={() => {
                   const dom = editor.view.nodeDOM(h.pos);
                   if (dom instanceof HTMLElement)
@@ -402,10 +442,15 @@ function DocumentEditor({ file }: { file: Entry }) {
               </button>
             ))}
             {!headings.length && <p>添加标题后，目录会出现在这里。</p>}
-          </aside>
-        )}
+          </div>
+        </aside>
       </div>
-      <BubbleMenu editor={editor} options={bubbleOptions}>
+      <BubbleMenu
+        editor={editor}
+        options={bubbleOptions}
+        appendTo={bubbleContainer}
+        className={styles.bubbleLayer}
+      >
         <div className={styles.bubble}>
           <Formatting editor={editor} compact onLink={openLink} />
         </div>

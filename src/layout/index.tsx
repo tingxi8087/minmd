@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Dropdown, App, Input, Modal } from "antd";
 import {
@@ -11,22 +11,38 @@ import {
   Leaf,
   LogOut,
   Moon,
-  Plus,
   Search,
   Settings2,
   Sparkles,
   Star,
   Sun,
   Trash2,
-  Users,
+  PanelLeftClose,
+  PanelLeftOpen,
   X,
-  Menu,
 } from "lucide-react";
 import { spaces, useWorkspace } from "@/store/workspace";
+import TooltipButton from "@/components/TooltipButton";
+import { useLayout, SIDEBAR_MIN, SIDEBAR_MAX } from "@/store/layout";
+import WorkspaceTree from "./components/WorkspaceTree";
 import styles from "./index.module.less";
 export default function Layout() {
   const { space, setSpace, theme, setTheme, loggedIn, setLoggedIn } =
     useWorkspace();
+  const { sidebarWidth, sidebarCollapsed, setSidebarWidth, toggleSidebar } =
+    useLayout();
+  const [narrow, setNarrow] = useState(
+    () => window.matchMedia("(max-width: 680px)").matches,
+  );
+  const [resizing, setResizing] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const dragStart = useRef({ x: 0, width: sidebarWidth });
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 680px)");
+    const update = () => setNarrow(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
   const navigate = useNavigate();
   const location = useLocation();
   const isDocument = location.pathname.startsWith("/document/");
@@ -34,6 +50,10 @@ export default function Layout() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    if (sidebarRef.current)
+      sidebarRef.current.inert = narrow ? !mobile : sidebarCollapsed;
+  }, [narrow, mobile, sidebarCollapsed]);
   useEffect(() => setMobile(false), [location.pathname, location.search]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -75,8 +95,15 @@ export default function Layout() {
     );
   }
   return (
-    <div className={styles.shell}>
-      <aside className={`${styles.sidebar} ${mobile ? styles.mobileOpen : ""}`}>
+    <div
+      className={`${styles.shell} ${sidebarCollapsed ? styles.collapsed : ""} ${resizing ? styles.resizing : ""}`}
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
+    >
+      <aside
+        ref={sidebarRef}
+        aria-hidden={narrow ? !mobile : sidebarCollapsed}
+        className={`${styles.sidebar} ${mobile ? styles.mobileOpen : ""}`}
+      >
         <div className={styles.brand}>
           <span className={styles.logo}>
             <span>m</span>
@@ -144,55 +171,29 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className={styles.sideHeading}>
-          空间文件夹{" "}
-          <button
-            className="icon-button"
-            aria-label="新建文件夹"
-            onClick={() => navigate("/files?new=folder")}
-          >
-            <Plus size={15} />
-          </button>
-        </div>
-        <div className={styles.folders}>
-          {useWorkspace
-            .getState()
-            .files.filter(
-              (f) => f.space === space && f.kind === "folder" && !f.deleted,
-            )
-            .map((f) => (
-              <NavLink
-                key={f.id}
-                to={`/files?folder=${f.id}`}
-                className={
-                  location.search.includes(f.id) ? styles.folderActive : ""
-                }
-              >
-                <FolderClosed size={17} strokeWidth={1.7} />
-                {f.name}
-              </NavLink>
-            ))}
-        </div>
+        <WorkspaceTree />
         <div className={styles.sidebarBottom}>
           <div className={styles.sideDivider} />
-          <nav className={styles.nav}>
-            <NavLink to="/settings/members">
-              <Users size={17} />
-              空间成员<span className={styles.navCount}>{current.members}</span>
-            </NavLink>
-            <NavLink to="/settings/ai">
-              <Sparkles size={17} />
-              AI 接入
-            </NavLink>
-            <NavLink to="/trash">
-              <Trash2 size={17} />
-              回收站
-            </NavLink>
-            <NavLink to="/settings/general">
-              <Settings2 size={17} />
-              空间设置
-            </NavLink>
-          </nav>
+          <div className={styles.bottomActions}>
+            {[
+              { to: "/settings/ai", name: "AI 接入", icon: Sparkles },
+              { to: "/trash", name: "回收站", icon: Trash2 },
+              {
+                to: "/settings/general",
+                name: "空间设置与成员",
+                icon: Settings2,
+              },
+            ].map(({ to, name, icon: Icon }) => (
+              <TooltipButton
+                key={to}
+                aria-label={name}
+                className={`icon-button ${location.pathname === to || (to === "/settings/general" && location.pathname === "/settings/members") ? styles.bottomActive : ""}`}
+                onClick={() => navigate(to)}
+              >
+                <Icon size={15} />
+              </TooltipButton>
+            ))}
+          </div>
           <Dropdown
             trigger={["click"]}
             menu={{
@@ -230,18 +231,65 @@ export default function Layout() {
           </Dropdown>
         </div>
       </aside>
+      <div
+        className={styles.resizeHandle}
+        role="separator"
+        aria-label="调整导航宽度"
+        aria-orientation="vertical"
+        aria-valuemin={SIDEBAR_MIN}
+        aria-valuemax={SIDEBAR_MAX}
+        aria-valuenow={sidebarWidth}
+        tabIndex={sidebarCollapsed || narrow ? -1 : 0}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          dragStart.current = { x: e.clientX, width: sidebarWidth };
+          e.currentTarget.setPointerCapture(e.pointerId);
+          setResizing(true);
+          e.preventDefault();
+        }}
+        onPointerMove={(e) => {
+          if (e.currentTarget.hasPointerCapture(e.pointerId))
+            setSidebarWidth(
+              dragStart.current.width + e.clientX - dragStart.current.x,
+            );
+        }}
+        onPointerUp={() => setResizing(false)}
+        onPointerCancel={() => setResizing(false)}
+        onLostPointerCapture={() => setResizing(false)}
+        onKeyDown={(e) => {
+          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key))
+            return;
+          e.preventDefault();
+          setSidebarWidth(
+            e.key === "Home"
+              ? SIDEBAR_MIN
+              : e.key === "End"
+                ? SIDEBAR_MAX
+                : sidebarWidth + (e.key === "ArrowRight" ? 10 : -10),
+          );
+        }}
+      />
       <div className={styles.main}>
         <header
           className={`${styles.topbar} ${isDocument ? styles.documentTopbar : ""}`}
         >
           <div className={styles.breadcrumb}>
-            <button
-              className={`icon-button ${styles.mobileToggle}`}
-              onClick={() => setMobile(true)}
-              aria-label="打开导航"
+            <TooltipButton
+              className="icon-button"
+              onClick={() =>
+                narrow ? setMobile((value) => !value) : toggleSidebar()
+              }
+              aria-label={
+                narrow ? "打开导航" : sidebarCollapsed ? "展开导航" : "收起导航"
+              }
+              aria-expanded={narrow ? mobile : !sidebarCollapsed}
             >
-              <Menu size={20} />
-            </button>
+              {!narrow && !sidebarCollapsed ? (
+                <PanelLeftClose size={18} />
+              ) : (
+                <PanelLeftOpen size={18} />
+              )}
+            </TooltipButton>
             {!isDocument && <strong>{current.name}</strong>}
           </div>
           {isDocument && (
