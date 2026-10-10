@@ -29,10 +29,12 @@ export default function Layout() {
     useWorkspace();
   const navigate = useNavigate();
   const location = useLocation();
+  const isDocument = location.pathname.startsWith("/document/");
   const { message } = App.useApp();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [mobile, setMobile] = useState(false);
+  useEffect(() => setMobile(false), [location.pathname, location.search]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -114,7 +116,6 @@ export default function Layout() {
             <span className={styles.spaceAvatar}>{current.initials}</span>
             <span>
               <strong>{current.name}</strong>
-              <small>{current.caption}</small>
             </span>
             <ChevronsUpDown size={14} />
           </button>
@@ -181,7 +182,7 @@ export default function Layout() {
             </NavLink>
             <NavLink to="/settings/ai">
               <Sparkles size={17} />
-              AI 接入<span className={styles.newTag}>NEW</span>
+              AI 接入
             </NavLink>
             <NavLink to="/trash">
               <Trash2 size={17} />
@@ -192,11 +193,6 @@ export default function Layout() {
               空间设置
             </NavLink>
           </nav>
-          <div className={styles.demo}>
-            <span />
-            静态演示
-            <span className={styles.demoText}>数据仅保存在此浏览器</span>
-          </div>
           <Dropdown
             trigger={["click"]}
             menu={{
@@ -228,7 +224,6 @@ export default function Layout() {
               <span className={styles.avatar}>T</span>
               <span>
                 <strong>Tingxi</strong>
-                <small>让想法有个落脚点</small>
               </span>
               <ChevronDown size={14} />
             </button>
@@ -236,7 +231,9 @@ export default function Layout() {
         </div>
       </aside>
       <div className={styles.main}>
-        <header className={styles.topbar}>
+        <header
+          className={`${styles.topbar} ${isDocument ? styles.documentTopbar : ""}`}
+        >
           <div className={styles.breadcrumb}>
             <button
               className={`icon-button ${styles.mobileToggle}`}
@@ -245,12 +242,12 @@ export default function Layout() {
             >
               <Menu size={20} />
             </button>
-            <span>{current.caption}</span>
-            <span className={styles.slash}>/</span>
-            <strong>{current.name}</strong>
+            {!isDocument && <strong>{current.name}</strong>}
           </div>
+          {isDocument && (
+            <div id="document-header" className={styles.documentHost} />
+          )}
           <div className={styles.headerActions}>
-            <span className={styles.demoLabel}>DEMO</span>
             <button
               className="icon-button"
               aria-label="切换主题"
@@ -258,8 +255,7 @@ export default function Layout() {
             >
               {theme === "light" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <span className={styles.headerDivider} />
-            <span className={styles.avatar}>T</span>
+            {!isDocument && <span className={styles.avatar}>T</span>}
           </div>
         </header>
         <Outlet />

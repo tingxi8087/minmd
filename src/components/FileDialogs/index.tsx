@@ -157,9 +157,7 @@ export default function FileDialogs({
                   }}
                 />
               </div>
-              <p className="dialog-note">
-                分享链接将在接入后端后生成。当前只预览设置，不提供真实外部访问。
-              </p>
+              <p className="dialog-note">分享尚未接入，仅保存本地设置。</p>
               <button
                 className="secondary-button"
                 style={{ marginTop: 12 }}
@@ -181,9 +179,6 @@ export default function FileDialogs({
           )}
         </>
       )}
-      <p className="dialog-note">
-        静态演示 · 所有修改仅保存在当前浏览器，未接入服务器。
-      </p>
     </Modal>
   );
 }

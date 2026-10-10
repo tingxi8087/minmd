@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import { App, Dropdown, Input, Modal } from "antd";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -12,7 +13,6 @@ import Image from "@tiptap/extension-image";
 import { Markdown } from "@tiptap/markdown";
 import {
   ArrowLeft,
-  Check,
   ChevronDown,
   Download,
   FileText,
@@ -59,6 +59,11 @@ function DocumentEditor({ file }: { file: Entry }) {
   const { message, modal } = App.useApp();
   const patch = useWorkspace((s) => s.patch);
   const visit = useWorkspace((s) => s.visit);
+  const [headerHost, setHeaderHost] = useState<HTMLElement | null>(null);
+  useEffect(
+    () => setHeaderHost(document.getElementById("document-header")),
+    [],
+  );
   const [title, setTitle] = useState(file.name);
   const [status, setStatus] = useState<"saved" | "saving" | "failed">("saved");
   const [outlineOpen, setOutlineOpen] = useState(true);
@@ -213,77 +218,95 @@ function DocumentEditor({ file }: { file: Entry }) {
     }
     setLinkOpen(false);
   };
-  return (
-    <main className={styles.page}>
-      <div className={styles.docHeader}>
+  const documentHeader = (
+    <div className={styles.docHeader}>
+      <button
+        className="icon-button"
+        aria-label="返回空间"
+        onClick={() => navigate("/files")}
+      >
+        <ArrowLeft size={18} />
+      </button>
+      <FileText size={17} className={styles.docIcon} />
+      <span className={styles.headerTitle}>{file.name}</span>
+      {status !== "saved" && (
+        <span className={styles.saveStatus} role="status">
+          {status === "saving" ? "保存中…" : "保存失败"}
+        </span>
+      )}
+      <div className={styles.headerActions}>
+        <span className={styles.documentStats}>{count} 字</span>
+        <span className={styles.visibility}>
+          {file.public ? <Globe2 size={13} /> : <LockKeyhole size={13} />}
+          {file.public ? "公开" : "私有"}
+        </span>
         <button
           className="icon-button"
-          aria-label="返回空间"
-          onClick={() => navigate("/files")}
+          aria-label="收藏文档"
+          aria-pressed={file.favorite}
+          onClick={() => patch(file.id, { favorite: !file.favorite })}
         >
-          <ArrowLeft size={18} />
+          <Star size={16} fill={file.favorite ? "currentColor" : "none"} />
         </button>
-        <FileText size={17} className={styles.docIcon} />
-        <span className={styles.headerTitle}>{file.name}</span>
-        <span className={styles.saveStatus} role="status">
-          {status === "saved" && <Check size={12} />}{" "}
-          {status === "saving"
-            ? "保存中…"
-            : status === "failed"
-              ? "保存失败"
-              : "已保存到本地"}
-        </span>
-        <div className={styles.headerActions}>
-          <button
-            className="icon-button"
-            aria-label="收藏文档"
-            aria-pressed={file.favorite}
-            onClick={() => patch(file.id, { favorite: !file.favorite })}
-          >
-            <Star size={16} fill={file.favorite ? "currentColor" : "none"} />
+        <button
+          className="icon-button"
+          aria-label="切换文档目录"
+          aria-pressed={outlineOpen}
+          onClick={() => setOutlineOpen(!outlineOpen)}
+        >
+          <ListTree size={17} />
+        </button>
+        <button
+          className="secondary-button"
+          onClick={() => setAction({ type: "share", file })}
+        >
+          <Share2 size={14} />
+          分享
+        </button>
+        <Dropdown
+          trigger={["click"]}
+          menu={{
+            items: [
+              { key: "details", label: "文档详情" },
+              {
+                key: "export",
+                label: "导出 Markdown",
+                icon: <Download size={15} />,
+              },
+              {
+                key: "import",
+                label: "导入 Markdown",
+                icon: <Upload size={15} />,
+              },
+            ],
+            onClick: ({ key }) => {
+              if (key === "export") exportMarkdown();
+              else if (key === "import") markdownInput.current?.click();
+              else
+                modal.info({
+                  title: "文档详情",
+                  content: (
+                    <div>
+                      <p>作者：Tingxi</p>
+                      <p>可见性：{file.public ? "公开" : "私有"}</p>
+                      <p>字数：{count}</p>
+                    </div>
+                  ),
+                  okText: "关闭",
+                });
+            },
+          }}
+        >
+          <button className="icon-button" aria-label="文档更多操作">
+            <MoreHorizontal size={18} />
           </button>
-          <button
-            className="icon-button"
-            aria-label="切换文档目录"
-            aria-pressed={outlineOpen}
-            onClick={() => setOutlineOpen(!outlineOpen)}
-          >
-            <ListTree size={17} />
-          </button>
-          <button
-            className="secondary-button"
-            onClick={() => setAction({ type: "share", file })}
-          >
-            <Share2 size={14} />
-            分享
-          </button>
-          <Dropdown
-            trigger={["click"]}
-            menu={{
-              items: [
-                {
-                  key: "export",
-                  label: "导出 Markdown",
-                  icon: <Download size={15} />,
-                },
-                {
-                  key: "import",
-                  label: "导入 Markdown",
-                  icon: <Upload size={15} />,
-                },
-              ],
-              onClick: ({ key }) =>
-                key === "export"
-                  ? exportMarkdown()
-                  : markdownInput.current?.click(),
-            }}
-          >
-            <button className="icon-button" aria-label="文档更多操作">
-              <MoreHorizontal size={18} />
-            </button>
-          </Dropdown>
-        </div>
+        </Dropdown>
       </div>
+    </div>
+  );
+  return (
+    <main className={styles.page}>
+      {headerHost ? createPortal(documentHeader, headerHost) : documentHeader}
       <div className={styles.toolbar}>
         <Formatting editor={editor} onLink={openLink} />
         <button
@@ -324,13 +347,11 @@ function DocumentEditor({ file }: { file: Entry }) {
             </button>
           </Dropdown>
         )}
-        <span className={styles.toolbarHint}>本地体验版</span>
       </div>
       <div
         className={`${styles.writingArea} ${!outlineOpen ? styles.noOutline : ""}`}
       >
         <article className={styles.paper}>
-          <div className={styles.kicker}>A LITTLE ROOM FOR YOUR IDEAS</div>
           <input
             className={styles.title}
             aria-label="文档标题"
@@ -345,20 +366,7 @@ function DocumentEditor({ file }: { file: Entry }) {
               if (!title.trim()) setTitle("未命名文档");
             }}
           />
-          <div className={styles.meta}>
-            <span className={styles.avatar}>T</span>
-            <span>Tingxi</span>
-            <span className={styles.dot}>·</span>
-            <span>
-              {file.public ? <Globe2 size={12} /> : <LockKeyhole size={12} />}{" "}
-              {file.public ? "公开分享" : "空间内可见"}
-            </span>
-          </div>
           <EditorContent editor={editor} className={styles.editor} />
-          <div className={styles.paperFooter}>
-            <span>{count} 字</span>
-            <span>输入 / 插入内容 · 支持 Markdown 快捷输入</span>
-          </div>
         </article>
         {outlineOpen && (
           <aside className={styles.outline}>
@@ -394,11 +402,6 @@ function DocumentEditor({ file }: { file: Entry }) {
               </button>
             ))}
             {!headings.length && <p>添加标题后，目录会出现在这里。</p>}
-            <div className={styles.outlineNote}>
-              安静地写，慢慢地想。
-              <br />
-              内容自动保存在此浏览器。
-            </div>
           </aside>
         )}
       </div>
@@ -436,7 +439,6 @@ function DocumentEditor({ file }: { file: Entry }) {
               </span>
               <span>
                 <strong>{item.title}</strong>
-                <small>{item.hint}</small>
               </span>
             </button>
           ))}

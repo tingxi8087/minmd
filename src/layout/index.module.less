@@ -9,7 +9,7 @@
   inset: 0 auto 0 0;
   background: var(--sidebar);
   border-right: 1px solid var(--border);
-  padding: 26px 15px 0;
+  padding: 16px 12px 0;
   display: flex;
   flex-direction: column;
   z-index: 20;
@@ -20,10 +20,10 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  font: 700 27px var(--font-brand);
+  font: 700 24px var(--font-brand);
   letter-spacing: -1.2px;
   padding-left: 10px;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
 }
 .brandDot {
   color: var(--accent);
@@ -60,7 +60,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 11px;
+  padding: 8px;
   text-align: left;
   > span:nth-child(2) {
     flex: 1;
@@ -99,8 +99,8 @@
   align-items: center;
   gap: 9px;
   color: var(--text-secondary);
-  padding: 13px 10px;
-  margin: 10px 0 13px;
+  padding: 8px;
+  margin: 8px 0;
   background: transparent;
   border: 0;
   width: 100%;
@@ -116,12 +116,13 @@
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   a {
     display: flex;
     align-items: center;
     gap: 11px;
-    padding: 11px 12px;
+    padding: 7px 10px;
+    min-height: var(--nav-height);
     color: var(--text-secondary);
     font-size: 13px;
     border-radius: 7px;
@@ -150,14 +151,14 @@
   font-size: 10px;
   letter-spacing: 1px;
   color: var(--text-muted);
-  padding: 20px 11px 4px;
+  padding: 12px 10px 2px;
 }
 .folders {
   display: flex;
   flex-direction: column;
   gap: 3px;
   a {
-    padding: 10px 12px;
+    padding: 7px 10px;
     display: flex;
     align-items: center;
     gap: 11px;
@@ -172,45 +173,22 @@
   }
 }
 .sidebarBottom {
-  margin-top: auto;
-  padding-top: 28px;
+  margin-top: 16px;
+  padding-top: 0;
 }
 .sideDivider {
   height: 1px;
   background: var(--border);
-  margin: 0 10px 13px;
+  margin: 0 10px 8px;
 }
-.newTag {
-  margin-left: auto;
-  color: var(--accent);
-  font-size: 8px;
-  letter-spacing: 1px;
-}
-.demo {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  color: var(--text-secondary);
-  padding: 20px 10px 16px;
-  > span:first-child {
-    width: 5px;
-    height: 5px;
-    background: var(--accent);
-    border-radius: 50%;
-  }
-}
-.demoText {
-  margin-left: auto;
-  font-size: 9px;
-  color: var(--text-muted);
-}
+
 .profile {
   display: flex;
   align-items: center;
-  width: calc(100% + 30px);
-  margin-left: -15px;
-  padding: 17px 24px;
+  width: calc(100% + 24px);
+  margin-left: -12px;
+  padding: 10px 16px;
+  margin-top: 12px;
   gap: 10px;
   background: transparent;
   border: 0;
@@ -253,7 +231,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 40px;
+  padding: 0 var(--page-padding);
+  gap: var(--control-gap);
 }
 .breadcrumb {
   display: flex;
@@ -266,27 +245,13 @@
     color: var(--text);
   }
 }
-.slash {
-  color: var(--text-muted);
-}
+
 .headerActions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--control-gap);
 }
-.demoLabel {
-  font: 9px var(--font-mono);
-  letter-spacing: 1.1px;
-  color: var(--text-muted);
-  border: 1px solid var(--border);
-  padding: 3px 5px;
-  border-radius: 4px;
-}
-.headerDivider {
-  height: 16px;
-  width: 1px;
-  background: var(--border);
-}
+
 .topbar .mobileToggle,
 .brand .closeMobile {
   display: none;
@@ -342,16 +307,13 @@
   .sideHeading {
     padding-top: 12px;
   }
-  .demo {
-    padding-top: 12px;
-  }
 }
 @media (max-width: 900px) {
   .sidebar {
-    --sidebar-width: 206px;
+    --sidebar-width: 208px;
   }
   .main {
-    margin-left: 206px;
+    margin-left: var(--sidebar-width);
   }
   .topbar {
     padding: 0 24px;
@@ -360,7 +322,7 @@
 @media (max-width: 680px) {
   .sidebar {
     transform: translateX(-100%);
-    width: 232px;
+    width: var(--sidebar-width);
     transition: transform var(--motion);
     box-shadow: var(--shadow);
     &.mobileOpen {
@@ -385,5 +347,16 @@
   }
   .breadcrumb {
     gap: 9px;
+  }
+}
+
+.documentHost {
+  flex: 1;
+  min-width: 0;
+}
+.documentTopbar {
+  padding: 0 12px;
+  .breadcrumb {
+    gap: 0;
   }
 }

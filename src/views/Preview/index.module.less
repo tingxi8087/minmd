@@ -1,5 +1,5 @@
 .page {
-  padding: 20px 36px 50px;
+  padding: var(--page-padding);
 }
 .toolbar {
   display: flex;
@@ -14,7 +14,7 @@
   }
 }
 .notice {
-  margin-top: 22px;
+  margin-top: 12px;
   background: var(--surface-soft);
   color: var(--text-secondary);
   border: 1px solid var(--border);
@@ -81,7 +81,7 @@
   overflow-wrap: anywhere;
 }
 .sheet {
-  margin-top: 28px;
+  margin-top: 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow-x: auto;
@@ -93,7 +93,7 @@
   td,
   th {
     border: 1px solid var(--border);
-    padding: 12px;
+    padding: 8px;
     font-size: 12px;
     text-align: left;
     height: 40px;
@@ -110,7 +110,7 @@
   }
 }
 .formula {
-  padding: 12px;
+  padding: 8px;
   border-bottom: 1px solid var(--border);
   font-size: 12px;
   span {
@@ -132,7 +132,7 @@
   overflow: hidden;
   aspect-ratio: 16/9;
   max-width: 1000px;
-  margin: 35px auto;
+  margin: 16px auto;
   padding: 6%;
   background: var(--preview-mint);
   color: var(--preview-ink);

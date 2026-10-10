@@ -95,7 +95,7 @@ export default function Files() {
   const title =
     folder?.name ||
     {
-      "/files": "好想法，从这里开始。",
+      "/files": "空间文件",
       "/recent": "最近访问",
       "/favorites": "我的收藏",
       "/shared": "公开分享",
@@ -207,33 +207,18 @@ export default function Files() {
     }
     const content = await file.text();
     add(file.name.replace(/\.(md|markdown)$/i, ""), "doc", parent, content);
-    message.success("Markdown 已存入本地演示，编辑器尚未接入");
+    message.success("Markdown 已导入，可打开编辑");
   };
   return (
     <main className={styles.page}>
       <section className={styles.intro}>
         <div>
-          {isHome && (
-            <div className={styles.eyebrow}>
-              <span />
-              YOUR LITTLE WORKSPACE
-            </div>
-          )}
           {folder && (
             <button className={styles.back} onClick={() => navigate("/files")}>
               空间文件 <ChevronRight size={14} />
             </button>
           )}
           <h1>{title}</h1>
-          <p>
-            {isHome
-              ? "把想法写下来，让每一份灵感井井有条。"
-              : trash
-                ? "暂存已删除的文件，你可以随时恢复。"
-                : pathname === "/shared"
-                  ? "管理对外公开的内容与分享设置。"
-                  : `在${spaces.find((s) => s.id === space)?.name}中，找到你的下一步。`}
-          </p>
         </div>
         <div className={styles.introActions}>
           {!trash && (
@@ -280,7 +265,7 @@ export default function Files() {
       {isHome && (
         <section className={styles.recent}>
           <div className={styles.sectionHeader}>
-            <h2>继续上次的想法</h2>
+            <h2>最近访问</h2>
             <button onClick={() => navigate("/recent")}>
               查看全部 <ArrowRight size={13} />
             </button>
@@ -296,9 +281,6 @@ export default function Files() {
                   <div className={styles.paper}>
                     {file.kind === "doc" ? (
                       <>
-                        <span className={styles.paperEyebrow}>
-                          MINMD / GETTING STARTED
-                        </span>
                         <strong>
                           {index === 0
                             ? "给想法，一个空间。"
@@ -338,9 +320,6 @@ export default function Files() {
                       </div>
                     ) : (
                       <>
-                        <span className={styles.paperEyebrow}>
-                          IDEAS INTO REALITY
-                        </span>
                         <strong>让好想法发生</strong>
                         <div className={styles.paperQuote}>产品分享 / 2026</div>
                       </>
@@ -354,7 +333,6 @@ export default function Files() {
                   <FileIcon kind={file.kind} small />
                   <span>
                     <strong>{file.name}</strong>
-                    <small>最近打开 · 演示</small>
                   </span>
                   <ArrowUpRightIcon />
                 </div>
@@ -548,28 +526,7 @@ export default function Files() {
             )}
           </div>
         )}
-        <div className={styles.listFooter}>
-          <span>{visible.length} 个项目</span>
-          <span>
-            <LockKeyhole size={11} />
-            私有文件仅空间成员可见
-          </span>
-        </div>
       </section>
-      {isHome && (
-        <div className={styles.bottomNote}>
-          <span className={styles.noteIcon}>
-            <FileText size={16} />
-          </span>
-          <span>
-            轻一点，专注一点。
-            <small>你的文档、表格与幻灯片，都在同一个地方。</small>
-          </span>
-          <button onClick={() => navigate("/settings/ai")}>
-            也让 AI 加入你的工作流 <ArrowRight size={14} />
-          </button>
-        </div>
-      )}
       <FileDialogs action={action} close={() => setAction(null)} />
     </main>
   );

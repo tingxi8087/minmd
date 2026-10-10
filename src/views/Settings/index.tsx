@@ -6,10 +6,8 @@ import {
   Check,
   Copy,
   KeyRound,
-  Monitor,
   Moon,
   Plus,
-  Sparkles,
   Sun,
   Trash2,
   Users,
@@ -100,15 +98,12 @@ export default function Settings() {
   };
   return (
     <main className={styles.page}>
-      <div className={styles.eyebrow}>MAKE ROOM FOR GOOD IDEAS</div>
       <h1>空间设置</h1>
-      <p className={styles.subtitle}>管理你的空间，让工作更顺手。</p>
+
       <div className={styles.tabs}>
         <NavLink to="/settings/general">通用设置</NavLink>
         <NavLink to="/settings/members">空间成员</NavLink>
-        <NavLink to="/settings/ai">
-          AI 接入 <span>NEW</span>
-        </NavLink>
+        <NavLink to="/settings/ai">AI 接入</NavLink>
       </div>
       {section === "members" ? (
         <>
@@ -117,7 +112,6 @@ export default function Settings() {
               <h2>
                 空间成员 <small>{current.members}</small>
               </h2>
-              <p>这个空间里的伙伴，以及他们的访问角色。</p>
             </div>
             <button
               className="secondary-button"
@@ -157,32 +151,13 @@ export default function Settings() {
               ),
             )}
           </div>
-          <div className={styles.info}>
-            <Users size={19} />
-            <div>
-              <strong>简单、清晰的空间角色</strong>
-              <p>
-                所有者管理空间与成员；编辑者整理和编辑文件；查看者阅读内容。当前成员与角色均为演示数据。
-              </p>
-            </div>
-          </div>
         </>
       ) : section === "ai" ? (
         <>
-          <div className={styles.aiIntro}>
-            <span className={styles.aiIcon}>
-              <Sparkles size={23} strokeWidth={1.5} />
-            </span>
-            <div>
-              <h2>让 AI 进入你的工作流</h2>
-              <p>通过 MCP 或 API，读取文档、整理文件，让想法直接落到空间里。</p>
-            </div>
-            <span className="badge">接口预览</span>
-          </div>
           <div className={styles.sectionTop}>
             <div>
               <h2>API 密钥</h2>
-              <p>密钥绑定当前空间。此处生成的是演示密钥，不具备访问能力。</p>
+              <p>演示密钥与配置，API / MCP 尚未接入。</p>
             </div>
             <button className="primary-button" onClick={() => setKeyOpen(true)}>
               <Plus size={15} />
@@ -224,7 +199,6 @@ export default function Settings() {
               <div className={styles.keyEmpty}>
                 <KeyRound size={25} strokeWidth={1.3} />
                 <strong>还没有 API 密钥</strong>
-                <p>创建一个，为你的 AI 工具预留入口。</p>
               </div>
             )}
           </div>
@@ -255,22 +229,18 @@ export default function Settings() {
             </div>
             <pre>{config}</pre>
           </div>
-          <div className={styles.info}>
-            <Monitor size={18} />
-            <div>
-              <strong>连接能力将在后端接入后开放</strong>
-              <p>
-                当前只展示配置与密钥管理流程，不会发送网络请求，也不会调用模型。
-              </p>
-            </div>
-          </div>
         </>
       ) : (
         <>
+          <div className={styles.settingRow}>
+            <div>
+              <strong>数据存储</strong>
+              <p>文件与修改保存在当前浏览器，尚未接入后端。</p>
+            </div>
+          </div>
           <div className={styles.sectionTop}>
             <div>
               <h2>空间信息</h2>
-              <p>让每个空间都有自己的名字和用途。</p>
             </div>
           </div>
           <div className={styles.settingRow}>
@@ -283,7 +253,7 @@ export default function Settings() {
           <div className={styles.settingRow}>
             <div>
               <strong>后台管理</strong>
-              <p>账号与系统权限将沿用 MAS 脚手架自带后台。</p>
+              <p>待接入 MAS 管理后台。</p>
             </div>
             <button
               className="secondary-button"
@@ -302,7 +272,6 @@ export default function Settings() {
           <div className={styles.sectionTop}>
             <div>
               <h2>外观</h2>
-              <p>所有界面颜色使用主题变量，选择你喜欢的工作氛围。</p>
             </div>
           </div>
           <div className={styles.themes}>

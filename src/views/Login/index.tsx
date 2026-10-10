@@ -15,8 +15,7 @@ export default function Login() {
       <div className={styles.card}>
         <Leaf size={28} />
         <div className={styles.brand}>minmd.</div>
-        <h1>给想法，一个空间。</h1>
-        <p>登录，继续你的下一页。</p>
+        <h1>登录</h1>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -52,11 +51,7 @@ export default function Login() {
             进入空间 <ArrowRight size={16} />
           </button>
         </form>
-        <small>
-          静态演示 · 不验证账号，不会发送或保存密码。
-          <br />
-          正式登录后续接入 MAS 用户认证。
-        </small>
+        <p className={styles.loginNotice}>演示登录，不验证或保存密码。</p>
         <button
           className={styles.skip}
           onClick={() => {
