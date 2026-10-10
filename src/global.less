@@ -41,6 +41,7 @@ p {
   margin: 0;
 }
 svg {
+  display: block;
   flex-shrink: 0;
 }
 ::selection {
@@ -55,6 +56,8 @@ svg {
   border-radius: var(--radius-sm);
   width: 32px;
   height: 32px;
+  padding: 0;
+  line-height: 1;
   color: var(--text-secondary);
 }
 .icon-button:hover {
@@ -69,6 +72,8 @@ svg {
   border: 0;
   background: var(--accent);
   color: var(--accent-ink);
+  min-height: 32px;
+  line-height: 20px;
   padding: 6px 12px;
   border-radius: var(--radius-sm);
   font-weight: 500;
@@ -83,6 +88,8 @@ svg {
   gap: 8px;
   border: 1px solid var(--border);
   background: var(--surface);
+  min-height: 32px;
+  line-height: 20px;
   padding: 5px 10px;
   border-radius: var(--radius-sm);
 }
@@ -129,6 +136,7 @@ svg {
 .ant-dropdown .ant-dropdown-menu-item,
 .ant-dropdown .ant-dropdown-menu-submenu-title {
   gap: var(--control-gap);
+  align-items: center;
 }
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Dropdown, App, Input, Modal } from "antd";
+import { Dropdown, App, Input, Modal, Tooltip } from "antd";
 import {
   ArrowUpRight,
-  ChevronDown,
   ChevronsUpDown,
   Clock3,
   FolderClosed,
   Home,
-  Leaf,
   LogOut,
   Moon,
   Search,
@@ -23,6 +21,7 @@ import {
 } from "lucide-react";
 import { spaces, useWorkspace } from "@/store/workspace";
 import TooltipButton from "@/components/TooltipButton";
+import BrandIcon from "@/components/BrandIcon";
 import { useLayout, SIDEBAR_MIN, SIDEBAR_MAX } from "@/store/layout";
 import WorkspaceTree from "./components/WorkspaceTree";
 import styles from "./index.module.less";
@@ -86,7 +85,7 @@ export default function Layout() {
   if (!loggedIn) {
     return (
       <div className={styles.loggedOut}>
-        <Leaf size={32} />
+        <BrandIcon size={32} />
         <h2>登录后，回到你的空间</h2>
         <button className="primary-button" onClick={() => navigate("/login")}>
           进入演示登录
@@ -105,13 +104,8 @@ export default function Layout() {
         className={`${styles.sidebar} ${mobile ? styles.mobileOpen : ""}`}
       >
         <div className={styles.brand}>
-          <span className={styles.logo}>
-            <span>m</span>
-            <i />
-          </span>
-          <span>
-            minmd<span className={styles.brandDot}>.</span>
-          </span>
+          <BrandIcon size={29} className={styles.logo} />
+          <span>minmd</span>
           <button
             className={`icon-button ${styles.closeMobile}`}
             aria-label="关闭导航"
@@ -157,18 +151,28 @@ export default function Layout() {
         </button>
         <nav className={styles.nav}>
           {nav.map(({ to, icon: Icon, label }) => (
-            <NavLink
+            <Tooltip
               key={to}
-              to={to}
-              onClick={() => setMobile(false)}
-              className={({ isActive }) => (isActive ? styles.active : "")}
+              title={
+                to === "/favorites" ? `${label}（${favoriteCount}）` : label
+              }
+              trigger={["hover", "focus"]}
+              mouseEnterDelay={0.1}
+              mouseLeaveDelay={0.05}
+              color="var(--text)"
+              styles={{
+                body: { color: "var(--bg)", fontSize: 12, padding: "4px 8px" },
+              }}
             >
-              <Icon size={18} strokeWidth={1.7} />
-              {label}
-              {to === "/favorites" && (
-                <span className={styles.navCount}>{favoriteCount}</span>
-              )}
-            </NavLink>
+              <NavLink
+                to={to}
+                aria-label={label}
+                onClick={() => setMobile(false)}
+                className={({ isActive }) => (isActive ? styles.active : "")}
+              >
+                <Icon size={18} strokeWidth={1.7} />
+              </NavLink>
+            </Tooltip>
           ))}
         </nav>
         <WorkspaceTree />
@@ -194,41 +198,6 @@ export default function Layout() {
               </TooltipButton>
             ))}
           </div>
-          <Dropdown
-            trigger={["click"]}
-            menu={{
-              items: [
-                {
-                  key: "theme",
-                  label: theme === "light" ? "切换深色主题" : "切换浅色主题",
-                  icon:
-                    theme === "light" ? <Moon size={15} /> : <Sun size={15} />,
-                },
-                {
-                  key: "logout",
-                  label: "退出演示账号",
-                  icon: <LogOut size={15} />,
-                },
-              ],
-              onClick: ({ key }) => {
-                if (key === "theme")
-                  setTheme(theme === "light" ? "dark" : "light");
-                else {
-                  setLoggedIn(false);
-                  message.info("已退出演示账号");
-                  navigate("/login");
-                }
-              },
-            }}
-          >
-            <button className={styles.profile}>
-              <span className={styles.avatar}>T</span>
-              <span>
-                <strong>Tingxi</strong>
-              </span>
-              <ChevronDown size={14} />
-            </button>
-          </Dropdown>
         </div>
       </aside>
       <div
@@ -303,7 +272,49 @@ export default function Layout() {
             >
               {theme === "light" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            {!isDocument && <span className={styles.avatar}>T</span>}
+            <Dropdown
+              trigger={["click"]}
+              placement="bottomRight"
+              menu={{
+                items: [
+                  { key: "account", label: "Tingxi", disabled: true },
+                  { type: "divider" },
+                  {
+                    key: "theme",
+                    label: theme === "light" ? "切换深色主题" : "切换浅色主题",
+                    icon:
+                      theme === "light" ? (
+                        <Moon size={15} />
+                      ) : (
+                        <Sun size={15} />
+                      ),
+                  },
+                  {
+                    key: "logout",
+                    label: "退出演示账号",
+                    icon: <LogOut size={15} />,
+                  },
+                ],
+                onClick: ({ key }) => {
+                  if (key === "theme")
+                    setTheme(theme === "light" ? "dark" : "light");
+                  else {
+                    setLoggedIn(false);
+                    message.info("已退出演示账号");
+                    navigate("/login");
+                  }
+                },
+              }}
+            >
+              <TooltipButton
+                className={styles.accountButton}
+                aria-label="账号菜单"
+              >
+                <span className={styles.avatar} aria-hidden="true">
+                  T
+                </span>
+              </TooltipButton>
+            </Dropdown>
           </div>
         </header>
         <Outlet />

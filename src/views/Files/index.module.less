@@ -24,6 +24,7 @@
 
 .introActions {
   display: flex;
+  align-items: center;
   gap: 10px;
   padding-top: 0;
 }
@@ -58,138 +59,16 @@
     color: var(--text-secondary);
   }
 }
-.recent {
-  margin-bottom: var(--content-gap);
-}
-.recentGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-.recentCard {
-  padding: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  text-align: left;
-  transition:
-    border-color var(--motion),
-    transform var(--motion);
-  &:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-  }
-}
-.cardPreview {
-  height: 104px;
-  background: var(--surface-soft);
-  padding: 10px 12px 0;
-  position: relative;
-  overflow: hidden;
-  &[data-kind="sheet"] {
-    background: var(--sheet-soft);
-  }
-  &[data-kind="slide"] {
-    background: var(--slide-soft);
-  }
-}
-.paper {
-  height: 155px;
-  padding: 19px 22px;
-  border-radius: 4px 4px 0 0;
-  background: var(--preview-paper);
-  color: var(--preview-ink);
-  border: 1px solid var(--preview-line);
-  transform: rotate(-2deg);
-  transform-origin: bottom center;
-  strong {
-    display: block;
-    font-size: 13px;
-    font-weight: 600;
-    margin: 12px 0 11px;
-  }
-  > i {
-    display: block;
-    height: 3px;
-    margin-top: 6px;
-    background: var(--preview-line);
-    width: 95%;
-    &:nth-of-type(2) {
-      width: 78%;
-    }
-    &:nth-of-type(3) {
-      width: 86%;
-    }
-  }
-}
 
-.paperQuote {
-  margin-top: 13px;
-  padding: 7px 10px;
-  background: var(--preview-mint);
-  font-size: 7px;
-  color: var(--preview-ink);
-}
-.previewType {
-  position: absolute;
-  right: 12px;
-  top: 10px;
-  font-size: 9px;
-  color: var(--text-secondary);
-}
-.miniSheet {
-  > div {
-    font-size: 9px;
-    font-weight: 600;
-    display: flex;
-    justify-content: space-between;
-    span {
-      font-size: 6px;
-      opacity: 0.6;
-    }
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 15px;
-    font-size: 6px;
-    th,
-    td {
-      text-align: left;
-      border: 1px solid var(--preview-line);
-      padding: 7px;
-    }
-    th {
-      background: var(--preview-mint);
-      font-weight: 500;
-    }
-  }
-}
-.cardInfo {
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  > span:nth-child(2) {
-    flex: 1;
-    min-width: 0;
-  }
-  strong {
-    font-weight: 500;
-    font-size: 12px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: block;
-  }
-  small {
-    display: block;
-    margin-top: 6px;
-    color: var(--text-secondary);
-    font-size: 9px;
-  }
-}
+
+
+
+
+
+
+
+
+
 .listTitle {
   display: flex;
   align-items: center;
@@ -209,13 +88,22 @@
   padding: 3px;
   border-radius: 6px;
   button {
-    padding: 4px 6px;
+    width: 28px;
+    height: 28px;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
     display: flex;
     align-items: center;
     background: none;
     color: var(--text-muted);
     border: 0;
     border-radius: 3px;
+    &:hover,
+    &:focus-visible {
+      background: var(--hover);
+      color: var(--text);
+    }
     &.selected {
       background: var(--hover);
       color: var(--text);
@@ -237,8 +125,13 @@
     background: none;
     font-size: 12px;
     color: var(--text-secondary);
+    min-height: 34px;
+    line-height: 18px;
     padding: 8px 0;
     position: relative;
+    &:hover {
+      color: var(--text);
+    }
     &.activeTab {
       color: var(--accent);
       font-weight: 500;
@@ -303,8 +196,9 @@
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   min-height: var(--row-height);
-  &:hover {
-    background: var(--surface-soft);
+  &:hover,
+  &:focus-within {
+    background: var(--hover);
     .rowActions {
       opacity: 1;
     }
@@ -365,6 +259,7 @@
 }
 .rowActions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   opacity: 0.4;
 }
@@ -430,13 +325,8 @@
   .page {
     padding: var(--page-padding);
   }
-  .cardPreview {
-    height: 104px;
-    padding-top: 10px;
-  }
-  .paper {
-    height: 104px;
-  }
+
+
   .fileRow {
     min-height: var(--row-height);
   }
@@ -455,20 +345,10 @@
   .tableHeader > span:nth-child(4) {
     display: none;
   }
-  .recentGrid {
-    gap: 12px;
-  }
-  .cardPreview {
-    padding-left: 14px;
-    padding-right: 14px;
-  }
-  .cardInfo {
-    padding: 12px 10px;
-    gap: 7px;
-  }
-  .paper {
-    padding: 18px 14px;
-  }
+
+
+
+
   .tools {
     gap: 0;
   }
@@ -477,12 +357,8 @@
   }
 }
 @media (max-width: 800px) {
-  .recentGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .recentCard:last-child {
-    display: none;
-  }
+
+
   .tools :global(.ant-select) {
     display: none;
   }
@@ -529,24 +405,12 @@
   .tabs {
     gap: 12px;
   }
-  .recentGrid {
-    gap: 10px;
-  }
-  .cardInfo > svg {
-    display: none;
-  }
-  .cardInfo strong {
-    font-size: 10px;
-  }
-  .cardInfo small {
-    font-size: 8px;
-  }
-  .cardPreview {
-    height: 100px;
-  }
-  .paper strong {
-    font-size: 10px;
-  }
+
+
+
+
+
+
 
   .fileGrid {
     grid-template-columns: 1fr;
@@ -560,12 +424,8 @@
   .intro {
     margin-bottom: var(--content-gap);
   }
-  .recent {
-    margin-bottom: var(--content-gap);
-  }
-  .cardPreview {
-    height: 104px;
-  }
+
+
   .fileRow {
     min-height: var(--row-height);
     padding-top: 9px;

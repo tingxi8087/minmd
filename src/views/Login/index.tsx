@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { App, Input } from "antd";
-import { ArrowRight, Leaf } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import BrandIcon from "@/components/BrandIcon";
 import { useWorkspace } from "@/store/workspace";
 import styles from "./index.module.less";
 export default function Login() {
@@ -13,8 +14,8 @@ export default function Login() {
   return (
     <main className={styles.page}>
       <div className={styles.card}>
-        <Leaf size={28} />
-        <div className={styles.brand}>minmd.</div>
+        <BrandIcon size={32} />
+        <div className={styles.brand}>minmd</div>
         <h1>登录</h1>
         <form
           onSubmit={(e) => {

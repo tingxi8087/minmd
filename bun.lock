@@ -10,6 +10,7 @@
         "@tiptap/extension-table": "^3.31.4",
         "@tiptap/extension-task-item": "^3.31.4",
         "@tiptap/extension-task-list": "^3.31.4",
+        "@tiptap/extension-text-style": "3.31.4",
         "@tiptap/markdown": "^3.31.4",
         "@tiptap/pm": "^3.31.4",
         "@tiptap/react": "^3.31.4",
@@ -292,6 +293,8 @@
     "@tiptap/extension-task-list": ["@tiptap/extension-task-list@3.31.4", "https://registry.npmmirror.com/@tiptap/extension-task-list/-/extension-task-list-3.31.4.tgz", { "peerDependencies": { "@tiptap/extension-list": "3.31.4" } }, "sha512-c4jTxIGvJzmtsk1V1EBjqEuDk+rY+b9bQq5fup+BXW/W3u5ELM8DUuTlfRpBzGis3RD0096oNBfqv7XdG5Yvjg=="],
 
     "@tiptap/extension-text": ["@tiptap/extension-text@3.31.4", "https://registry.npmmirror.com/@tiptap/extension-text/-/extension-text-3.31.4.tgz", { "peerDependencies": { "@tiptap/core": "3.31.4" } }, "sha512-WL2ZRpFksgQcXJN05/UQH09YCH9LlhdLrSEcviASvEH/aAfsKiJlDrouN8PET+YAWK/F5xFc5/Q1z0xj+I23jw=="],
+
+    "@tiptap/extension-text-style": ["@tiptap/extension-text-style@3.31.4", "https://registry.npmmirror.com/@tiptap/extension-text-style/-/extension-text-style-3.31.4.tgz", { "peerDependencies": { "@tiptap/core": "3.31.4" } }, "sha512-djeemliEWmqs3cJrUyMG+17HbjHyf6D/0NkIHl/RkVHYOCX1AYMZ7r+XLefApSNBCAx/aFh1hJzaMlnGbnTaAw=="],
 
     "@tiptap/extension-underline": ["@tiptap/extension-underline@3.31.4", "https://registry.npmmirror.com/@tiptap/extension-underline/-/extension-underline-3.31.4.tgz", { "peerDependencies": { "@tiptap/core": "3.31.4" } }, "sha512-0iFGPIqmqGkCrOFh1OPo7Dzv5s86dVN3bZaugsz0jK04otkb8bn04ZDKP2/6Wq+lcK0M9DfJ0QqfW5hC2nBZxQ=="],
 

@@ -14,13 +14,23 @@ export const useLayout = create<{
 }>()(
   persist(
     (set) => ({
-      sidebarWidth: 208,
+      sidebarWidth: 260,
       sidebarCollapsed: false,
       setSidebarWidth: (width) =>
         set({ sidebarWidth: clampSidebarWidth(width) }),
       toggleSidebar: () =>
         set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
     }),
-    { name: "minmd-layout-v1" },
+    {
+      name: "minmd-layout-v1",
+      version: 1,
+      migrate: (persisted) => {
+        const state = persisted as { sidebarWidth?: number; sidebarCollapsed?: boolean };
+        return {
+          ...state,
+          sidebarWidth: state.sidebarWidth === 208 ? 260 : (state.sidebarWidth ?? 260),
+        };
+      },
+    },
   ),
 );

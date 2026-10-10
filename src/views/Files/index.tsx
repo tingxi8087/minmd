@@ -102,14 +102,6 @@ export default function Files() {
       "/trash": "回收站",
     }[pathname] ||
     "空间文件";
-  const recent = scope
-    .filter((f) => !f.deleted && f.kind !== "folder")
-    .sort((a, b) => (b.accessed || "").localeCompare(a.accessed || ""))
-    .filter(
-      (f, i, all) =>
-        f.accessed || all.findIndex((item) => item.kind === f.kind) === i,
-    )
-    .slice(0, 3);
   const open = (file: Entry) => {
     if (trash) return;
     navigate(
@@ -262,85 +254,6 @@ export default function Files() {
           e.target.value = "";
         }}
       />
-      {isHome && (
-        <section className={styles.recent}>
-          <div className={styles.sectionHeader}>
-            <h2>最近访问</h2>
-            <button onClick={() => navigate("/recent")}>
-              查看全部 <ArrowRight size={13} />
-            </button>
-          </div>
-          <div className={styles.recentGrid}>
-            {recent.map((file, index) => (
-              <button
-                key={file.id}
-                className={styles.recentCard}
-                onClick={() => open(file)}
-              >
-                <div className={styles.cardPreview} data-kind={file.kind}>
-                  <div className={styles.paper}>
-                    {file.kind === "doc" ? (
-                      <>
-                        <strong>
-                          {index === 0
-                            ? "给想法，一个空间。"
-                            : "下一步，做点什么？"}
-                        </strong>
-                        <i />
-                        <i />
-                        <i />
-                        <div className={styles.paperQuote}>
-                          记录 · 整理 · 分享
-                        </div>
-                      </>
-                    ) : file.kind === "sheet" ? (
-                      <div className={styles.miniSheet}>
-                        <div>
-                          项目预算 <span>Q4 / 2026</span>
-                        </div>
-                        <table>
-                          <tbody>
-                            <tr>
-                              <th>项目</th>
-                              <th>预算</th>
-                              <th>状态</th>
-                            </tr>
-                            <tr>
-                              <td>产品设计</td>
-                              <td>12,000</td>
-                              <td>进行中</td>
-                            </tr>
-                            <tr>
-                              <td>研发投入</td>
-                              <td>28,000</td>
-                              <td>计划中</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <>
-                        <strong>让好想法发生</strong>
-                        <div className={styles.paperQuote}>产品分享 / 2026</div>
-                      </>
-                    )}
-                  </div>
-                  <span className={styles.previewType}>
-                    {kindNames[file.kind]}
-                  </span>
-                </div>
-                <div className={styles.cardInfo}>
-                  <FileIcon kind={file.kind} small />
-                  <span>
-                    <strong>{file.name}</strong>
-                  </span>
-                  <ArrowUpRightIcon />
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
       <section className={styles.fileSection}>
         <div className={styles.sectionHeader}>
           <div className={styles.listTitle}>
@@ -529,13 +442,5 @@ export default function Files() {
       </section>
       <FileDialogs action={action} close={() => setAction(null)} />
     </main>
-  );
-}
-function ArrowUpRightIcon() {
-  return (
-    <ArrowRight
-      size={15}
-      style={{ transform: "rotate(-45deg)", color: "var(--text-muted)" }}
-    />
   );
 }

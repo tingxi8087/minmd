@@ -15,10 +15,17 @@
   border-bottom: 1px solid var(--border);
   margin: 12px 0 16px;
   a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    line-height: 18px;
     padding: 8px 0;
     color: var(--text-secondary);
     font-size: 12px;
     position: relative;
+    &:hover {
+      color: var(--text);
+    }
     &[aria-current="page"] {
       color: var(--accent);
       &::after {
@@ -193,10 +200,19 @@
     background: none;
     border: 0;
     border-radius: 4px;
+    min-height: 30px;
+    justify-content: center;
+    line-height: 18px;
     padding: 6px 10px;
     font-size: 11px;
     color: var(--text-secondary);
-    &.codeActive {
+    &:hover,
+    &:focus-visible {
+      background: var(--hover);
+      color: var(--text);
+    }
+    &.codeActive,
+    &.codeActive:hover {
       background: var(--surface);
       color: var(--accent);
     }
@@ -244,6 +260,9 @@
       margin-left: auto;
       color: var(--accent);
     }
+  }
+  &:hover {
+    border-color: var(--accent);
   }
   &.themeSelected {
     border-color: var(--accent);

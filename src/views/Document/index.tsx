@@ -4,6 +4,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import { App, Dropdown, Input, Modal } from "antd";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
+import {
+  TextStyle,
+  Color,
+  FontSize,
+  BackgroundColor,
+} from "@tiptap/extension-text-style";
+import { hasCustomTextStyle } from "./utils/markdownExport";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import TaskList from "@tiptap/extension-task-list";
@@ -17,6 +24,7 @@ import {
   Download,
   FileText,
   ImagePlus,
+  Smile,
   ListTree,
   LockKeyhole,
   Globe2,
@@ -30,6 +38,9 @@ import {
 import { Entry, useWorkspace } from "@/store/workspace";
 import FileDialogs, { FileAction } from "@/components/FileDialogs";
 import TooltipButton from "@/components/TooltipButton";
+import InsertPicker, { type InsertKind } from "./components/InsertPicker";
+import { Callout, Fold, DocumentReference } from "./extensions/blocks";
+import { exportDocument, hasCustomBlocks } from "./utils/markdownExport";
 import Formatting from "./components/Formatting";
 import { useSlashMenu } from "./components/useSlashMenu";
 import { samples } from "./content";
@@ -70,6 +81,7 @@ function DocumentEditor({ file }: { file: Entry }) {
   const [status, setStatus] = useState<"saved" | "saving" | "failed">("saved");
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [action, setAction] = useState<FileAction | null>(null);
+  const [insertKind, setInsertKind] = useState<InsertKind | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [link, setLink] = useState("");
   const [revision, setRevision] = useState(0);
@@ -99,6 +111,13 @@ function DocumentEditor({ file }: { file: Entry }) {
       TaskItem.configure({ nested: true }),
       TableKit.configure({ table: { resizable: true } }),
       Image.configure({ allowBase64: true }),
+      TextStyle,
+      Color,
+      BackgroundColor,
+      FontSize,
+      Callout,
+      Fold,
+      DocumentReference,
       Markdown,
     ],
     content: file.document || file.content || samples[file.id] || "",
@@ -119,7 +138,11 @@ function DocumentEditor({ file }: { file: Entry }) {
     },
     onSelectionUpdate: () => setRevision((r) => r + 1),
   });
-  const slash = useSlashMenu(editor, () => imageInput.current?.click());
+  const slash = useSlashMenu(
+    editor,
+    () => imageInput.current?.click(),
+    setInsertKind,
+  );
   const bubbleOptions = useMemo(
     () => ({
       placement: "top" as const,
@@ -136,8 +159,17 @@ function DocumentEditor({ file }: { file: Entry }) {
   }, [file.id, visit]);
   useEffect(() => {
     if (!slash.menu) return;
-    const item = document.querySelector('[data-slash-selected="true"]');
-    item?.scrollIntoView({ block: "nearest" });
+    const item = document.querySelector<HTMLElement>(
+      '[data-slash-selected="true"]',
+    );
+    const container = slash.menuRef.current;
+    if (item && container) {
+      const top = item.offsetTop;
+      const bottom = top + item.offsetHeight;
+      if (top < container.scrollTop) container.scrollTop = top;
+      else if (bottom > container.scrollTop + container.clientHeight)
+        container.scrollTop = bottom - container.clientHeight;
+    }
   }, [slash.selected, slash.menu?.query]);
   if (!editor) return null;
   const headings: { text: string; level: number; pos: number }[] = [];
@@ -151,8 +183,13 @@ function DocumentEditor({ file }: { file: Entry }) {
   });
   const count = editor.getText().replace(/\s/g, "").length;
   void revision;
-  const exportMarkdown = () => {
-    const data = editor.getMarkdown();
+  const downloadMarkdown = () => {
+    const data = editor.markdown!.serialize(
+      exportDocument(
+        editor.getJSON(),
+        (id) => useWorkspace.getState().files.find((f) => f.id === id)?.name,
+      ),
+    );
     const blob = new Blob([data], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -161,6 +198,21 @@ function DocumentEditor({ file }: { file: Entry }) {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     message.success("Markdown 已导出");
+  };
+  const exportMarkdown = () => {
+    if (
+      !hasCustomTextStyle(editor.getJSON()) &&
+      !hasCustomBlocks(editor.getJSON())
+    )
+      return downloadMarkdown();
+    modal.confirm({
+      title: "导出 Markdown",
+      content:
+        "Markdown 导出会移除自定义字体颜色、背景颜色和字号，将高亮块转成引用、折叠块展开为标题及内容，文档引用转成链接。原文档不受影响。",
+      okText: "继续导出",
+      cancelText: "取消",
+      onOk: downloadMarkdown,
+    });
   };
   const importMarkdown = async (file?: File) => {
     if (!file) return;
@@ -332,6 +384,13 @@ function DocumentEditor({ file }: { file: Entry }) {
         >
           <ImagePlus size={16} />
         </TooltipButton>
+        <TooltipButton
+          className={styles.insertImage}
+          aria-label="插入表情"
+          onClick={() => setInsertKind("emoji")}
+        >
+          <Smile size={16} />
+        </TooltipButton>
         {editor.isActive("table") && (
           <Dropdown
             trigger={["click"]}
@@ -458,34 +517,41 @@ function DocumentEditor({ file }: { file: Entry }) {
       {slash.menu && (
         <div
           role="listbox"
+          ref={slash.menuRef}
           aria-label="插入内容"
           className={styles.slashMenu}
           style={{
             left: slash.menu.x,
             top: slash.menu.y,
-            maxHeight: Math.max(110, window.innerHeight - slash.menu.y - 12),
+            maxHeight: slash.menu.maxHeight,
           }}
         >
           <div className={styles.slashHeading}>
             插入内容 <span>↑ ↓ 选择 · Enter 插入</span>
           </div>
           {slash.filtered.map((item, i) => (
-            <button
-              role="option"
-              aria-selected={slash.selected === i}
-              data-slash-selected={slash.selected === i}
-              key={item.id}
-              onMouseDown={(e) => e.preventDefault()}
-              className={slash.selected === i ? styles.slashSelected : ""}
-              onClick={() => slash.choose(i)}
-            >
-              <span className={styles.commandIcon}>
-                <item.icon size={18} />
-              </span>
-              <span>
-                <strong>{item.title}</strong>
-              </span>
-            </button>
+            <div key={item.id}>
+              {(!i || slash.filtered[i - 1].group !== item.group) && (
+                <div className={styles.slashGroup}>{item.group}</div>
+              )}
+              <button
+                role="option"
+                aria-selected={slash.selected === i}
+                data-slash-selected={slash.selected === i}
+                key={item.id}
+                onMouseDown={(e) => e.preventDefault()}
+                className={slash.selected === i ? styles.slashSelected : ""}
+                onMouseEnter={() => slash.setSelected(i)}
+                onClick={() => slash.choose(i)}
+              >
+                <span className={styles.commandIcon}>
+                  <item.icon size={18} />
+                </span>
+                <span>
+                  <strong>{item.title}</strong>
+                </span>
+              </button>
+            </div>
           ))}
           {!slash.filtered.length && <p>没有匹配的内容类型</p>}
         </div>
@@ -509,6 +575,12 @@ function DocumentEditor({ file }: { file: Entry }) {
           void importMarkdown(e.target.files?.[0]);
           e.target.value = "";
         }}
+      />
+      <InsertPicker
+        kind={insertKind}
+        editor={editor}
+        fileId={file.id}
+        close={() => setInsertKind(null)}
       />
       <FileDialogs action={action} close={() => setAction(null)} />
       <Modal

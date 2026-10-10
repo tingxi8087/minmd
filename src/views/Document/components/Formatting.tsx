@@ -17,6 +17,7 @@ import {
   Redo2,
   Link2,
 } from "lucide-react";
+import TextFormatting from "./TextFormatting";
 import TooltipButton from "@/components/TooltipButton";
 import styles from "../index.module.less";
 export default function Formatting({
@@ -97,7 +98,9 @@ export default function Formatting({
                   : editor
                       .chain()
                       .focus()
-                      .toggleHeading({ level: Number(key) as 1 | 2 | 3 | 4 | 5 | 6 })
+                      .toggleHeading({
+                        level: Number(key) as 1 | 2 | 3 | 4 | 5 | 6,
+                      })
                       .run(),
             }}
           >
@@ -111,6 +114,8 @@ export default function Formatting({
           <i />
         </>
       )}
+      <TextFormatting editor={editor} />
+      <i />
       {marks.map(({ name, icon: Icon, active, run }) => (
         <TooltipButton
           key={name}

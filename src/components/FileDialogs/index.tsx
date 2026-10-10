@@ -51,9 +51,10 @@ export default function FileDialogs({
         message.warning("请输入名称");
         return;
       }
-      if (action.type === "create")
-        onCreated?.(add(name.trim(), action.kind, parent));
-      else patch(action.file.id, { name: name.trim() });
+      if (action.type === "create") {
+        const id = add(name.trim(), action.kind, parent);
+        onCreated?.(id);
+      } else patch(action.file.id, { name: name.trim() });
     } else if (action.type === "move") {
       if (!relocate(action.file.id, parent)) {
         message.warning("无法移动到该位置");

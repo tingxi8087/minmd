@@ -37,6 +37,10 @@
   :global(.ant-tree-treenode:focus-within .ant-tree-switcher::before) {
     background: var(--hover);
   }
+  :global(.ant-tree-treenode):hover .more,
+  :global(.ant-tree-treenode):focus-within .more {
+    opacity: 1;
+  }
   :global(.ant-tree-treenode:hover .ant-tree-node-content-wrapper),
   :global(.ant-tree-treenode:focus-within .ant-tree-node-content-wrapper) {
     background: var(--hover);
