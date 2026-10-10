@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
-import { App, Dropdown, Input, Modal } from "antd";
+import { App, Input, Modal } from "antd";
 import { EditorContent, useEditor } from "@tiptap/react";
+import { TextSelection } from "@tiptap/pm/state";
 import { BubbleMenu } from "@tiptap/react/menus";
 import {
   TextStyle,
@@ -20,6 +21,15 @@ import Image from "@tiptap/extension-image";
 import { Markdown } from "@tiptap/markdown";
 import {
   ArrowLeft,
+  PencilLine,
+  FolderInput,
+  Undo2,
+  Redo2,
+  Copy,
+  Scissors,
+  ClipboardPaste,
+  TextSelect,
+  Info,
   ChevronDown,
   Download,
   FileText,
@@ -34,17 +44,44 @@ import {
   Upload,
   PanelRightClose,
   PanelRightOpen,
+  Trash2,
+  ArrowUpToLine,
+  ArrowDownToLine,
+  ArrowLeftToLine,
+  ArrowRightToLine,
 } from "lucide-react";
 import { Entry, useWorkspace } from "@/store/workspace";
 import FileDialogs, { FileAction } from "@/components/FileDialogs";
+import { useContextMenu, type ContextItem } from "@/components/ContextMenu";
 import TooltipButton from "@/components/TooltipButton";
 import InsertPicker, { type InsertKind } from "./components/InsertPicker";
+import TableContextMenu from "./components/TableContextMenu";
+import { TableDeletePreview } from "./extensions/tableDeletePreview";
+import { QuickTableView } from "./extensions/QuickTableView";
+import { HeadingCollapse, revealHeading } from "./extensions/headingCollapse";
 import { Callout, Fold, DocumentReference } from "./extensions/blocks";
 import { exportDocument, hasCustomBlocks } from "./utils/markdownExport";
+import { SelectableCodeBlock } from "./components/CodeBlock";
 import Formatting from "./components/Formatting";
 import { useSlashMenu } from "./components/useSlashMenu";
 import { samples } from "./content";
 import styles from "./index.module.less";
+const shouldShowFormatting: NonNullable<
+  React.ComponentProps<typeof BubbleMenu>["shouldShow"]
+> = ({ editor, view, state, from, to, element }) => {
+  if (
+    !editor.isEditable ||
+    state.selection.empty ||
+    !state.doc.textBetween(from, to).length ||
+    (!view.hasFocus() && !element.contains(document.activeElement))
+  )
+    return false;
+  let containsCode = editor.isActive("codeBlock");
+  state.doc.nodesBetween(from, to, (node) => {
+    if (node.type.name === "codeBlock") containsCode = true;
+  });
+  return !containsCode;
+};
 const bubbleContainer = () => document.body;
 export default function Document() {
   const { id } = useParams();
@@ -69,6 +106,7 @@ export default function Document() {
 }
 function DocumentEditor({ file }: { file: Entry }) {
   const navigate = useNavigate();
+  const contextMenu = useContextMenu();
   const { message, modal } = App.useApp();
   const patch = useWorkspace((s) => s.patch);
   const visit = useWorkspace((s) => s.visit);
@@ -103,17 +141,21 @@ function DocumentEditor({ file }: { file: Entry }) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
+        codeBlock: false,
         heading: { levels: [1, 2, 3, 4, 5, 6] },
         link: { openOnClick: false },
       }),
+      SelectableCodeBlock,
       Placeholder.configure({ placeholder: "输入文字，或按 / 插入内容…" }),
       TaskList,
       TaskItem.configure({ nested: true }),
-      TableKit.configure({ table: { resizable: true } }),
+      TableKit.configure({ table: { resizable: true, View: QuickTableView } }),
       Image.configure({ allowBase64: true }),
       TextStyle,
       Color,
       BackgroundColor,
+      HeadingCollapse,
+      TableDeletePreview,
       FontSize,
       Callout,
       Fold,
@@ -281,6 +323,151 @@ function DocumentEditor({ file }: { file: Entry }) {
     }
     setLinkOpen(false);
   };
+  const documentItems = (): ContextItem[] => [
+    {
+      key: "rename",
+      label: "重命名",
+      icon: <PencilLine size={15} />,
+      run: () => setAction({ type: "rename", file }),
+    },
+    {
+      key: "move",
+      label: "移动到…",
+      icon: <FolderInput size={15} />,
+      run: () => setAction({ type: "move", file }),
+    },
+    {
+      key: "favorite",
+      label: file.favorite ? "取消收藏" : "添加收藏",
+      icon: <Star size={15} />,
+      run: () => patch(file.id, { favorite: !file.favorite }),
+    },
+    {
+      key: "share",
+      label: "分享设置",
+      icon: <Share2 size={15} />,
+      run: () => setAction({ type: "share", file }),
+    },
+    { key: "divider", type: "divider" },
+    {
+      key: "export",
+      label: "导出 Markdown",
+      icon: <Download size={15} />,
+      run: exportMarkdown,
+    },
+    {
+      key: "import",
+      label: "导入 Markdown",
+      icon: <Upload size={15} />,
+      run: () => markdownInput.current?.click(),
+    },
+    {
+      key: "details",
+      label: "文档详情",
+      icon: <Info size={15} />,
+      run: () =>
+        modal.info({
+          title: "文档详情",
+          content: (
+            <div>
+              <p>作者：{file.owner}</p>
+              <p>可见性：{file.public ? "公开" : "私有"}</p>
+              <p>字数：{count}</p>
+            </div>
+          ),
+          okText: "关闭",
+        }),
+    },
+  ];
+  const editingItems = (): ContextItem[] => {
+    const { from, to, empty } = editor.state.selection;
+    const copy = async (cut = false) => {
+      try {
+        await navigator.clipboard.writeText(
+          editor.state.doc.textBetween(from, to, "\n"),
+        );
+        if (cut) editor.chain().focus().deleteRange({ from, to }).run();
+      } catch {
+        message.info("无法访问剪贴板，请使用键盘快捷键。");
+      }
+    };
+    return [
+      {
+        key: "undo",
+        label: "撤销",
+        icon: <Undo2 size={15} />,
+        disabled: !editor.can().undo(),
+        run: () => {
+          editor.chain().focus().undo().run();
+        },
+      },
+      {
+        key: "redo",
+        label: "重做",
+        icon: <Redo2 size={15} />,
+        disabled: !editor.can().redo(),
+        run: () => {
+          editor.chain().focus().redo().run();
+        },
+      },
+      { key: "edit-divider", type: "divider" },
+      {
+        key: "copy",
+        label: "复制",
+        icon: <Copy size={15} />,
+        disabled: empty,
+        run: () => {
+          void copy();
+        },
+      },
+      {
+        key: "cut",
+        label: "剪切",
+        icon: <Scissors size={15} />,
+        disabled: empty,
+        run: () => {
+          void copy(true);
+        },
+      },
+      {
+        key: "paste",
+        label: "粘贴纯文本",
+        icon: <ClipboardPaste size={15} />,
+        run: () => {
+          void navigator.clipboard
+            .readText()
+            .then((text) => {
+              if (text)
+                editor
+                  .chain()
+                  .focus()
+                  .insertContent(
+                    /[\r\n]/.test(text)
+                      ? text.split(/\r?\n/).map((line) => ({
+                          type: "paragraph",
+                          content: line ? [{ type: "text", text: line }] : [],
+                        }))
+                      : { type: "text", text },
+                  )
+                  .run();
+            })
+            .catch(() => message.info("无法访问剪贴板，请使用键盘快捷键。"));
+        },
+      },
+      {
+        key: "select",
+        label: "全选正文",
+        icon: <TextSelect size={15} />,
+        run: () => {
+          editor.chain().focus().selectAll().run();
+        },
+      },
+      { key: "doc-divider", type: "divider" },
+      ...documentItems().filter((item) =>
+        ["share", "export"].includes(item.key),
+      ),
+    ];
+  };
   const documentHeader = (
     <div className={styles.docHeader}>
       <TooltipButton
@@ -331,44 +518,16 @@ function DocumentEditor({ file }: { file: Entry }) {
           <Share2 size={14} />
           分享
         </button>
-        <Dropdown
-          trigger={["click"]}
-          menu={{
-            items: [
-              { key: "details", label: "文档详情" },
-              {
-                key: "export",
-                label: "导出 Markdown",
-                icon: <Download size={15} />,
-              },
-              {
-                key: "import",
-                label: "导入 Markdown",
-                icon: <Upload size={15} />,
-              },
-            ],
-            onClick: ({ key }) => {
-              if (key === "export") exportMarkdown();
-              else if (key === "import") markdownInput.current?.click();
-              else
-                modal.info({
-                  title: "文档详情",
-                  content: (
-                    <div>
-                      <p>作者：Tingxi</p>
-                      <p>可见性：{file.public ? "公开" : "私有"}</p>
-                      <p>字数：{count}</p>
-                    </div>
-                  ),
-                  okText: "关闭",
-                });
-            },
-          }}
+        <TooltipButton
+          className="icon-button"
+          aria-label="文档更多操作"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) =>
+            contextMenu.openButton(e, documentItems(), "文档操作", true)
+          }
         >
-          <TooltipButton className="icon-button" aria-label="文档更多操作">
-            <MoreHorizontal size={18} />
-          </TooltipButton>
-        </Dropdown>
+          <MoreHorizontal size={18} />
+        </TooltipButton>
       </div>
     </div>
   );
@@ -392,34 +551,48 @@ function DocumentEditor({ file }: { file: Entry }) {
           <Smile size={16} />
         </TooltipButton>
         {editor.isActive("table") && (
-          <Dropdown
-            trigger={["click"]}
-            menu={{
-              items: [
-                { key: "row", label: "在下方插入行" },
-                { key: "column", label: "在右侧插入列" },
-                { key: "removeRow", label: "删除当前行" },
-                { key: "removeColumn", label: "删除当前列" },
-                { key: "remove", label: "删除表格", danger: true },
-              ],
-              onClick: ({ key }) => {
-                const chain = editor.chain().focus();
-                const commands: Record<string, () => boolean> = {
-                  row: () => chain.addRowAfter().run(),
-                  column: () => chain.addColumnAfter().run(),
-                  removeRow: () => chain.deleteRow().run(),
-                  removeColumn: () => chain.deleteColumn().run(),
-                  remove: () => chain.deleteTable().run(),
-                };
-                commands[key]?.();
+          <div className={styles.tableControls}>
+            {[
+              {
+                name: "在上方插入行",
+                Icon: ArrowUpToLine,
+                run: () => editor.chain().focus().addRowBefore().run(),
               },
-            }}
-          >
-            <button className="secondary-button">
-              表格操作
-              <ChevronDown size={12} />
-            </button>
-          </Dropdown>
+              {
+                name: "在下方插入行",
+                Icon: ArrowDownToLine,
+                run: () => editor.chain().focus().addRowAfter().run(),
+              },
+              {
+                name: "在左侧插入列",
+                Icon: ArrowLeftToLine,
+                run: () => editor.chain().focus().addColumnBefore().run(),
+              },
+              {
+                name: "在右侧插入列",
+                Icon: ArrowRightToLine,
+                run: () => editor.chain().focus().addColumnAfter().run(),
+              },
+            ].map(({ name, Icon, run }) => (
+              <TooltipButton
+                key={name}
+                className={styles.insertImage}
+                aria-label={name}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={run}
+              >
+                <Icon size={16} />
+              </TooltipButton>
+            ))}
+            <TooltipButton
+              className={`${styles.insertImage} ${styles.deleteTable}`}
+              aria-label="删除整个表格"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => editor.chain().focus().deleteTable().run()}
+            >
+              <Trash2 size={15} />
+            </TooltipButton>
+          </div>
         )}
       </div>
       <div className={styles.writingArea}>
@@ -448,7 +621,35 @@ function DocumentEditor({ file }: { file: Entry }) {
               if (!title.trim()) setTitle("未命名文档");
             }}
           />
-          <EditorContent editor={editor} className={styles.editor} />
+          <EditorContent
+            editor={editor}
+            className={styles.editor}
+            onContextMenu={(e) => {
+              if (
+                e.defaultPrevented ||
+                (e.target as Element).closest("td,th,input,button")
+              )
+                return;
+              const hit = editor.view.posAtCoords({
+                left: e.clientX,
+                top: e.clientY,
+              });
+              const selection = editor.state.selection;
+              if (
+                hit &&
+                (selection.empty ||
+                  hit.pos < selection.from ||
+                  hit.pos > selection.to)
+              )
+                editor.view.dispatch(
+                  editor.state.tr.setSelection(
+                    TextSelection.near(editor.state.doc.resolve(hit.pos)),
+                  ),
+                );
+              editor.view.focus();
+              contextMenu.open(e, editingItems(), "文档右键菜单", true);
+            }}
+          />
         </article>
         <aside
           className={`${styles.outline} ${!outlineOpen ? styles.outlineCollapsed : ""}`}
@@ -491,10 +692,10 @@ function DocumentEditor({ file }: { file: Entry }) {
                 tabIndex={outlineOpen ? 0 : -1}
                 style={{ paddingLeft: 12 + (h.level - 1) * 8 }}
                 onClick={() => {
+                  revealHeading(editor, h.pos);
                   const dom = editor.view.nodeDOM(h.pos);
                   if (dom instanceof HTMLElement)
                     dom.scrollIntoView({ behavior: "smooth", block: "center" });
-                  editor.commands.setTextSelection(h.pos + 1);
                 }}
               >
                 {h.text}
@@ -507,6 +708,7 @@ function DocumentEditor({ file }: { file: Entry }) {
       <BubbleMenu
         editor={editor}
         options={bubbleOptions}
+        shouldShow={shouldShowFormatting}
         appendTo={bubbleContainer}
         className={styles.bubbleLayer}
       >
@@ -582,6 +784,8 @@ function DocumentEditor({ file }: { file: Entry }) {
         fileId={file.id}
         close={() => setInsertKind(null)}
       />
+      {contextMenu.menu}
+      <TableContextMenu editor={editor} />
       <FileDialogs action={action} close={() => setAction(null)} />
       <Modal
         title="插入链接"

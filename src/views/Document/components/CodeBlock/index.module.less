@@ -1,0 +1,32 @@
+.block {
+  background: var(--sidebar);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  .header {
+    display: flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 6px;
+    border-bottom: 1px solid var(--border);
+    :global(.ant-select) {
+      min-width: 120px;
+      max-width: 240px;
+      font-size: 11px;
+    }
+    :global(.ant-select-selection-item) {
+      color: var(--text-secondary);
+    }
+  }
+  pre {
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 10px 12px !important;
+    white-space: pre;
+    code {
+      display: block;
+      font-family: var(--font-mono);
+    }
+  }
+}

@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { App, Dropdown, Select } from "antd";
 import {
   ArrowDown,
+  PencilLine,
+  FolderInput,
   ArrowRight,
   ChevronDown,
   ChevronRight,
@@ -22,6 +24,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { useContextMenu } from "@/components/ContextMenu";
 import FileIcon from "@/components/FileIcon";
 import FileDialogs, { FileAction } from "@/components/FileDialogs";
 import {
@@ -35,6 +38,7 @@ import styles from "./index.module.less";
 export default function Files() {
   const { files, space, patch, purge, add } = useWorkspace();
   const navigate = useNavigate();
+  const contextMenu = useContextMenu();
   const { pathname } = useLocation();
   const [params, setParams] = useSearchParams();
   const { message, modal } = App.useApp();
@@ -144,11 +148,16 @@ export default function Files() {
       : [
           {
             key: "open",
-            label: file.kind === "folder" ? "打开文件夹" : "查看预览",
+            label:
+              file.kind === "folder"
+                ? "打开文件夹"
+                : file.kind === "doc"
+                  ? "打开文档"
+                  : "查看预览",
             icon: <ArrowRight size={15} />,
           },
-          { key: "rename", label: "重命名" },
-          { key: "move", label: "移动到…" },
+          { key: "rename", label: "重命名", icon: <PencilLine size={15} /> },
+          { key: "move", label: "移动到…", icon: <FolderInput size={15} /> },
           ...(file.kind !== "folder"
             ? [
                 {
@@ -339,7 +348,20 @@ export default function Files() {
               </div>
             )}
             {visible.map((file) => (
-              <div key={file.id} className={styles.fileRow}>
+              <div
+                key={file.id}
+                className={styles.fileRow}
+                onContextMenu={(e) =>
+                  contextMenu.open(
+                    e,
+                    menu(file).map((item) => ({
+                      ...item,
+                      run: () => act(item.key, file),
+                    })),
+                    "文件操作",
+                  )
+                }
+              >
                 <button
                   className={styles.fileName}
                   onClick={() => open(file)}
@@ -391,20 +413,22 @@ export default function Files() {
                       <Share2 size={15} />
                     </button>
                   )}
-                  <Dropdown
-                    trigger={["click"]}
-                    menu={{
-                      items: menu(file),
-                      onClick: ({ key }) => act(key, file),
-                    }}
+                  <button
+                    className="icon-button"
+                    aria-label={`更多操作 ${file.name}`}
+                    onClick={(e) =>
+                      contextMenu.openButton(
+                        e,
+                        menu(file).map((item) => ({
+                          ...item,
+                          run: () => act(item.key, file),
+                        })),
+                        "文件操作",
+                      )
+                    }
                   >
-                    <button
-                      className="icon-button"
-                      aria-label={`更多操作 ${file.name}`}
-                    >
-                      <MoreHorizontal size={18} />
-                    </button>
-                  </Dropdown>
+                    <MoreHorizontal size={18} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -440,6 +464,7 @@ export default function Files() {
           </div>
         )}
       </section>
+      {contextMenu.menu}
       <FileDialogs action={action} close={() => setAction(null)} />
     </main>
   );

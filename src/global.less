@@ -1,6 +1,7 @@
 @import "./theme.less";
 * {
   box-sizing: border-box;
+  overscroll-behavior: none;
 }
 body {
   margin: 0;
@@ -137,6 +138,9 @@ svg {
 .ant-dropdown .ant-dropdown-menu-submenu-title {
   gap: var(--control-gap);
   align-items: center;
+}
+.ant-dropdown .ant-dropdown-menu-item-icon {
+  margin-inline-end: 0 !important;
 }
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -154,7 +154,7 @@ export const Callout = Node.create({
   defining: true,
   addAttributes: () => ({
     emoji: { default: "💡" },
-    tone: { default: "mint" },
+    tone: { default: "amber" },
   }),
   parseHTML: () => [{ tag: "aside[data-callout]" }],
   renderHTML: ({ HTMLAttributes }) => [

@@ -83,8 +83,10 @@
       background: var(--accent-soft);
     }
     &.blockSelect {
-      width: 83px;
-      justify-content: space-between;
+      width: auto;
+      min-width: 64px;
+      justify-content: center;
+      gap: 6px;
       padding: 0 8px;
       font-size: 11px;
     }
@@ -434,7 +436,7 @@
   padding: 5px;
 }
 .slashMenu {
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
   position: fixed;
   width: 280px;
   z-index: 50;
@@ -660,14 +662,17 @@
   .callout-controls {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    flex-shrink: 0;
+    height: calc(1em * var(--body-line-height));
     button {
       width: 26px;
-      height: 26px;
+      height: 100%;
+      padding: 0;
       border: 0;
       background: none;
       border-radius: 4px;
       font-size: 20px;
+      line-height: 1;
       display: grid;
       place-items: center;
       &:hover {
@@ -778,4 +783,169 @@
       outline: 2px solid var(--accent);
     }
   }
+}
+
+.editor :global {
+  .heading-section-hidden {
+    display: none !important;
+  }
+  .collapsible-heading {
+    position: relative;
+  }
+  .heading-toggle {
+    position: absolute;
+    left: -22px;
+    top: calc(0.8em - 10px);
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    background: none;
+    opacity: 0;
+    cursor: pointer;
+    transition:
+      opacity var(--motion),
+      background var(--motion);
+    svg {
+      transform: rotate(90deg);
+      transition: transform var(--motion);
+    }
+    &:hover,
+    &:focus-visible {
+      background: var(--hover);
+      color: var(--accent);
+    }
+    &::after {
+      content: attr(aria-label);
+      position: absolute;
+      bottom: calc(100% + 5px);
+      left: 0;
+      white-space: nowrap;
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding: 4px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 400;
+      line-height: 16px;
+      background: var(--text);
+      color: var(--bg);
+      opacity: 0;
+      pointer-events: none;
+    }
+    &:hover::after,
+    &:focus-visible::after {
+      opacity: 1;
+    }
+  }
+  .collapsible-heading:hover > .heading-toggle,
+  .collapsible-heading:focus-within > .heading-toggle,
+  .heading-collapsed > .heading-toggle {
+    opacity: 1;
+  }
+  .heading-collapsed > .heading-toggle svg {
+    transform: rotate(0);
+  }
+}
+@media (hover: none) {
+  .editor :global(.heading-toggle) {
+    opacity: 1;
+  }
+}
+
+.tableControls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+  > button {
+    width: 26px;
+  }
+}
+.editor :global {
+  .tableQuickWrapper {
+    position: relative;
+    margin: 12px 0;
+    padding-right: 24px;
+    padding-bottom: 24px;
+  }
+  .tableQuickWrapper > .tableWrapper {
+    margin: 0;
+  }
+  .table-append {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: var(--surface-soft);
+    color: var(--text-secondary);
+    border-radius: 4px;
+    opacity: 0;
+    transition:
+      opacity var(--motion),
+      background var(--motion);
+    &:hover,
+    &:focus-visible {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    &::after {
+      content: attr(aria-label);
+      position: absolute;
+      bottom: calc(100% + 5px);
+      right: 0;
+      padding: 4px 7px;
+      white-space: nowrap;
+      border-radius: 4px;
+      font-size: 11px;
+      line-height: 16px;
+      color: var(--bg);
+      background: var(--text);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 2;
+    }
+    &:hover::after,
+    &:focus-visible::after {
+      opacity: 1;
+    }
+  }
+  .table-append-row {
+    left: 0;
+    right: 24px;
+    bottom: 0;
+    height: 20px;
+  }
+  .table-append-column {
+    top: 0;
+    bottom: 24px;
+    right: 0;
+    width: 20px;
+  }
+  .tableQuickWrapper:hover > .table-append,
+  .tableQuickWrapper:focus-within > .table-append {
+    opacity: 1;
+  }
+}
+@media (hover: none) {
+  .editor :global(.table-append) {
+    opacity: 1;
+  }
+}
+
+.deleteTable:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.editor :global(.table-delete-preview) {
+  background: var(--danger-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--danger);
 }

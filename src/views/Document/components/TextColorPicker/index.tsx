@@ -27,7 +27,7 @@ const readRecent = (kind: Kind): string[] => {
             (color): color is string =>
               typeof color === "string" && /^#[\da-f]{6}$/i.test(color),
           )
-          .slice(0, 8)
+          .slice(0, 1)
       : [];
   } catch {
     return [];
@@ -55,10 +55,7 @@ export default function TextColorPicker({ editor }: { editor: Editor }) {
   };
   const custom = (kind: Kind, value: string) => {
     apply(kind, value);
-    const next = [value, ...readRecent(kind).filter((c) => c !== value)].slice(
-      0,
-      8,
-    );
+    const next = [value];
     setRecent((previous) => ({ ...previous, [kind]: next }));
     try {
       localStorage.setItem(`minmd-custom-${kind}-colors`, JSON.stringify(next));

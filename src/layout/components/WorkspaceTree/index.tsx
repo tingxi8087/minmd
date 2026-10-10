@@ -4,6 +4,11 @@ import type { DataNode } from "antd/es/tree";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   ChevronRight,
+  PencilLine,
+  FolderInput,
+  Star,
+  Share2,
+  Trash2,
   Plus,
   MoreHorizontal,
   FileText,
@@ -12,8 +17,14 @@ import {
   Presentation,
 } from "lucide-react";
 import { Entry, FileKind, kindNames, useWorkspace } from "@/store/workspace";
-import { canContain, canMove, siblings, treeDropDestination } from "@/utils/fileTree";
+import {
+  canContain,
+  canMove,
+  siblings,
+  treeDropDestination,
+} from "@/utils/fileTree";
 import FileDialogs, { FileAction } from "@/components/FileDialogs";
+import { useContextMenu, type ContextItem } from "@/components/ContextMenu";
 import TooltipButton from "@/components/TooltipButton";
 import styles from "./index.module.less";
 
@@ -24,9 +35,10 @@ const icons = {
   slide: Presentation,
 };
 export default function WorkspaceTree() {
-  const { files, space, relocate } = useWorkspace();
-  const { message } = App.useApp();
+  const { files, space, relocate, patch } = useWorkspace();
+  const { message, modal } = App.useApp();
   const navigate = useNavigate();
+  const contextMenu = useContextMenu();
   const location = useLocation();
   const [expanded, setExpanded] = useState<React.Key[]>([]);
   const [action, setAction] = useState<FileAction | null>(null);
@@ -59,6 +71,67 @@ export default function WorkspaceTree() {
       }));
   const create = (kind: FileKind, parent: Entry | null) =>
     setAction({ type: "create", kind, parent: parent?.id ?? null });
+  const fileMenu = (f: Entry): ContextItem[] => [
+    ...createItems(f).map((item) => ({
+      ...item,
+      run: () => create(item.key as FileKind, f),
+    })),
+    ...(canContain(f, { kind: "doc" })
+      ? [{ key: "divider", type: "divider" as const }]
+      : []),
+    {
+      key: "rename",
+      label: "重命名",
+      icon: <PencilLine size={15} />,
+      run: () => setAction({ type: "rename", file: f }),
+    },
+    {
+      key: "move",
+      label: "移动到…",
+      icon: <FolderInput size={15} />,
+      run: () => setAction({ type: "move", file: f }),
+    },
+    ...(f.kind !== "folder"
+      ? [
+          {
+            key: "favorite",
+            label: f.favorite ? "取消收藏" : "添加收藏",
+            icon: <Star size={15} />,
+            run: () => patch(f.id, { favorite: !f.favorite }),
+          },
+          {
+            key: "share",
+            label: "分享设置",
+            icon: <Share2 size={15} />,
+            run: () => setAction({ type: "share", file: f }),
+          },
+        ]
+      : []),
+    { key: "delete-divider", type: "divider" },
+    {
+      key: "delete",
+      label: "移入回收站",
+      icon: <Trash2 size={15} />,
+      danger: true,
+      run: () => {
+        if (files.some((child) => child.parent === f.id)) {
+          message.info("请先移动或删除其下的文件");
+          return;
+        }
+        modal.confirm({
+          title: "移入回收站？",
+          content: `${f.name}可以在回收站恢复。`,
+          okText: "移入回收站",
+          cancelText: "取消",
+          okButtonProps: { danger: true },
+          onOk: () => {
+            patch(f.id, { deleted: true });
+            if (selected === f.id) navigate("/files");
+          },
+        });
+      },
+    },
+  ];
   const build = (parent: string | null, path = new Set<string>()): DataNode[] =>
     siblings(files, space, parent)
       .filter((f) => !path.has(f.id))
@@ -71,34 +144,16 @@ export default function WorkspaceTree() {
             <div className={styles.node}>
               <Icon size={15} className={styles.fileIcon} data-kind={f.kind} />
               <span className={styles.name}>{f.name}</span>
-              <Dropdown
-                trigger={["click"]}
-                menu={{
-                  items: [
-                    ...createItems(f),
-                    ...(canContain(f, { kind: "doc" })
-                      ? [{ type: "divider" as const }]
-                      : []),
-                    { key: "rename", label: "重命名" },
-                    { key: "move", label: "移动到…" },
-                  ],
-                  onClick: ({ key, domEvent }) => {
-                    domEvent.stopPropagation();
-                    if (key === "rename" || key === "move")
-                      setAction({ type: key, file: f });
-                    else create(key as FileKind, f);
-                  },
-                }}
+              <button
+                className={styles.more}
+                aria-label={`更多操作 ${f.name}`}
+                onClick={(e) =>
+                  contextMenu.openButton(e, fileMenu(f), "文件操作")
+                }
+                onMouseDown={(e) => e.stopPropagation()}
               >
-                <button
-                  className={styles.more}
-                  aria-label={`更多操作 ${f.name}`}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                >
-                  <MoreHorizontal size={14} />
-                </button>
-              </Dropdown>
+                <MoreHorizontal size={14} />
+              </button>
             </div>
           ),
           children,
@@ -115,7 +170,12 @@ export default function WorkspaceTree() {
     const target = files.find((f) => f.id === node.key)!;
     const position = dropPosition - Number(node.pos.split("-").at(-1));
     const { parent, index } = treeDropDestination(
-      files, moving, target, position, dropToGap, Boolean(node.expanded && node.children?.length),
+      files,
+      moving,
+      target,
+      position,
+      dropToGap,
+      Boolean(node.expanded && node.children?.length),
     );
     if (!relocate(moving.id, parent, index))
       return message.warning("无法移动到该位置");
@@ -138,6 +198,10 @@ export default function WorkspaceTree() {
         </Dropdown>
       </div>
       <Tree
+        onRightClick={({ event, node }) => {
+          const f = files.find((f) => f.id === node.key);
+          if (f) contextMenu.open(event, fileMenu(f), "文件操作");
+        }}
         blockNode
         draggable={{ icon: false }}
         treeData={build(null)}
@@ -167,6 +231,7 @@ export default function WorkspaceTree() {
       {!files.some((f) => f.space === space && !f.deleted) && (
         <span className={styles.empty}>暂无文件</span>
       )}
+      {contextMenu.menu}
       <FileDialogs
         action={action}
         close={() => setAction(null)}
