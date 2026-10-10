@@ -1,17 +1,25 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "jsx": "react-jsx",
-    "strict": true,
-    "skipLibCheck": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "types": ["bun", "node"]
   },
-  "include": ["src", "vite.config.ts"]
+  "include": [
+    "apps/**/*.ts",
+    "system/server/**/*.ts",
+    "database/**/*.ts",
+    "tests/**/*.ts",
+    "drizzle.config.ts",
+    "app.config.ts",
+    "config/**/*.ts",
+    "scripts/build.ts",
+    "scripts/dev.ts",
+    "scripts/server-process.ts",
+    "scripts/test-integration.ts",
+    "scripts/web-cms-process.ts",
+    "scripts/web-cms-dev.ts",
+    "scripts/web-process.ts",
+    "scripts/web-dev.ts",
+    "scripts/vite-process.ts"
+  ],
+  "exclude": ["apps/web-cms", "apps/web"]
 }

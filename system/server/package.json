@@ -1,0 +1,26 @@
+{
+  "name": "@mas/system-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config/env.ts",
+    "./database": "./src/database/client.ts",
+    "./errors": "./src/errors.ts"
+  },
+  "dependencies": {
+    "fastify": "^5.6.0",
+    "fastify-plugin": "^5.1.0",
+    "@fastify/swagger": "^9.5.0",
+    "@sinclair/typebox": "^0.34.0",
+    "drizzle-orm": "^0.45.0",
+    "pg": "^8.16.0",
+    "zod": "^4.1.0",
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.1",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/static": "^8.3.0"
+  }
+}

@@ -1,0 +1,83 @@
+.modalBody {
+  display: flex;
+  gap: 16px;
+}
+
+.panel {
+  flex: 1;
+  min-width: 0;
+}
+
+.panelTitle {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.searchSelect {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.listBox {
+  height: 300px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  padding: 8px;
+  overflow: auto;
+}
+
+.optionRow {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.optionLabel {
+  margin-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectedRow {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  background: #fff;
+  border-radius: 6px;
+}
+
+.selectedRowDragging {
+  background: #e6f4ff;
+}
+
+.dragHandle {
+  margin-left: 8px;
+  color: rgb(0, 70, 156);
+  cursor: move;
+}
+
+.dragHandleDisabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.index {
+  color: rgb(0, 70, 156);
+  width: 18px;
+  text-align: right;
+}
+
+.remove {
+  margin-left: auto;
+  color: #ff4d4f;
+  cursor: pointer;
+}
+
+.removeDisabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+

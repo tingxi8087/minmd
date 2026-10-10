@@ -1,0 +1,145 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background:
+    linear-gradient(135deg, rgba(0, 21, 41, 0.08), rgba(0, 0, 0, 0) 32%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 21, 41, 0.04) 0,
+      rgba(0, 21, 41, 0.04) 1px,
+      transparent 1px,
+      transparent 32px
+    ),
+    #eef1f4;
+  box-sizing: border-box;
+}
+
+.shell {
+  width: min(920px, 100%);
+  min-height: 520px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(0, 21, 41, 0.08);
+  box-shadow: 0 24px 64px rgba(0, 21, 41, 0.12);
+}
+
+.brandPanel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px;
+  color: #fff;
+  background:
+    linear-gradient(145deg, rgba(0, 21, 41, 0.96), rgba(28, 69, 92, 0.96)),
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.08) 0,
+      rgba(255, 255, 255, 0.08) 1px,
+      transparent 1px,
+      transparent 24px
+    );
+  box-sizing: border-box;
+}
+
+
+
+.brandMark {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.brandName {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.brandLine {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+}
+
+.formPanel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px;
+  box-sizing: border-box;
+}
+
+.formHeader {
+  margin-bottom: 32px;
+}
+
+.title {
+  margin: 0;
+  color: #1f2933;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.subTitle {
+  margin: 8px 0 0;
+  color: #667085;
+  font-size: 14px;
+}
+
+.form {
+  :global {
+    .ant-form-item {
+      margin-bottom: 16px;
+    }
+
+    .ant-form-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .ant-input-affix-wrapper,
+    .ant-btn {
+      height: 40px;
+    }
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 16px;
+  }
+
+  .shell {
+    min-height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .brandPanel {
+    min-height: 160px;
+    padding: 32px;
+  }
+
+  .brandPanel::after {
+    right: 32px;
+    bottom: 32px;
+    width: 80px;
+    height: 80px;
+  }
+
+  .formPanel {
+    padding: 32px;
+  }
+}

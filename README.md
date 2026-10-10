@@ -1,20 +1,82 @@
-# MinMD 前台静态演示
+# MinMD
 
-后端开发设计见 [技术需求文档（TRD）](docs/TRD.md)，待办见 [TODO](TODO.md)。
+可自行部署的轻量文档空间，支持文档编辑、表格编辑和 PPTX 只读预览。前台参考飞书交互，管理后台和后端复用 MAS。
 
-极简文档空间的 React 前台原型。文档已接入 Tiptap 编辑器，幻灯片支持真实 PPTX 只读预览，数据保存在浏览器本地；表格已接入 Univer 开源编辑器，当前未接入 MAS 后端。
+当前完成工程整合：前台位于 `apps/web`，MAS 后端和管理后台已引入。**MinMD 前台业务仍为本地演示，尚未接入真实账号、空间与文件接口；多人协作尚未实现。** 后台账号、角色、前台用户管理及后端健康检查为脚手架真实能力。
 
-## 运行
+设计见 [TRD](docs/TRD.md)，进度见 [TODO](TODO.md)，脚手架版本和许可证见 [上游来源](docs/UPSTREAM.md)。开发规范见 [AGENTS.md](AGENTS.md)。
+
+## 启动
+
+要求 Bun 1.3.13+、PostgreSQL（已用 PostgreSQL 18 验证）。从仓库根目录执行：
 
 ```sh
-bun install
+bun install --frozen-lockfile
+cp .env.example .env
+```
+
+已有 `.env` 时不要覆盖。填写数据库连接和首次管理员账号密码，数据库需预先创建；迁移只创建表结构。
+
+```sh
+bun run db:migrate
 bun run dev
 ```
 
+默认地址：前台 <http://127.0.0.1:5173/>，后台 <http://127.0.0.1:5174/>，后端 <http://127.0.0.1:9811>。`GET /api/health` 会实际检查数据库连接。端口由 `.env` 的 `WEB_PORT`、`WEB_CMS_PORT`、`PORT` 配置，后端变更时同步修改 `API_PROXY_TARGET`。
+
+后台第一版使用脚手架 Bearer 认证；前台仍是演示登录。Cookie 认证与前台业务在后续阶段联调，不能把前台演示视为真实鉴权。
+
+可选开发数据库（需要 Docker 正常运行）：
+
 ```sh
-bun run build
-bun run preview
+docker compose -f deploy/compose.yaml up -d
 ```
+
+此 Compose 目前只启动开发 PostgreSQL，默认连接与 `.env.example` 一致；完整应用 Docker 部署在后续阶段完成。首次管理员从 `.env` 初始化，仅在库中没有超管时生效。不要对外使用模板默认密码。
+
+## 命令和目录
+
+| 命令 | 用途 |
+|---|---|
+| `bun run dev` | 同时启动前台、后台、后端；一个子服务退出时关闭其他子服务 |
+| `bun run dev:web` | 单独启动前台 |
+| `bun run dev:web-cms` | 单独启动管理后台 |
+| `bun run dev:server` | 单独启动后端 |
+| `bun run build` | 构建 `dist/web`、`dist/web-cms`、`dist/server` |
+| `bun run start` | 运行构建后的后端；预发 / 正式可挂载后台，前台需单独静态服务 |
+| `bun run preview` | 预览构建后的前台（仅静态页面，不代理业务 API） |
+| `bun run typecheck` | 检查后端和两个前端 |
+| `bun run check` | 类型检查、后端测试和现有前台行为检查；未指定测试库时数据库测试跳过 |
+| `bun run test:integration` | 使用 `TEST_DATABASE_URL` 指定的专用测试库运行数据库 / 鉴权测试 |
+| `bun run db:generate` / `bun run db:migrate` | 生成 / 执行数据库迁移 |
+
+```text
+apps/web/              MinMD 前台及编辑器
+apps/web-cms/          MAS 管理后台
+apps/app_server/       业务后端（当前包含脚手架前台账号模块）
+system/server/         通用认证、角色权限、日志和基础服务
+config/                权限及开发配置
+database/migrations/  数据库迁移
+scripts/               根目录开发、构建与数据库工具
+apps/web/scripts/      原有前台行为检查脚本
+deploy/                开发数据库 Compose
+```
+
+根目录维护唯一 `bun.lock`，各应用通过 Bun workspace 安装。前台接口代理为 `/api`；开发前后台使用不同端口。后台部署路径示例为 `/admin`，修改配置后需重启后端。正式 Cookie 模式需要 HTTPS 和匹配的访问来源。
+
+验收命令示例：
+
+```sh
+bun run check
+RUNTIME_PROCESS_TEST=true bun test tests/runtime-process.test.ts
+DEV_PROCESS_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/minmd_test RUNTIME_PROCESS_TEST=true bun test tests/dev-process.test.ts
+bun run --cwd apps/web-cms lint
+TEST_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/minmd_test bun run test:integration
+```
+
+数据库测试必须使用独立 `_test` 库，不指向日常开发库或生产库。配置、运行日志、数据库文件、上传文件和验收截图均不提交 Git。`dist/.env.example` 仅为公开配置模板，不包含本机凭证。
+
+本机设置了全局 HTTP 代理时，验收命令需在前面加 `env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY`，确保本地健康检查直接连接。开发进程已对 Vite 的本地代理设置 `NO_PROXY`。
 
 ## 已有交互
 
@@ -45,8 +107,8 @@ bun run preview
 
 ## 主题与工程
 
-`src/theme.less` 集中定义语义颜色、文件类型颜色、字体、间距、尺寸、圆角与动效变量。`data-theme` 切换浅色 / 深色，Ant Design 配置同步读取颜色变量。样例纸张使用单独的预览色变量。
+`apps/web/src/theme.less` 集中定义语义颜色、文件类型颜色、字体、间距、尺寸、圆角与动效变量。`data-theme` 切换浅色 / 深色，Ant Design 配置同步读取颜色变量。样例纸张使用单独的预览色变量。
 
 React 18、TypeScript、Vite、Hash Router、Zustand、Ant Design、Tiptap、lucide-react、Less Modules。跨模块引用使用 `@/`，页面与组件采用目录式组织。
 
-后续：业务前台接入 MAS 前台认证与空间接口；后台账号与系统权限沿用脚手架自带管理界面。本仓库当前不包含管理后台。
+后续：业务前台接入 MAS 前台认证与空间接口；后台账号与系统权限沿用脚手架自带管理界面。管理后台已引入，但 MinMD 空间、文件和 AI 业务尚未接入。

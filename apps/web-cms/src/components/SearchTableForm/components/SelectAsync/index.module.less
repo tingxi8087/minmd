@@ -1,0 +1,27 @@
+.selectAsyncPopup {
+  max-width: 400px;
+}
+
+// 强制下拉框向下展开，避免向上展开导致看不全数据
+:global {
+  .forceBottom {
+    // 使用 !important 确保样式优先级，强制向下展开
+    top: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+  }
+  
+  // 针对 Ant Design 5.x 的下拉框定位
+  .ant-select-dropdown.forceBottom {
+    top: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+  }
+  
+  // 更强制的方式：直接覆盖 rc-dropdown 的定位
+  .rc-select-dropdown.forceBottom {
+    top: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789825770807,
+      "tag": "0000_neat_sasquatch",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789826312912,
+      "tag": "0001_example_book",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789828377178,
+      "tag": "0002_app_users",
+      "breakpoints": true
+    }
+  ]
+}

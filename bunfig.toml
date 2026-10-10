@@ -1,0 +1,3 @@
+[test]
+# Web CMS tests use the upstream Vitest / Playwright runners.
+root = "./tests"

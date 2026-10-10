@@ -4,3 +4,18 @@ artifacts/
 *.tsbuildinfo
 .env
 .DS_Store
+
+# 工作区运行数据、环境与后台测试产物
+.env.*
+!.env.example
+!.env.*.example
+/runtime/
+/logs/
+/backups/
+/backup/
+coverage/
+.cache/
+.vite/
+test-results/
+playwright-report/
+*.log

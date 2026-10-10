@@ -1,0 +1,106 @@
+.formWrapper {
+  border-top-left-radius: 4px;
+  margin-top: 6px;
+  :global {
+    .ant-picker {
+      width: 100%;
+    }
+
+    .ant-form-item {
+      margin-bottom: 8px !important;
+    }
+  }
+
+  .customRow {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .formColContent {
+    flex-grow: 1;
+    // width: calc(100% - 170px);
+    display: flex;
+    // &.expand {
+    // width: calc(100% - 210px);
+    // }
+  }
+
+  .formColButtons {
+    flex-shrink: 0;
+    display: flex;
+    width: 200px;
+    margin-left: auto;
+    padding-left: 16px;
+    padding-right: 16px;
+    &.expand {
+      width: 210px;
+    }
+
+    &.flow {
+      justify-content: flex-end;
+    }
+
+    .btn {
+      margin-right: 8px;
+      margin-bottom: 8px;
+
+      &:last-child {
+        margin-right: 0;
+      }
+    }
+
+    .foldButton {
+      color: #595b66;
+      font-size: 14px;
+      white-space: nowrap;
+      font-weight: 400;
+      margin-top: 5px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+
+      .anticon {
+        display: inline-block;
+        vertical-align: middle;
+        margin-bottom: 0;
+      }
+
+      .upIcon {
+        transform: rotate(0deg);
+      }
+
+      .downIcon {
+        transform: rotate(0deg);
+      }
+    }
+  }
+  .formCol {
+    padding-left: var(--col-padding-left, 0px) !important;
+    padding-right: 8px !important;
+    &:nth-of-type(1) {
+      :global {
+        .ant-form-item-label {
+          width: var(--expand-label-width, 110px) !important;
+        }
+      }
+    }
+  }
+
+  .labelWrap {
+    display: inline-block;
+    white-space: normal;
+    word-break: break-all;
+    line-height: 1.5;
+    max-width: 100%;
+  }
+}
+.fieldSettingButton {
+  padding-left: 8px;
+  padding-right: 8px;
+  margin-right: 8px;
+}
+.formColContentRow{
+  flex: 1;
+  margin-right: 16px !important;
+}

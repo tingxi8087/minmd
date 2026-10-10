@@ -1,0 +1,12 @@
+{
+  "name": "@mas/app-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@mas/system-server": "workspace:*",
+    "fastify": "^5.6.0",
+    "@sinclair/typebox": "^0.34.0",
+    "drizzle-orm": "^0.45.0"
+  }
+}
