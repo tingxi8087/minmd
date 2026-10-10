@@ -1,0 +1,27 @@
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 44px;
+  border-radius: 8px;
+  color: var(--doc);
+  background: var(--doc-soft);
+  &[data-kind="sheet"] {
+    color: var(--sheet);
+    background: var(--sheet-soft);
+  }
+  &[data-kind="slide"] {
+    color: var(--slide);
+    background: var(--slide-soft);
+  }
+  &[data-kind="folder"] {
+    color: var(--folder);
+    background: var(--folder-soft);
+  }
+  &.small {
+    width: 30px;
+    height: 34px;
+    border-radius: 5px;
+  }
+}

@@ -1,0 +1,53 @@
+.page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--sidebar);
+  padding: 24px;
+}
+.card {
+  width: 390px;
+  max-width: 100%;
+  padding: 40px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  > svg {
+    color: var(--accent);
+  }
+  .brand {
+    font: 700 24px var(--font-brand);
+    margin: 14px 0 28px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 500;
+  }
+  > p {
+    color: var(--text-secondary);
+    font-size: 12px;
+    margin-top: 10px;
+  }
+  form {
+    margin-top: 28px;
+    > button {
+      width: 100%;
+      margin-top: 25px;
+    }
+  }
+  small {
+    display: block;
+    color: var(--text-muted);
+    font-size: 10px;
+    line-height: 1.9;
+    margin-top: 22px;
+  }
+}
+.skip {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font-size: 12px;
+  margin-top: 15px;
+  padding: 0;
+}

@@ -1,0 +1,189 @@
+import { useEffect, useState } from "react";
+import { App, Input, Modal, Select, Switch } from "antd";
+import { Copy, Globe2, LockKeyhole } from "lucide-react";
+import { Entry, FileKind, kindNames, useWorkspace } from "@/store/workspace";
+export type FileAction =
+  | { type: "create"; kind: FileKind; parent: string | null }
+  | { type: "rename" | "share" | "move"; file: Entry };
+export default function FileDialogs({
+  action,
+  close,
+}: {
+  action: FileAction | null;
+  close: () => void;
+}) {
+  const { add, patch, files, space } = useWorkspace();
+  const { message } = App.useApp();
+  const [name, setName] = useState("");
+  const [shared, setShared] = useState(false);
+  const [password, setPassword] = useState("");
+  const [expires, setExpires] = useState("");
+  const [parent, setParent] = useState<string | null>(null);
+  useEffect(() => {
+    if (!action) return;
+    if (action.type === "create") {
+      setName("");
+      setParent(action.parent);
+    } else {
+      setName(action.file.name);
+      setShared(action.file.public);
+      setPassword(action.file.password || "");
+      setExpires(action.file.expires || "");
+      setParent(action.file.parent);
+    }
+  }, [action]);
+  if (!action) return null;
+  const isShare = action.type === "share";
+  const title =
+    action.type === "create"
+      ? `新建${kindNames[action.kind]}`
+      : action.type === "rename"
+        ? "重命名"
+        : action.type === "move"
+          ? "移动到文件夹"
+          : "分享设置";
+  const save = () => {
+    if (action.type === "create" || action.type === "rename") {
+      if (!name.trim()) {
+        message.warning("请输入名称");
+        return;
+      }
+      if (action.type === "create") add(name.trim(), action.kind, parent);
+      else patch(action.file.id, { name: name.trim() });
+    } else if (action.type === "move") patch(action.file.id, { parent });
+    else
+      patch(action.file.id, {
+        public: shared,
+        password: shared ? password : "",
+        expires: shared ? expires : "",
+      });
+    message.success("已保存到本地演示数据");
+    close();
+  };
+  return (
+    <Modal
+      title={title}
+      open
+      onCancel={close}
+      onOk={save}
+      okText={isShare ? "保存设置" : "确定"}
+      cancelText="取消"
+      destroyOnHidden
+    >
+      {action.type === "create" || action.type === "rename" ? (
+        <div className="field">
+          <label>名称</label>
+          <Input
+            autoFocus
+            maxLength={100}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onPressEnter={save}
+            placeholder={
+              action.type === "create"
+                ? `输入${kindNames[action.kind]}名称`
+                : ""
+            }
+          />
+        </div>
+      ) : action.type === "move" ? (
+        <div className="field">
+          <label>目标位置</label>
+          <Select
+            value={parent || "root"}
+            onChange={(v) => setParent(v === "root" ? null : v)}
+            options={[
+              { value: "root", label: "空间根目录" },
+              ...files
+                .filter(
+                  (f) =>
+                    f.space === space &&
+                    f.kind === "folder" &&
+                    !f.deleted &&
+                    f.id !== action.file.id,
+                )
+                .map((f) => ({ value: f.id, label: f.name })),
+            ]}
+          />
+        </div>
+      ) : (
+        <>
+          <p className="dialog-note">{action.file.name}</p>
+          <div
+            className="field"
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {shared ? <Globe2 size={18} /> : <LockKeyhole size={18} />}{" "}
+              {shared ? "公开 · 通过链接只读访问" : "私有 · 仅空间成员可访问"}
+            </span>
+            <Switch
+              checked={shared}
+              onChange={setShared}
+              aria-label="公开分享"
+            />
+          </div>
+          {shared && (
+            <>
+              <div className="field">
+                <label>
+                  分享密码 <span className="muted">（可选）</span>
+                </label>
+                <Input.Password
+                  value={password}
+                  maxLength={64}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="留空表示无需密码"
+                />
+              </div>
+              <div className="field">
+                <label>
+                  有效期 <span className="muted">（可选）</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  value={expires}
+                  onChange={(e) => setExpires(e.target.value)}
+                  style={{
+                    padding: 9,
+                    background: "var(--surface)",
+                    color: "var(--text)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-sm)",
+                  }}
+                />
+              </div>
+              <p className="dialog-note">
+                分享链接将在接入后端后生成。当前只预览设置，不提供真实外部访问。
+              </p>
+              <button
+                className="secondary-button"
+                style={{ marginTop: 12 }}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(
+                      `[MinMD 演示分享] ${action.file.name}`,
+                    );
+                    message.success("已复制演示分享说明");
+                  } catch {
+                    message.error("复制失败，请检查浏览器权限");
+                  }
+                }}
+              >
+                <Copy size={14} />
+                复制演示说明
+              </button>
+            </>
+          )}
+        </>
+      )}
+      <p className="dialog-note">
+        静态演示 · 所有修改仅保存在当前浏览器，未接入服务器。
+      </p>
+    </Modal>
+  );
+}
