@@ -59,7 +59,10 @@ export default function WorkspaceTree() {
       .filter((kind) => !parent || canContain(parent, { kind }))
       .map((kind) => ({
         key: kind,
-        label: `新建${parent?.kind === "doc" ? "子" : ""}${kindNames[kind]}`,
+        label:
+          kind === "slide"
+            ? "上传幻灯片"
+            : `新建${parent?.kind === "doc" ? "子" : ""}${kindNames[kind]}`,
         icon: (
           <span className={styles.menuIcon}>
             {(() => {

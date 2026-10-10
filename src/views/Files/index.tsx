@@ -35,6 +35,7 @@ import {
   useWorkspace,
 } from "@/store/workspace";
 import styles from "./index.module.less";
+import { saveSpreadsheet } from "@/utils/spreadsheetStorage";
 export default function Files() {
   const { files, space, patch, purge, add } = useWorkspace();
   const navigate = useNavigate();
@@ -48,6 +49,7 @@ export default function Files() {
   const [action, setAction] = useState<FileAction | null>(null);
   const [sort, setSort] = useState<"updated" | "name">("updated");
   const upload = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
   const folderId = params.get("folder");
   const folder = files.find(
     (f) =>
@@ -192,14 +194,37 @@ export default function Files() {
   const newItems = (["doc", "sheet", "slide", "folder"] as FileKind[]).map(
     (kind) => ({
       key: kind,
-      label: `新建${kindNames[kind]}`,
+      label: kind === "slide" ? "上传幻灯片" : `新建${kindNames[kind]}`,
       icon: <FileIcon kind={kind} small />,
     }),
   );
   const imported = async (file?: File) => {
     if (!file) return;
+    if (/\.xlsx$/i.test(file.name)) {
+      setImporting(true);
+      let created: string | undefined;
+      try {
+        const { importXlsx } = await import("@/views/Spreadsheet/exchange");
+        const name = file.name.replace(/\.xlsx$/i, "");
+        const data = await importXlsx(file, crypto.randomUUID(), name);
+        created = add(name, "sheet", parent);
+        data.id = created;
+        await saveSpreadsheet(created, data);
+        patch(created, { spreadsheet: { savedAt: new Date().toISOString() } });
+        navigate(`/preview/${created}`);
+        message.success("已导入 Excel，图表等高级对象暂不支持转换");
+      } catch (error) {
+        if (created) purge(created);
+        message.error(
+          error instanceof Error ? error.message : "Excel 导入失败",
+        );
+      } finally {
+        setImporting(false);
+      }
+      return;
+    }
     if (!/\.(md|markdown)$/i.test(file.name)) {
-      message.warning("目前演示仅支持导入 .md 文件");
+      message.warning("支持导入 .md 和 .xlsx 文件");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
@@ -226,10 +251,11 @@ export default function Files() {
             <>
               <button
                 className="secondary-button"
+                disabled={importing}
                 onClick={() => upload.current?.click()}
               >
                 <Upload size={15} />
-                导入
+                {importing ? "正在导入…" : "导入"}
               </button>
               <Dropdown
                 trigger={["click"]}
@@ -257,7 +283,7 @@ export default function Files() {
         hidden
         type="file"
         ref={upload}
-        accept=".md,.markdown"
+        accept=".md,.markdown,.xlsx"
         onChange={(e) => {
           void imported(e.target.files?.[0]);
           e.target.value = "";
@@ -465,7 +491,17 @@ export default function Files() {
         )}
       </section>
       {contextMenu.menu}
-      <FileDialogs action={action} close={() => setAction(null)} />
+      <FileDialogs
+        action={action}
+        close={() => setAction(null)}
+        onCreated={(id) => {
+          if (
+            action?.type === "create" &&
+            (action.kind === "slide" || action.kind === "sheet")
+          )
+            navigate(`/preview/${id}`);
+        }}
+      />
     </main>
   );
 }

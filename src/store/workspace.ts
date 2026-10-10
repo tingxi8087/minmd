@@ -2,6 +2,8 @@ import type { JSONContent } from "@tiptap/core";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { canMove, siblings } from "@/utils/fileTree";
+import { deletePresentation } from "@/utils/presentationFiles";
+import { deleteSpreadsheet } from "@/utils/spreadsheetStorage";
 export type FileKind = "doc" | "sheet" | "slide" | "folder";
 export type Entry = {
   id: string;
@@ -21,6 +23,8 @@ export type Entry = {
   content?: string;
   document?: JSONContent;
   contentVersion?: number;
+  presentation?: { key: string; name: string; size: number; slides: number };
+  spreadsheet?: { savedAt: string };
 };
 export const kindNames: Record<FileKind, string> = {
   doc: "文档",
@@ -150,8 +154,13 @@ export const useWorkspace = create<State>()(
               : file,
           ),
         }),
-      purge: (id) =>
-        set({ files: get().files.filter((file) => file.id !== id) }),
+      purge: (id) => {
+        const key = get().files.find((file) => file.id === id)?.presentation
+          ?.key;
+        set({ files: get().files.filter((file) => file.id !== id) });
+        if (key) void deletePresentation(key).catch(() => {});
+        void deleteSpreadsheet(id).catch(() => {});
+      },
       relocate: (id, parent, index) => {
         const files = get().files;
         if (!canMove(files, id, parent)) return false;
@@ -195,7 +204,17 @@ export const useWorkspace = create<State>()(
               : file,
           ),
         }),
-      reset: () => set({ files: initialFiles, keys: [], space: "team" }),
+      reset: () => {
+        const sheets = get()
+          .files.filter((file) => file.kind === "sheet")
+          .map((file) => file.id);
+        const keys = get().files.flatMap((file) =>
+          file.presentation ? [file.presentation.key] : [],
+        );
+        set({ files: initialFiles, keys: [], space: "team" });
+        keys.forEach((key) => void deletePresentation(key).catch(() => {}));
+        sheets.forEach((id) => void deleteSpreadsheet(id).catch(() => {}));
+      },
     }),
     { name: "minmd-static-demo-v1" },
   ),

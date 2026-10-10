@@ -17,7 +17,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TableKit } from "@tiptap/extension-table";
-import Image from "@tiptap/extension-image";
+import { DocumentImage } from "./components/DocumentImage";
 import { Markdown } from "@tiptap/markdown";
 import {
   ArrowLeft,
@@ -150,7 +150,7 @@ function DocumentEditor({ file }: { file: Entry }) {
       TaskList,
       TaskItem.configure({ nested: true }),
       TableKit.configure({ table: { resizable: true, View: QuickTableView } }),
-      Image.configure({ allowBase64: true }),
+      DocumentImage,
       TextStyle,
       Color,
       BackgroundColor,

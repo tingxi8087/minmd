@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { App, Input, Modal, Select, Switch } from "antd";
+import { App, Input, Modal, Select, Switch, Upload } from "antd";
+import {
+  deletePresentation,
+  savePresentation,
+  validatePresentation,
+} from "@/utils/presentationFiles";
 import { Copy, Globe2, LockKeyhole } from "lucide-react";
 import { Entry, FileKind, kindNames, useWorkspace } from "@/store/workspace";
 import { canMove, entryPath } from "@/utils/fileTree";
@@ -22,8 +27,11 @@ export default function FileDialogs({
   const [password, setPassword] = useState("");
   const [expires, setExpires] = useState("");
   const [parent, setParent] = useState<string | null>(null);
+  const [presentation, setPresentation] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!action) return;
+    setPresentation(null);
     if (action.type === "create") {
       setName("");
       setParent(action.parent);
@@ -39,13 +47,53 @@ export default function FileDialogs({
   const isShare = action.type === "share";
   const title =
     action.type === "create"
-      ? `新建${kindNames[action.kind]}`
+      ? action.kind === "slide"
+        ? "上传幻灯片"
+        : `新建${kindNames[action.kind]}`
       : action.type === "rename"
         ? "重命名"
         : action.type === "move"
           ? "移动到…"
           : "分享设置";
-  const save = () => {
+  const save = async () => {
+    if (saving) return;
+    if (action.type === "create" && action.kind === "slide") {
+      if (!presentation) {
+        message.warning("请选择 .pptx 文件");
+        return;
+      }
+      if (!name.trim()) {
+        message.warning("请输入名称");
+        return;
+      }
+      setSaving(true);
+      let createdId: string | undefined;
+      try {
+        const slides = await validatePresentation(presentation);
+        createdId = crypto.randomUUID();
+        await savePresentation(createdId, presentation);
+        const id = add(name.trim(), "slide", parent);
+        patch(id, {
+          presentation: {
+            key: createdId,
+            name: presentation.name,
+            size: presentation.size,
+            slides,
+          },
+        });
+        onCreated?.(id);
+        message.success("幻灯片已保存到本机浏览器");
+        close();
+      } catch (error) {
+        if (createdId) void deletePresentation(createdId).catch(() => {});
+        message.error(
+          error instanceof Error ? error.message : "无法读取此 PPTX 文件",
+        );
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     if (action.type === "create" || action.type === "rename") {
       if (!name.trim()) {
         message.warning("请输入名称");
@@ -77,12 +125,38 @@ export default function FileDialogs({
       onOk={save}
       okText={isShare ? "保存设置" : "确定"}
       cancelText="取消"
+      confirmLoading={saving}
+      closable={!saving}
+      maskClosable={!saving}
+      keyboard={!saving}
+      cancelButtonProps={{ disabled: saving }}
       destroyOnHidden
     >
       {action.type === "create" || action.type === "rename" ? (
         <div className="field">
+          {action.type === "create" && action.kind === "slide" && (
+            <Upload.Dragger
+              disabled={saving}
+              accept=".pptx"
+              maxCount={1}
+              showUploadList={false}
+              beforeUpload={(file) => {
+                if (!/\.pptx$/i.test(file.name)) {
+                  message.warning("仅支持 .pptx 文件");
+                  return Upload.LIST_IGNORE;
+                }
+                setPresentation(file);
+                setName(file.name.replace(/\.pptx$/i, ""));
+                return false;
+              }}
+            >
+              {presentation ? presentation.name : "点击选择或拖入 .pptx 文件"}
+              <p className="muted">最多 50 MB · 只读预览 · 保存在本机浏览器</p>
+            </Upload.Dragger>
+          )}
           <label>名称</label>
           <Input
+            disabled={saving}
             autoFocus
             maxLength={100}
             value={name}

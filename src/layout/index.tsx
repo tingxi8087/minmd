@@ -44,7 +44,9 @@ export default function Layout() {
   }, []);
   const navigate = useNavigate();
   const location = useLocation();
-  const isDocument = location.pathname.startsWith("/document/");
+  const isDocument =
+    location.pathname.startsWith("/document/") ||
+    location.pathname.startsWith("/preview/");
   const { message } = App.useApp();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");

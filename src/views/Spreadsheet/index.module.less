@@ -1,0 +1,176 @@
+.page {
+  height: calc(100dvh - var(--header-height));
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--surface);
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  min-height: 44px;
+  flex-shrink: 0;
+  &[data-inline] {
+    min-height: 0;
+    padding: 0;
+    border-bottom: 0;
+    width: 100%;
+    height: var(--header-height);
+    min-width: 0;
+  }
+  > :not(strong) {
+    flex-shrink: 0;
+  }
+  strong {
+    font-size: 13px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  :global([data-u-comp="workbench-layout"]) {
+    font-family: var(--font-body);
+  }
+  :global([data-u-comp="ribbon-grid-menu"]) {
+    background: var(--surface) !important;
+    padding: 0 8px;
+    gap: 2px;
+    > button {
+      position: relative;
+      padding: 0 12px;
+      color: var(--text-secondary) !important;
+      font-size: 14px;
+      line-height: 1;
+      border: 0;
+      border-radius: 4px 4px 0 0;
+      &:hover {
+        background: var(--hover) !important;
+      }
+      &[aria-selected="true"] {
+        color: var(--accent) !important;
+        &::after {
+          content: "";
+          position: absolute;
+          bottom: 2px;
+          left: 12px;
+          right: 12px;
+          height: 2px;
+          border-radius: 2px;
+          background: var(--accent);
+        }
+      }
+    }
+  }
+  :global([data-u-comp="ribbon-grid-toolbar"]) {
+    background: var(--surface) !important;
+    border-bottom-color: var(--border) !important;
+    color: var(--text);
+  }
+  :global([data-u-comp="ribbon-grid-group"]) {
+    padding: 0 8px;
+  }
+  :global([data-testid="ribbon-grid-group-grid"]) {
+    grid-template-rows: repeat(2, 26px);
+    gap: 6px;
+    padding: 8px 0;
+  }
+  :global([data-testid="ribbon-grid-group-divider"]) {
+    border-color: var(--border) !important;
+    top: 10px;
+    bottom: 8px;
+    opacity: 1;
+  }
+  :global([data-u-command="data-validation.command.insert-quick-rule"] .univer-toolbar-button-selector-main),
+  :global([data-u-command="sheet.menu.quick-date"] .univer-toolbar-button-selector-main) {
+    gap: 8px;
+  }
+  // Split-button and dropdown menus use different Univer layouts by default.
+  // Give both a 24px icon, an 18px label and a 12px dropdown arrow.
+  :global([data-u-command="sheet.command.smart-toggle-filter"]),
+  :global([data-u-command="sheet.menu.sheets-sort"]) {
+    font-size: 12px;
+    line-height: 18px;
+    box-sizing: border-box;
+    height: 100%;
+  }
+  :global([data-u-command="sheet.command.smart-toggle-filter"] .univer-toolbar-button-selector-main) {
+    box-sizing: border-box;
+    padding: 2px 4px 14px;
+    gap: 0;
+    justify-content: center;
+    > svg {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    > span {
+      height: 18px;
+      line-height: 18px;
+    }
+  }
+  :global([data-u-command="sheet.command.smart-toggle-filter"] .univer-toolbar-button-selector-trigger) {
+    z-index: 2;
+    bottom: 2px;
+    height: 12px;
+    > svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
+  :global([data-u-command="sheet.menu.sheets-sort"]) {
+    padding: 2px 4px;
+    gap: 0;
+    justify-content: center;
+    > svg {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    :global(.univer-toolbar-selector-trigger) {
+      flex-direction: column;
+      gap: 0;
+      height: 30px;
+      > span {
+        height: 18px;
+        line-height: 18px;
+      }
+      > svg {
+        width: 12px;
+        height: 12px;
+      }
+    }
+  }
+  :global([data-u-comp="ribbon-grid-toolbar"] [class~="univer-bg-gray-200"]),
+  :global([data-u-comp="ribbon-grid-toolbar"] [class~="!univer-bg-gray-200"]),
+  :global([data-u-comp="ribbon-grid-toolbar"] [aria-pressed="true"]) {
+    background: var(--accent-soft) !important;
+    color: var(--accent) !important;
+  }
+}
+.status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 14px;
+  z-index: 2;
+}

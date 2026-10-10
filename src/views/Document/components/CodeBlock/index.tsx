@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Select } from "antd";
-import CodeBlock from "@tiptap/extension-code-block";
+import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
+import { codeHighlighter } from "./highlighting";
 import {
   NodeViewWrapper,
   NodeViewContent,
@@ -82,8 +83,8 @@ function CodeBlockView({ node, updateAttributes, editor }: NodeViewProps) {
     </NodeViewWrapper>
   );
 }
-export const SelectableCodeBlock = CodeBlock.extend({
+export const SelectableCodeBlock = CodeBlockLowlight.extend({
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockView);
   },
-});
+}).configure({ lowlight: codeHighlighter, defaultLanguage: "plaintext" });
