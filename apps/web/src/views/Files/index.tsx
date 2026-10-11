@@ -208,7 +208,6 @@ export default function Files() {
         const name = file.name.replace(/\.xlsx$/i, "");
         const data = await importXlsx(file, crypto.randomUUID(), name);
         created = add(name, "sheet", parent);
-        data.id = created;
         await saveSpreadsheet(created, data);
         patch(created, { spreadsheet: { savedAt: new Date().toISOString() } });
         navigate(`/preview/${created}`);

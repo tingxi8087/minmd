@@ -1,3 +1,4 @@
+import { prepareWorkbook, toLegacy } from "../src/views/Spreadsheet/workbook";
 import assert from "node:assert/strict";
 import ExcelJS from "exceljs";
 import { importXlsx, exportXlsx } from "../src/views/Spreadsheet/exchange";
@@ -38,14 +39,15 @@ source.addWorksheet("事项清单").addRows([
 ]);
 const binary = await source.xlsx.writeBuffer();
 const file = new File([new Uint8Array(binary)], "budget.xlsx");
-const data = await importXlsx(file, "test", "预算");
+const fortune = await importXlsx(file, "test", "预算");
+const data = toLegacy(fortune, "test", "预算");
 assert.equal(data.sheetOrder.length, 2);
 assert.equal(
   data.sheets[data.sheetOrder[0]].cellData?.[4]?.[1]?.f,
   "=SUM(B3:B4)",
 );
 const exported = new ExcelJS.Workbook();
-await exported.xlsx.load(await (await exportXlsx(data)).arrayBuffer());
+await exported.xlsx.load(await (await exportXlsx(fortune)).arrayBuffer());
 const result = exported.worksheets[0];
 assert.equal(result.autoFilter, "A2:B4");
 assert.equal(result.name, "项目预算");
@@ -79,13 +81,21 @@ await assert.rejects(
 );
 const empty = new ExcelJS.Workbook();
 empty.addWorksheet("空白");
-const emptyData = await importXlsx(
+const emptyFortune = await importXlsx(
   new File([new Uint8Array(await empty.xlsx.writeBuffer())], "empty.xlsx"),
   "empty",
   "空白",
 );
+const emptyData = toLegacy(emptyFortune, "empty", "空白");
 assert.equal(emptyData.sheetOrder.length, 1);
 assert.deepEqual(emptyData.sheets[emptyData.sheetOrder[0]].cellData, {});
 console.log(
   "XLSX roundtrip passed: formulas, two sheets, styles, borders, merges, dates, dimensions and invalid files.",
 );
+
+const restored = prepareWorkbook([
+  { id: "restore", name: "恢复", data: [[{ v: 3, f: "=1+2" }]] },
+]);
+assert.equal(restored[0].data, undefined);
+assert.equal(restored[0].celldata?.[0].v?.m, "3");
+assert.equal(restored[0].celldata?.[0].v?.f, "=1+2");

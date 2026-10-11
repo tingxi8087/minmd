@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { App } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
@@ -7,293 +7,329 @@ import {
   Download,
   Upload,
   Share2,
+  Users,
   AlertCircle,
   LoaderCircle,
 } from "lucide-react";
-import {
-  createUniver,
-  defaultTheme,
-  LocaleType,
-  mergeLocales,
-  type FUniver,
-} from "@univerjs/presets";
-import { UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
-import zhCN from "@univerjs/preset-sheets-core/locales/zh-CN";
-import "@univerjs/preset-sheets-core/lib/index.css";
-import { UniverSheetsFilterPreset } from "@univerjs/preset-sheets-filter";
-import filterZhCN from "@univerjs/preset-sheets-filter/locales/zh-CN";
-import "@univerjs/preset-sheets-filter/lib/index.css";
-import { UniverSheetsSortPreset } from "@univerjs/preset-sheets-sort";
-import sortZhCN from "@univerjs/preset-sheets-sort/locales/zh-CN";
-import { UniverSheetsDataValidationPreset } from "@univerjs/preset-sheets-data-validation";
-import validationZhCN from "@univerjs/preset-sheets-data-validation/locales/zh-CN";
-import "@univerjs/preset-sheets-data-validation/lib/index.css";
+import { Workbook, type WorkbookInstance } from "@fortune-sheet/react";
+import type { Op, Sheet } from "@fortune-sheet/core";
+import "@fortune-sheet/react/dist/index.css";
 import TooltipButton from "@/components/TooltipButton";
 import FileIcon from "@/components/FileIcon";
 import FileHeader from "@/components/FileHeader";
 import FileDialogs, { type FileAction } from "@/components/FileDialogs";
 import { type Entry, useWorkspace } from "@/store/workspace";
 import { getSpreadsheet, saveSpreadsheet } from "@/utils/spreadsheetStorage";
-import { createWorkbook } from "./workbook";
+import { createWorkbook, prepareWorkbook } from "./workbook";
 import { importXlsx, exportXlsx } from "./exchange";
-import { configureRibbon, ribbonLocale } from "./ribbon";
 import styles from "./index.module.less";
-
+const tools: Record<string, string[]> = {
+  开始: [
+    "undo",
+    "redo",
+    "format-painter",
+    "clear-format",
+    "|",
+    "font",
+    "font-size",
+    "|",
+    "bold",
+    "italic",
+    "strike-through",
+    "underline",
+    "font-color",
+    "background",
+    "border",
+    "merge-cell",
+    "|",
+    "horizontal-align",
+    "vertical-align",
+    "text-wrap",
+    "text-rotation",
+    "|",
+    "currency-format",
+    "percentage-format",
+    "number-decrease",
+    "number-increase",
+    "format",
+  ],
+  插入: ["link", "image", "comment", "|", "dataVerification", "splitColumn"],
+  公式: ["quick-formula"],
+  数据: [
+    "filter",
+    "conditionFormat",
+    "dataVerification",
+    "splitColumn",
+    "locationCondition",
+    "search",
+  ],
+  视图: ["freeze", "search", "screenshot"],
+};
+type Pending = { sequence: number; ops: Op[] };
 export default function Spreadsheet({ file }: { file: Entry }) {
-  const navigate = useNavigate();
-  const { message } = App.useApp();
+  const navigate = useNavigate(),
+    { message } = App.useApp();
   const theme = useWorkspace((s) => s.theme);
-  const container = useRef<HTMLDivElement>(null),
-    input = useRef<HTMLInputElement>(null);
-  const api = useRef<FUniver | null>(null);
-  const flush = useRef<() => Promise<void>>(async () => {});
-  const replacing = useRef(false);
-  const latestFile = useRef(file);
-  latestFile.current = file;
-  const [state, setState] = useState<"loading" | "saved" | "saving" | "error">(
-    "loading",
-  );
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [revision, setRevision] = useState(0);
-  const [action, setAction] = useState<FileAction | null>(null);
+  const api = useRef<WorkbookInstance>(null),
+    input = useRef<HTMLInputElement>(null),
+    live = useRef<Sheet[]>([]),
+    socket = useRef<WebSocket | null>(null),
+    revision = useRef(0),
+    sender = useRef(""),
+    sequence = useRef(0),
+    pending = useRef<Pending[]>([]),
+    sending = useRef(false),
+    remote = useRef(false);
+  const [data, setData] = useState<Sheet[]>(),
+    [generation, setGeneration] = useState(0),
+    [tab, setTab] = useState("开始"),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [state, setState] = useState("loading"),
+    [action, setAction] = useState<FileAction | null>(null),
+    [collaborating, setCollaborating] = useState(false),
+    [connected, setConnected] = useState(false),
+    [members, setMembers] = useState({ count: 0, limit: 10 }),
+    [notice, setNotice] = useState("");
+  const collabRef = useRef(false);
+  collabRef.current = collaborating;
   useEffect(() => {
-    let cancelled = false,
-      dirty = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let instance: ReturnType<typeof createUniver> | undefined;
-    let subscription: { dispose: () => void } | undefined;
-    let pending = Promise.resolve();
-    setState("loading");
+    let cancelled = false;
+    setCollaborating(false);
+    setData(undefined);
     setError("");
-    const save = async () => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = undefined;
-      }
-      const book = instance?.univerAPI.getActiveWorkbook();
-      if (!book) return;
-      const snapshot = book.save();
-      snapshot.name = latestFile.current.name;
-      dirty = false;
-      if (!cancelled) setState("saving");
-      pending = pending
-        .catch(() => {})
-        .then(() => saveSpreadsheet(file.id, snapshot))
-        .then(() => {
-          useWorkspace.getState().patch(file.id, {
-            spreadsheet: { savedAt: new Date().toISOString() },
-          });
-          if (!cancelled && !dirty) setState("saved");
-        })
-        .catch((e) => {
-          if (!cancelled) {
-            setState("error");
-            message.error("表格保存失败，请导出备份后检查浏览器存储空间");
-          }
-          throw e;
-        });
-      return pending;
-    };
-    flush.current = save;
-    const open = async () => {
-      try {
-        const snapshot =
-          (await getSpreadsheet(file.id)) ||
-          createWorkbook(
-            file.id,
-            latestFile.current.name,
-            file.id === "sheet-budget",
-          );
+    setState("loading");
+    void getSpreadsheet(file.id)
+      .then((saved) => {
         if (cancelled) return;
-        const css = getComputedStyle(document.documentElement),
-          accent = css.getPropertyValue("--accent").trim(),
-          soft = css.getPropertyValue("--accent-soft").trim();
-        instance = createUniver({
-          locale: LocaleType.ZH_CN,
-          locales: {
-            [LocaleType.ZH_CN]: mergeLocales(
-              zhCN,
-              filterZhCN,
-              sortZhCN,
-              validationZhCN,
-              ribbonLocale,
-            ),
-          },
-          darkMode: useWorkspace.getState().theme === "dark",
-          theme: {
-            ...defaultTheme,
-            primary: {
-              ...defaultTheme.primary,
-              50: soft,
-              100: soft,
-              200: soft,
-              300: accent,
-              400: accent,
-              500: accent,
-              600: accent,
-              700: accent,
-              800: accent,
-              900: accent,
-            },
-          },
-          presets: [
-            UniverSheetsCorePreset({
-              container: container.current!,
-              header: true,
-              ribbonType: "grid",
-              menu: {
-                "data-validation.command.insert-quick-rule": {
-                  title: "sheets-data-validation-ui.checkbox.title",
-                  gridLayout: {
-                    row: 1,
-                    column: 1,
-                    showLabel: true,
-                    width: 104,
-                  },
-                },
-                "sheet.menu.quick-dropdown": {
-                  title: "minmd.sheetRibbon.dropdown",
-                  gridLayout: {
-                    row: 2,
-                    column: 1,
-                    showLabel: true,
-                    width: 104,
-                  },
-                },
-                "sheet.menu.quick-date": {
-                  title: "minmd.sheetRibbon.date",
-                  gridLayout: {
-                    row: 1,
-                    column: 2,
-                    showLabel: true,
-                    width: 104,
-                  },
-                },
-                "sheet.command.smart-toggle-filter": {
-                  title: "sheets-filter-ui.toolbar.smart-toggle-filter-tooltip",
-                  gridLayout: {
-                    row: 1,
-                    column: 1,
-                    rowSpan: 2,
-                    showLabel: true,
-                    width: 64,
-                  },
-                },
-                "sheet.menu.sheets-sort": {
-                  title: "sheets-sort-ui.general.sort",
-                  gridLayout: {
-                    row: 1,
-                    column: 2,
-                    rowSpan: 2,
-                    showLabel: true,
-                    width: 64,
-                  },
-                },
-              },
-            }),
-            UniverSheetsFilterPreset(),
-            UniverSheetsSortPreset(),
-            UniverSheetsDataValidationPreset(),
-          ],
-        });
-        api.current = instance.univerAPI;
-        instance.univerAPI.createWorkbook(snapshot);
-        configureRibbon(instance.univerAPI, (text) => message.error(text));
-        replacing.current = false;
-        subscription = instance.univerAPI.addEvent(
-          instance.univerAPI.Event.CommandExecuted,
-          (command) => {
-            if (command.type !== 2 || replacing.current) return;
-            dirty = true;
-            setState("saving");
-            if (timer) clearTimeout(timer);
-            timer = setTimeout(() => void save().catch(() => {}), 400);
-          },
+        const sheets =
+          saved ||
+          createWorkbook(file.id, file.name, file.id === "sheet-budget");
+        live.current = sheets;
+        setData(sheets);
+        setState("saved");
+      })
+      .catch(() => setError("表格读取失败"));
+    return () => {
+      cancelled = true;
+    };
+  }, [file.id]);
+  const save = useCallback(async () => {
+    if (collabRef.current) {
+      if (pending.current.length) throw Error("协作修改仍在同步，请稍后保存");
+      if (socket.current?.readyState !== WebSocket.OPEN)
+        throw Error("协作连接已断开");
+    }
+    setState("saving");
+    await saveSpreadsheet(file.id, api.current?.getAllSheets() || live.current);
+    useWorkspace
+      .getState()
+      .patch(file.id, { spreadsheet: { savedAt: new Date().toISOString() } });
+    setState("saved");
+  }, [file.id]);
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const pump = () => {
+    const ws = socket.current;
+    if (
+      !ws ||
+      ws.readyState !== WebSocket.OPEN ||
+      sending.current ||
+      !pending.current.length
+    )
+      return;
+    sending.current = true;
+    const item = pending.current[0];
+    ws.send(JSON.stringify({ type: "op", base: revision.current, ...item }));
+  };
+  useEffect(() => {
+    if (!collaborating || !data) return;
+    let cancelled = false;
+    setConnected(false);
+    setNotice("正在连接开发协作验证…");
+    pending.current = [];
+    sending.current = false;
+    const ws = new WebSocket(
+      `${import.meta.env.DEV ? import.meta.env.MINMD_SHEET_VERIFY_WS : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}`}/api/experimental/sheets/${encodeURIComponent(file.id)}`,
+    );
+    socket.current = ws;
+    const recover = () => {
+      if (pending.current.length) {
+        void saveSpreadsheet(
+          `${file.id}-conflict`,
+          api.current?.getAllSheets() || live.current,
         );
-        await save().catch(() => {});
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "表格打开失败");
-          setState("error");
-        }
+        pending.current = [];
+        sending.current = false;
+        setNotice("未确认修改已保留为本地副本，请下载后重新连接");
       }
     };
-    void open();
-    const pagehide = () => {
-      if (dirty) void save().catch(() => {});
+    ws.onopen = () =>
+      ws.send(JSON.stringify({ type: "initialize", data: live.current }));
+    ws.onmessage = (event) => {
+      if (cancelled) return;
+      const packet = JSON.parse(event.data);
+      if (packet.typeConflict) {
+        recover();
+        live.current = packet.data;
+        setData(prepareWorkbook(packet.data));
+        revision.current = packet.revision;
+        setGeneration((n) => n + 1);
+        setNotice(packet.message);
+        setState("saved");
+        return;
+      }
+      if (packet.type === "snapshot") {
+        live.current = packet.data;
+        setData(prepareWorkbook(packet.data));
+        revision.current = packet.revision;
+        sender.current = packet.sender;
+        setMembers({ count: packet.count, limit: packet.limit });
+        setGeneration((n) => n + 1);
+        setConnected(true);
+        setNotice("");
+        setState("saved");
+      } else if (packet.type === "op") {
+        const own = packet.sender === sender.current;
+        remote.current = true;
+        try {
+          if (
+            !own ||
+            packet.ops.every(
+              (op: Op) =>
+                ["add", "replace", "remove"].includes(op.op) &&
+                op.path[0] === "data" &&
+                op.path.length >= 3,
+            )
+          )
+            api.current?.applyOp(packet.ops);
+        } finally {
+          remote.current = false;
+        }
+        revision.current = packet.revision;
+        if (own) {
+          if (pending.current[0]?.sequence === packet.sequence)
+            pending.current.shift();
+          sending.current = false;
+          setState(pending.current.length ? "saving" : "saved");
+          pump();
+        }
+      } else if (packet.type === "members")
+        setMembers({ count: packet.count, limit: packet.limit });
+      else if (
+        packet.type === "presence" &&
+        packet.presence.userId !== sender.current
+      )
+        api.current?.addPresences([packet.presence]);
+      else if (packet.type === "leave")
+        api.current?.removePresences([
+          {
+            userId: packet.sender,
+            username: `编辑者 ${packet.sender.slice(0, 4)}`,
+          },
+        ]);
+      else if (packet.type === "full") {
+        setMembers({ count: packet.limit, limit: packet.limit });
+        setNotice(packet.message);
+        setConnected(false);
+      } else if (packet.type === "error") {
+        recover();
+        setNotice(packet.message);
+        setConnected(false);
+        ws.close();
+      }
     };
-    window.addEventListener("pagehide", pagehide);
+    ws.onclose = () => {
+      if (!cancelled) {
+        setConnected(false);
+        recover();
+        setNotice(
+          (current) => current || "协作连接已断开，重新连接后将加载服务器内容",
+        );
+      }
+    };
+    ws.onerror = () => {
+      if (!cancelled) setNotice("协作验证连接失败，请检查后端验证开关");
+    };
     return () => {
-      if (dirty) void save().catch(() => {});
       cancelled = true;
-      if (timer) clearTimeout(timer);
-      window.removeEventListener("pagehide", pagehide);
-      subscription?.dispose();
-      instance?.univer.dispose();
-      if (api.current === instance?.univerAPI) api.current = null;
+      recover();
+      ws.close();
+      socket.current = null;
     };
-  }, [file.id, revision]);
+    // 初始数据只在建立连接时提交，不能在每次编辑后重建会话。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collaborating, file.id]);
   useEffect(() => {
-    const saveShortcut = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s")
+    if (!data || collaborating) return;
+    const timer = setTimeout(
+      () => void save().catch(() => setState("error")),
+      400,
+    );
+    return () => clearTimeout(timer);
+  }, [data, collaborating, save]);
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s")
         return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (event.repeat || busy || state === "loading") return;
-      const book = api.current?.getActiveWorkbook();
-      if (!book) return;
-      void (async () => {
-        if (book.isCellEditing() && !(await book.endEditingAsync(true))) return;
-        await flush.current();
-      })().catch(() => {});
+      if (event.repeat) return;
+      (document.activeElement as HTMLElement)?.blur();
+      requestAnimationFrame(
+        () => void saveRef.current().catch((e) => message.warning(e.message)),
+      );
     };
-    window.addEventListener("keydown", saveShortcut, true);
-    return () => window.removeEventListener("keydown", saveShortcut, true);
-  }, [busy, state]);
-  useEffect(() => {
-    api.current?.toggleDarkMode(theme === "dark");
-  }, [theme]);
-  const download = async () => {
-    if (busy || !api.current) return;
-    setBusy(true);
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [message]);
+  const changed = useCallback((sheets: Sheet[]) => {
+    live.current = sheets;
+    setData(sheets);
+    if (!collabRef.current) setState("saving");
+  }, []);
+  const onOp = (ops: Op[]) => {
+    if (remote.current || !collaborating || !connected || !ops.length) return;
+    pending.current.push({ sequence: ++sequence.current, ops });
+    setState("saving");
+    pump();
+  };
+  const download = async (recovery = false) => {
     try {
-      await flush.current().catch(() => {});
-      const snapshot = api.current.getActiveWorkbook()!.save();
-      snapshot.name = file.name;
-      const blob = await exportXlsx(snapshot),
+      const sheets = recovery
+        ? await getSpreadsheet(`${file.id}-conflict`)
+        : api.current?.getAllSheets();
+      if (!sheets) throw Error("没有可下载的内容");
+      const blob = await exportXlsx(sheets, file.name),
         url = URL.createObjectURL(blob),
         anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `${file.name.replace(/\.xlsx$/i, "")}.xlsx`;
+      anchor.download = `${file.name}${recovery ? "-未确认修改" : ""}.xlsx`;
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
-      message.error(e instanceof Error ? e.message : "Excel 导出失败");
-    } finally {
-      setBusy(false);
+      message.error(e instanceof Error ? e.message : "导出失败");
     }
   };
   const imported = async (binary?: File) => {
-    if (!binary || busy) return;
+    if (!binary || collaborating) return;
     setBusy(true);
     try {
-      const snapshot = await importXlsx(binary, file.id, file.name);
-      replacing.current = true;
-      await flush.current();
-      await saveSpreadsheet(file.id, snapshot);
-      setRevision((r) => r + 1);
-      message.success("已导入 Excel，图表等高级对象暂不支持转换");
+      const sheets = await importXlsx(binary, file.id, file.name);
+      await saveSpreadsheet(file.id, sheets);
+      live.current = sheets;
+      setData(sheets);
+      setGeneration((n) => n + 1);
+      message.success("已导入基础数据、公式和样式；图表等高级对象不支持");
     } catch (e) {
-      replacing.current = false;
-      message.error(e instanceof Error ? e.message : "Excel 导入失败");
+      message.error(e instanceof Error ? e.message : "导入失败");
     } finally {
       setBusy(false);
       if (input.current) input.current.value = "";
     }
   };
   return (
-    <main className={styles.page}>
+    <main className={styles.page} data-theme={theme}>
       <FileHeader className={styles.header}>
         <TooltipButton
           className="icon-button"
@@ -307,15 +343,8 @@ export default function Spreadsheet({ file }: { file: Entry }) {
         <div className={styles.actions}>
           <TooltipButton
             className="icon-button"
-            aria-label={
-              state === "saved"
-                ? "已保存到本机，点击保存"
-                : state === "error"
-                  ? "保存失败，点击重试"
-                  : "正在保存表格"
-            }
-            disabled={state === "loading"}
-            onClick={() => void flush.current().catch(() => {})}
+            aria-label={state === "saved" ? "保存表格" : "正在同步表格"}
+            onClick={() => void save().catch((e) => message.warning(e.message))}
           >
             {state === "saved" ? (
               <Check size={16} />
@@ -325,11 +354,24 @@ export default function Spreadsheet({ file }: { file: Entry }) {
               <LoaderCircle size={16} />
             )}
           </TooltipButton>
+          {import.meta.env.DEV && (
+            <button
+              className="secondary-button"
+              aria-label="开发协作验证"
+              disabled={!data}
+              onClick={() => {
+                setCollaborating((v) => !v);
+                setNotice("");
+              }}
+            >
+              <Users size={15} />
+              {collaborating ? `${members.count}/${members.limit}` : "协作验证"}
+            </button>
+          )}
           <TooltipButton
             className="icon-button"
             aria-label="导入 XLSX 到当前表格"
-            tooltip="导入 XLSX（替换当前表格，支持基础数据和样式）"
-            disabled={busy || state === "loading"}
+            disabled={busy || collaborating || !data}
             onClick={() => input.current?.click()}
           >
             <Upload size={16} />
@@ -337,8 +379,7 @@ export default function Spreadsheet({ file }: { file: Entry }) {
           <TooltipButton
             className="icon-button"
             aria-label="导出 XLSX"
-            tooltip="导出 XLSX（基础数据、公式和样式）"
-            disabled={busy || state === "loading" || !!error}
+            disabled={!data}
             onClick={() => void download()}
           >
             <Download size={16} />
@@ -359,18 +400,68 @@ export default function Spreadsheet({ file }: { file: Entry }) {
         hidden
         onChange={(e) => void imported(e.target.files?.[0])}
       />
-      <div ref={container} className={styles.editor} aria-label="表格编辑器" />
-      {(state === "loading" || error || busy) && (
+      {collaborating && (
+        <div className={styles.collaboration}>
+          <span>{notice || "开发协作验证 · 演示身份"}</span>
+          {!connected && (
+            <>
+              <button
+                onClick={() => {
+                  setCollaborating(false);
+                  setTimeout(() => setCollaborating(true), 0);
+                }}
+              >
+                重新连接
+              </button>
+              <button onClick={() => void download(true)}>下载本地副本</button>
+            </>
+          )}
+        </div>
+      )}
+      <div className={styles.tabs} role="tablist">
+        {Object.keys(tools).map((name) => (
+          <button
+            key={name}
+            role="tab"
+            aria-selected={name === tab}
+            onClick={() => setTab(name)}
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+      <div className={styles.editor} aria-label="表格编辑器">
+        {data && (
+          <Workbook
+            key={`${file.id}-${generation}`}
+            ref={api}
+            data={data}
+            lang="zh"
+            forceCalculation={true}
+            allowEdit={!collaborating || connected}
+            toolbarItems={tools[tab]}
+            onChange={changed}
+            onOp={onOp}
+            hooks={{
+              afterSelectionChange: (sheetId, selection) => {
+                const ws = socket.current;
+                if (collaborating && ws?.readyState === WebSocket.OPEN)
+                  ws.send(
+                    JSON.stringify({
+                      type: "presence",
+                      sheetId,
+                      r: selection.row[0],
+                      c: selection.column[0],
+                    }),
+                  );
+              },
+            }}
+          />
+        )}
+      </div>
+      {(!data || busy || error) && (
         <div className={styles.status}>
           {error || (busy ? "正在处理 Excel…" : "正在打开表格…")}
-          {error && (
-            <button
-              className="secondary-button"
-              onClick={() => setRevision((r) => r + 1)}
-            >
-              重试
-            </button>
-          )}
         </div>
       )}
       <FileDialogs action={action} close={() => setAction(null)} />

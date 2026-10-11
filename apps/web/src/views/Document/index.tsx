@@ -12,6 +12,15 @@ import {
   BackgroundColor,
 } from "@tiptap/extension-text-style";
 import { hasCustomTextStyle } from "./utils/markdownExport";
+import { yUndoPluginKey } from "y-prosemirror";
+import Collaboration from "@tiptap/extension-collaboration";
+import CollaborationCaret from "@tiptap/extension-collaboration-caret";
+import {
+  useDocumentVerification,
+  type DocumentSession,
+  type VerificationView,
+} from "./verification";
+import type { JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import TaskList from "@tiptap/extension-task-list";
@@ -21,6 +30,7 @@ import { DocumentImage } from "./components/DocumentImage";
 import { Markdown } from "@tiptap/markdown";
 import {
   ArrowLeft,
+  Users,
   PencilLine,
   FolderInput,
   Undo2,
@@ -102,9 +112,43 @@ export default function Document() {
         </button>
       </div>
     );
-  return <DocumentEditor key={file.id} file={file} />;
+  return <DocumentMode key={file.id} file={file} />;
 }
-function DocumentEditor({ file }: { file: Entry }) {
+function DocumentMode({ file }: { file: Entry }) {
+  const verification = useDocumentVerification(file);
+  if (verification.session && !verification.visible)
+    return (
+      <div className={styles.verification} role="status">
+        {verification.view.notice}
+        <button className="secondary-button" onClick={verification.stop}>
+          返回本地文档
+        </button>
+      </div>
+    );
+  return (
+    <DocumentEditor
+      key={verification.session ? "collaboration" : "local"}
+      file={file}
+      session={verification.session}
+      verification={verification.view}
+      startVerification={verification.start}
+      stopVerification={verification.stop}
+    />
+  );
+}
+function DocumentEditor({
+  file,
+  session,
+  verification,
+  startVerification,
+  stopVerification,
+}: {
+  file: Entry;
+  session: DocumentSession | null;
+  verification: VerificationView;
+  startVerification: (seed: JSONContent) => void;
+  stopVerification: () => void;
+}) {
   const navigate = useNavigate();
   const contextMenu = useContextMenu();
   const { message, modal } = App.useApp();
@@ -142,6 +186,7 @@ function DocumentEditor({ file }: { file: Entry }) {
     extensions: [
       StarterKit.configure({
         codeBlock: false,
+        undoRedo: session ? false : {},
         heading: { levels: [1, 2, 3, 4, 5, 6] },
         link: { openOnClick: false },
       }),
@@ -161,9 +206,32 @@ function DocumentEditor({ file }: { file: Entry }) {
       Fold,
       DocumentReference,
       Markdown,
+      ...(session
+        ? [
+            Collaboration.configure({ document: session.document }),
+            CollaborationCaret.configure({
+              provider: session.provider,
+              user: {
+                name: `编辑者 ${session.document.clientID.toString(16).slice(-4)}`,
+                color: "#168b78",
+              },
+            }),
+          ]
+        : []),
     ],
-    content: file.document || file.content || samples[file.id] || "",
-    contentType: file.document ? "json" : "markdown",
+    content: session
+      ? undefined
+      : file.document || file.content || samples[file.id] || "",
+    contentType: session || file.document ? "json" : "markdown",
+    editable: !session || verification.ready,
+    onCreate: ({ editor }) => {
+      if (session?.initialize && !session.seeded) {
+        session.seeded = true;
+        editor.commands.setContent(session.seed);
+        yUndoPluginKey.getState(editor.state)?.undoManager.clear();
+        session.provider.sendStateless("initialized");
+      }
+    },
     shouldRerenderOnTransaction: true,
     editorProps: {
       attributes: {
@@ -180,6 +248,11 @@ function DocumentEditor({ file }: { file: Entry }) {
     },
     onSelectionUpdate: () => setRevision((r) => r + 1),
   });
+  useEffect(() => {
+    editor?.setEditable(
+      !session || (verification.ready && verification.connected),
+    );
+  }, [editor, session, verification.ready, verification.connected]);
   const slash = useSlashMenu(
     editor,
     () => imageInput.current?.click(),
@@ -485,6 +558,20 @@ function DocumentEditor({ file }: { file: Entry }) {
         </span>
       )}
       <div className={styles.headerActions}>
+        {import.meta.env.DEV && (
+          <button
+            className="secondary-button"
+            aria-label="文档开发协作验证"
+            onClick={() =>
+              session ? stopVerification() : startVerification(editor.getJSON())
+            }
+          >
+            <Users size={15} />
+            {session
+              ? `${verification.count}/${verification.limit}`
+              : "协作验证"}
+          </button>
+        )}
         <span className={styles.documentStats}>{count} 字</span>
         <span className={styles.visibility}>
           {file.public ? <Globe2 size={13} /> : <LockKeyhole size={13} />}
@@ -534,6 +621,22 @@ function DocumentEditor({ file }: { file: Entry }) {
   return (
     <main className={styles.page}>
       {headerHost ? createPortal(documentHeader, headerHost) : documentHeader}
+      {session && (
+        <div className={styles.verification} role="status">
+          {verification.notice ||
+            `开发协作验证 · 演示身份 · ${verification.saved ? "已保存到服务器" : "正在同步 / 保存…"}`}
+          {!verification.connected && (
+            <button
+              className="secondary-button"
+              onClick={() =>
+                void session.provider.configuration.websocketProvider.connect()
+              }
+            >
+              重新连接
+            </button>
+          )}
+        </div>
+      )}
       <div className={styles.toolbar}>
         <Formatting editor={editor} onLink={openLink} />
         <TooltipButton
@@ -601,6 +704,7 @@ function DocumentEditor({ file }: { file: Entry }) {
             className={styles.title}
             aria-label="文档标题"
             value={title}
+            readOnly={Boolean(session)}
             maxLength={100}
             placeholder="未命名文档"
             onKeyDown={(e) => {

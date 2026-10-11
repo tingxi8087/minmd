@@ -6,7 +6,7 @@
 
 MinMD 是可自行部署、计划开源的轻量文档空间。前台交互参考飞书，界面紧凑，支持文档、表格、PPTX、文件树、多账号和空间。管理后台复用 MAS 脚手架，不另建管理系统。
 
-当前已完成阶段 0 工程整合：React 前台迁至 `apps/web`，MAS 后端与管理后台已引入，三端可启动和构建，数据库迁移与健康检查已验证。文档使用 Tiptap，表格使用 Univer OSS，PPTX 使用浏览器渲染库提供只读预览。前台数据仍保存在 localStorage / IndexedDB，登录、成员、分享设置和 API Key 仍为演示交互；MinMD 业务接口与多人协作尚未接入。
+当前已完成阶段 0 工程整合：React 前台迁至 `apps/web`，MAS 后端与管理后台已引入，三端可启动和构建，数据库迁移与健康检查已验证。文档使用 Tiptap，表格使用 FortuneSheet 1.0.4，PPTX 使用浏览器渲染库提供只读预览。前台数据仍保存在 localStorage / IndexedDB，登录、成员、分享设置和 API Key 仍为演示交互；MinMD 业务接口与正式协作鉴权尚未接入；文档和表格已有仅限本机开发的协作验证入口，默认每文件 10 个编辑会话。
 
 本期目标：把现有前台接入真实认证、空间、文件与内容存储，完成文档与表格多人实时协作、简单版本管理、分享、API / MCP 和 Docker 部署。文档协作先落地，表格协作后置但属于本版必交付项，不能以单人编辑作为本版完成状态。
 
@@ -64,9 +64,9 @@ minmd/
 | 层 | 方案 |
 |---|---|
 | 前台 | 现有 React、TypeScript、Vite、Hash Router、Zustand、Ant Design、Less Modules |
-| 编辑器 | 保留 Tiptap 和现有 PPTX 渲染器；当前 Univer OSS 界面按最终协作选型适配 |
-| 文档协作 | Tiptap Collaboration + Yjs + 自托管 Hocuspocus；协作状态为权威数据 |
-| 表格协作 | 优先验证 Univer 官方协作集成；授权、开源分发和自托管条件通过阶段 1 验证后确定实现 |
+| 编辑器 | 保留 Tiptap 和现有 PPTX 渲染器；FortuneSheet 1.0.4；兼容转换旧 Univer 快照 |
+| 文档协作 | Tiptap Collaboration + Yjs + 自托管 Hocuspocus 4.7.0；开发验证已接入，正式业务协作继续落地 |
+| 表格协作 | FortuneSheet onOp / applyOp + 自建房间协议；开发验证默认每表格最多 10 个编辑会话，正式协作继续验收 |
 | 后端 | Bun、Fastify、Drizzle、PostgreSQL，沿用 MAS |
 | 契约 | TypeBox 请求 / 响应 Schema，OpenAPI；前端通过集中请求模块调用 |
 | 附件 | 私有文件目录 + 数据库元数据 + Docker 持久化卷 |
@@ -78,15 +78,17 @@ minmd/
 ### 2.3 协作方案与选型门槛
 
 - 文档使用开源自托管 Hocuspocus 和 Yjs，不以 Tiptap 托管服务作为运行依赖。[官方协作说明](https://tiptap.dev/docs/hocuspocus/guides/collaborative-editing)
-- Univer 官方表格协作使用 Pro 协作插件与后端，不能把 OSS 编辑器许可证当成协作插件、服务端的授权依据。[官方集成说明](https://docs.univer.ai/guides/sheets/features/collaboration)、[OSS / Pro 边界](https://github.com/dream-num/univer#-open-source-and-pro)
+- 表格编辑器改用 MIT 许可的 FortuneSheet 1.0.4，不引入 Univer Pro。当前自建开发验证房间提供操作队列、持久化、选区广播、10 会话上限与过期结构操作拒绝；并非完整 OT / CRDT，实现边界见 README。[上游仓库](https://github.com/ruilisi/fortune-sheet)
 - 阶段 1 完成表格协作技术验证：两个浏览器并发编辑、公式、插删行列、断线重连、服务端读取与写入、版本快照、私有部署及 Docker 依赖。
 - 同期核实具体组件的许可证、分发边界、生产授权和费用；不购买或签订商业授权，不把开发试用凭证打进开源发布包。
 - 官方方案若不满足开源、自部署或预算要求，必须在阶段 1 给出替换编辑器或自建协作层的独立决策，说明迁移与测试成本；不能把“自行给快照加 Yjs”视为已经解决表格协作。
 - 表格 UI 和协作引擎通过页面适配边界连接。选型确认前可继续账号、空间、文件等独立模块，暂不定稿表格权威存储和 AI 写入实现。
 
+文档开发验证当前使用 Yjs 二进制文件原子持久化、初始化单页面导入、持久化状态快照确认、10 会话限制和自动重连。验证与应用共享本机 WebSocket 入口，不增加独立端口；正式阶段仍需接入账号 / 空间权限和 PostgreSQL 权威存储。标题与文件元数据不参与此验证。具体配置和运行边界见 README。
+
 ### 2.4 协作数据通路
 
-文档：浏览器 Tiptap ↔ Yjs Provider ↔ Hocuspocus 房间 → PostgreSQL 协作持久化。表格：浏览器 Univer ↔ 已验证的表格协作服务 → 对应权威持久化。两种引擎共享身份校验、文件元数据、附件、历史版本与 AI 授权，协议和引擎状态不强行统一。
+文档：浏览器 Tiptap ↔ Yjs Provider ↔ Hocuspocus 房间 → PostgreSQL 协作持久化。表格：浏览器 FortuneSheet ↔ 已验证的表格协作服务 → 对应权威持久化。两种引擎共享身份校验、文件元数据、附件、历史版本与 AI 授权，协议和引擎状态不强行统一。
 
 JSON / Markdown / XLSX 是内容读取、导入导出及版本预览格式，不是实时协作协议。API / MCP 写入必须通过对应协作服务，禁止另外写一份 JSONB 与在线房间竞争。
 
@@ -450,7 +452,7 @@ MCP 为主要 AI 接入体验，HTTP 为脚本和第三方集成入口。工具�
 
 - MAS 当前源码是可复用基础，不等于已具备 MinMD 空间业务。引入时固定提交并核对许可证和配置，后续升级通过差异审查。
 - 本地存储迁到服务端时，保留演示数据和未保存草稿，避免把样例账号、分享密码或密钥当作真实数据。
-- 表格官方协作的商业授权和开源分发边界是阶段 1 选型风险；若无法使用，必须重评估编辑器和工作量，本版多人协作要求不因此自动取消。
+- FortuneSheet 的操作广播不等于完整冲突变换。复杂行列 / 引用并发、个人撤销和权威公式计算仍是阶段 1 验证门槛，本版多人协作要求不因此降低。
 - 协作日志、完整历史快照与大表格增加存储和计算成本；限制体积、压缩更新日志并按需加载，不把快照复制和客户端消息转发当作可靠协作。
 - 新旧客户端 schema 不一致可能破坏协作内容；为连接声明 schema / 协议版本，拒绝不兼容客户端写入并提示刷新。
 - PPTX 版式和字体还原继续受浏览器渲染库限制，后端存储不承诺提高还原度。

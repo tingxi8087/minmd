@@ -1,4 +1,6 @@
-import type { IWorkbookData } from "@univerjs/presets";
+import type { Sheet } from "@fortune-sheet/core";
+import { fromLegacy, prepareWorkbook } from "@/views/Spreadsheet/workbook";
+import type { IWorkbookData } from "@univerjs/core";
 const database = () =>
   new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open("minmd-spreadsheets", 1);
@@ -24,9 +26,14 @@ async function transaction<T>(
     db.close();
   }
 }
-export const saveSpreadsheet = (id: string, data: IWorkbookData) =>
+export const saveSpreadsheet = (id: string, data: Sheet[]) =>
   transaction("readwrite", (store) => store.put(data, id));
 export const getSpreadsheet = (id: string) =>
-  transaction<IWorkbookData | undefined>("readonly", (store) => store.get(id));
+  transaction<Sheet[] | IWorkbookData | undefined>("readonly", (store) =>
+    store.get(id),
+  ).then(
+    (data) =>
+      data && (Array.isArray(data) ? prepareWorkbook(data) : fromLegacy(data)),
+  );
 export const deleteSpreadsheet = (id: string) =>
   transaction("readwrite", (store) => store.delete(id));

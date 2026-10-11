@@ -10,6 +10,15 @@ export default defineConfig(({ mode }) => {
   );
   return {
     plugins: [react()],
+    define: {
+      "import.meta.env.MINMD_SHEET_VERIFY_WS": JSON.stringify(
+        (
+          process.env.API_PROXY_TARGET ||
+          env.API_PROXY_TARGET ||
+          "http://127.0.0.1:9811"
+        ).replace(/^http/, "ws"),
+      ),
+    },
     resolve: {
       alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
     },
@@ -25,6 +34,7 @@ export default defineConfig(({ mode }) => {
             env.API_PROXY_TARGET ||
             "http://127.0.0.1:9811",
           changeOrigin: false,
+          ws: true,
         },
       },
     },
