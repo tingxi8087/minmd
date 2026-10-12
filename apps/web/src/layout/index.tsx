@@ -1,6 +1,7 @@
+import { fileAccessApi } from "@/api/fileAccess";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Dropdown, App, Input, Modal, Tooltip } from "antd";
+import { Avatar, Badge, Dropdown, App, Input, Modal, Tooltip } from "antd";
 import {
   ArrowUpRight,
   ChevronsUpDown,
@@ -9,13 +10,16 @@ import {
   Home,
   LogOut,
   Moon,
+  Bell,
+  Palette,
   Search,
   Settings2,
   Sparkles,
   Star,
   Sun,
   Trash2,
-  PanelLeftClose,
+  ChevronLeft,
+  ChevronRight,
   PanelLeftOpen,
   X,
 } from "lucide-react";
@@ -24,15 +28,35 @@ import { useAuth } from "@/store/auth";
 import { spaceApi } from "@/api/spaces";
 import { errorMessage } from "@/http";
 import TooltipButton from "@/components/TooltipButton";
+import ThemeDialog from "@/components/ThemeDialog";
 import BrandIcon from "@/components/BrandIcon";
 import { useLayout, SIDEBAR_MIN, SIDEBAR_MAX } from "@/store/layout";
 import WorkspaceTree from "./components/WorkspaceTree";
 import styles from "./index.module.less";
 import { memberReturnPath } from "@/utils/memberReturn";
 export default function Layout() {
-  const { space, spaces, setSpace, theme, setTheme, loadSpaces } =
-    useWorkspace();
+  const { space, spaces, setSpace, theme, loadSpaces } = useWorkspace();
   const { user, status, bootstrap, logout } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setUnreadCount(0);
+    if (status !== "authenticated" || !user?.id) return;
+    const load = () => {
+      void fileAccessApi
+        .notifications()
+        .then((result) => {
+          if (active) setUnreadCount(result.unreadCount);
+        })
+        .catch(() => {});
+    };
+    load();
+    const timer = setInterval(load, 30000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [status, user?.id]);
   const [spaceName, setSpaceName] = useState("");
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
   const [creatingSpace, setCreatingSpace] = useState(false);
@@ -51,8 +75,13 @@ export default function Layout() {
         },
       });
   }, [status]);
-  const { sidebarWidth, sidebarCollapsed, setSidebarWidth, toggleSidebar } =
-    useLayout();
+  const {
+    sidebarWidth,
+    sidebarCollapsed,
+    setSidebarWidth,
+    toggleSidebar,
+    setThemeDialogOpen,
+  } = useLayout();
   const [narrow, setNarrow] = useState(
     () => window.matchMedia("(max-width: 680px)").matches,
   );
@@ -116,7 +145,9 @@ export default function Layout() {
       className={`${styles.shell} ${sidebarCollapsed ? styles.collapsed : ""} ${resizing ? styles.resizing : ""}`}
       style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
     >
+      <ThemeDialog />
       <aside
+        id="workspace-sidebar"
         ref={sidebarRef}
         aria-hidden={narrow ? !mobile : sidebarCollapsed}
         className={`${styles.sidebar} ${mobile ? styles.mobileOpen : ""}`}
@@ -260,37 +291,49 @@ export default function Layout() {
           );
         }}
       />
+      {!narrow && (
+        <TooltipButton
+          className={styles.sidebarToggle}
+          onClick={toggleSidebar}
+          aria-label={sidebarCollapsed ? "展开导航" : "收起导航"}
+          aria-expanded={!sidebarCollapsed}
+          aria-controls="workspace-sidebar"
+        >
+          {sidebarCollapsed ? (
+            <ChevronRight size={16} />
+          ) : (
+            <ChevronLeft size={16} />
+          )}
+        </TooltipButton>
+      )}
       <div className={styles.main}>
         <header
           className={`${styles.topbar} ${isDocument ? styles.documentTopbar : ""}`}
         >
-          <div className={styles.breadcrumb}>
-            <TooltipButton
-              className="icon-button"
-              onClick={() =>
-                narrow ? setMobile((value) => !value) : toggleSidebar()
-              }
-              aria-label={
-                narrow ? "打开导航" : sidebarCollapsed ? "展开导航" : "收起导航"
-              }
-              aria-expanded={narrow ? mobile : !sidebarCollapsed}
-            >
-              {!narrow && !sidebarCollapsed ? (
-                <PanelLeftClose size={18} />
-              ) : (
-                <PanelLeftOpen size={18} />
+          {(narrow || !isDocument) && (
+            <div className={styles.breadcrumb}>
+              {narrow && (
+                <TooltipButton
+                  className="icon-button"
+                  onClick={() => setMobile((value) => !value)}
+                  aria-label={mobile ? "关闭导航" : "打开导航"}
+                  aria-expanded={mobile}
+                  aria-controls="workspace-sidebar"
+                >
+                  <PanelLeftOpen size={18} />
+                </TooltipButton>
               )}
-            </TooltipButton>
-            {!isDocument && <strong>{current?.name ?? "创建空间"}</strong>}
-          </div>
+              {!isDocument && <strong>{current?.name ?? "创建空间"}</strong>}
+            </div>
+          )}
           {isDocument && (
             <div id="document-header" className={styles.documentHost} />
           )}
           <div className={styles.headerActions}>
             <button
               className="icon-button"
-              aria-label="切换主题"
-              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+              aria-label="主题设置"
+              onClick={() => setThemeDialogOpen(true)}
             >
               {theme === "light" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
@@ -306,14 +349,19 @@ export default function Layout() {
                   },
                   { type: "divider" },
                   {
+                    key: "shared-with-me",
+                    label: "分享给我的",
+                    icon: <ArrowUpRight size={15} />,
+                  },
+                  {
+                    key: "notifications",
+                    label: "站内通知",
+                    icon: <Bell size={15} />,
+                  },
+                  {
                     key: "theme",
-                    label: theme === "light" ? "切换深色主题" : "切换浅色主题",
-                    icon:
-                      theme === "light" ? (
-                        <Moon size={15} />
-                      ) : (
-                        <Sun size={15} />
-                      ),
+                    label: "主题设置",
+                    icon: <Palette size={15} />,
                   },
                   {
                     key: "logout",
@@ -322,8 +370,9 @@ export default function Layout() {
                   },
                 ],
                 onClick: async ({ key }) => {
-                  if (key === "theme")
-                    setTheme(theme === "light" ? "dark" : "light");
+                  if (key === "theme") setThemeDialogOpen(true);
+                  else if (key === "shared-with-me" || key === "notifications")
+                    navigate(`/${key}`);
                   else {
                     try {
                       await logout();
@@ -339,16 +388,25 @@ export default function Layout() {
                 className={styles.accountButton}
                 aria-label="账号菜单"
               >
-                <span className={styles.avatar} aria-hidden="true">
-                  {(user?.nickname || user?.account || "")
-                    .slice(0, 1)
-                    .toUpperCase()}
-                </span>
+                <Badge count={unreadCount} size="small" overflowCount={99}>
+                  <Avatar
+                    className={styles.avatar}
+                    src={user?.avatar || undefined}
+                    size={31}
+                    aria-hidden="true"
+                  >
+                    {(user?.nickname || user?.account || "")
+                      .slice(0, 1)
+                      .toUpperCase()}
+                  </Avatar>
+                </Badge>
               </TooltipButton>
             </Dropdown>
           </div>
         </header>
-        {current ? (
+        {current ||
+        isDocument ||
+        ["/shared-with-me", "/notifications"].includes(location.pathname) ? (
           <Outlet />
         ) : (
           <div className={styles.loggedOut}>

@@ -185,6 +185,14 @@ interface Client {
     });
     expect(f.statusCode).toBe(200);
     fileId = f.json().id;
+    // 协作协议验收需要两个编辑者，不依赖新文件的默认只读权限。
+    const grant = await app.inject({
+      method: "PUT",
+      url: `/api/app/files/${fileId}/member-permission`,
+      headers: headers(),
+      payload: { permission: "edit" },
+    });
+    expect(grant.statusCode).toBe(200);
   });
   afterAll(async () => {
     for (const client of clients) stop(client);

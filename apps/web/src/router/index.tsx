@@ -5,6 +5,8 @@ import Files from "@/views/Files";
 import Settings from "@/views/Settings";
 import Preview from "@/views/Preview";
 import Login from "@/views/Login";
+const SharedWithMe = lazy(() => import("@/views/SharedWithMe"));
+const Notifications = lazy(() => import("@/views/Notifications"));
 const Share = lazy(() => import("@/views/Share"));
 const Document = lazy(() => import("@/views/Document"));
 export const router = createHashRouter([
@@ -26,6 +28,22 @@ export const router = createHashRouter([
         path,
         element: <Files />,
       })),
+      {
+        path: "shared-with-me",
+        element: (
+          <Suspense fallback={<div>正在加载…</div>}>
+            <SharedWithMe />
+          </Suspense>
+        ),
+      },
+      {
+        path: "notifications",
+        element: (
+          <Suspense fallback={<div>正在加载…</div>}>
+            <Notifications />
+          </Suspense>
+        ),
+      },
       { path: "settings/:section", element: <Settings /> },
       {
         path: "document/:id",

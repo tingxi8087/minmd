@@ -60,8 +60,18 @@ await assert.rejects(
   }),
 );
 const calls: string[] = [];
+const descriptions: string[] = [];
 request.defaults.adapter = async (config) => {
   calls.push(config.url ?? "");
+  if (config.method === "patch") {
+    const body = JSON.parse(config.data) as {
+      name: string;
+      description: string;
+    };
+    assert.equal(config.url, "/app/spaces/space");
+    assert.equal(body.name, "团队空间");
+    descriptions.push(body.description);
+  }
   if (config.url?.includes("/assets")) {
     assert.equal(config.timeout, ASSET_TRANSFER_TIMEOUT_MS);
     assert.ok(config.signal);
@@ -80,10 +90,21 @@ await assetsApi.download("asset", signal);
 await spaceApi.accounts("space", "alice", signal);
 await spaceApi.addMember("space", "alice", signal);
 await spaceApi.members("space", 1, signal);
+await spaceApi.update(
+  "space",
+  { name: "团队空间", description: "产品与设计资料" },
+  signal,
+);
+await spaceApi.update("space", { name: "团队空间", description: "" }, signal);
+assert.deepEqual(
+  descriptions,
+  ["产品与设计资料", ""],
+  "空间资料支持保存和清空描述",
+);
 const aborted = new AbortController();
 aborted.abort();
 await assert.rejects(spaceApi.addMember("space", "bob", aborted.signal));
-assert.equal(calls.length, 5);
+assert.equal(calls.length, 7);
 console.log(
   "成员页面边界检查通过：站内返回白名单、目标空间、账号/空间切换取消异步链、成员信号、120秒附件传输、已取消请求不发送",
 );

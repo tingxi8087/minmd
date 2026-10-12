@@ -1,7 +1,6 @@
 import Access from "@/components/Access";
 import { useRef, useEffect, useState } from "react";
 import {
-  Tabs,
   Alert,
   Button,
   Card,
@@ -37,20 +36,7 @@ const fields: FormFieldConfig[] = [
   },
 ];
 export default function RoleManage() {
-  const [scope, setScope] = useState<"admin" | "app">("admin");
-  return (
-    <div className={styles.page}>
-      <Tabs
-        activeKey={scope}
-        onChange={(key) => setScope(key as "admin" | "app")}
-        items={[
-          { key: "admin", label: "后台角色" },
-          { key: "app", label: "前台角色" },
-        ]}
-      />
-      <RoleList key={scope} scope={scope} />
-    </div>
-  );
+  return <RoleList scope="admin" />;
 }
 function RoleList({ scope }: { scope: "admin" | "app" }) {
   const canManageRoles = useAccess("role:update");

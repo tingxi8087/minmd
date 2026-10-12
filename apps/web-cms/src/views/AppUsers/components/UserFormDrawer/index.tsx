@@ -1,20 +1,7 @@
 import { forwardRef, useImperativeHandle, useState } from "react";
-import {
-  Alert,
-  Button,
-  Divider,
-  Drawer,
-  Form,
-  Input,
-  Select,
-  Space,
-  message,
-} from "antd";
-import {
-  getAppRoleOptions,
-  type AppUser,
-  type AppUserInput,
-} from "@/http/services/appUsers";
+import { Alert, Button, Drawer, Form, Input, Space, message } from "antd";
+import { type AppUser, type AppUserInput } from "@/http/services/appUsers";
+import AvatarUpload from "../AvatarUpload";
 /** 保存资料、重置密码或取消。 */
 export type UserFormEvent =
   | { type: "save"; id?: string; values: AppUserInput }
@@ -28,7 +15,7 @@ export interface UserFormConfig {
 export interface UserFormRef {
   /** 打开抽屉，重置资料与回调。 */ open(config: UserFormConfig): void;
 }
-type Values = Omit<AppUserInput, "metadata"> & { metadataText: string };
+type Values = Omit<AppUserInput, "metadata" | "roles">;
 const UserFormDrawer = forwardRef<UserFormRef, {}>(
   function UserFormDrawer(_, ref) {
     const [form] = Form.useForm<Values>();
@@ -36,10 +23,9 @@ const UserFormDrawer = forwardRef<UserFormRef, {}>(
     const [user, setUser] = useState<AppUser>();
     const [mode, setMode] = useState<"edit" | "password" | "view">("edit");
     const [saving, setSaving] = useState(false);
-    const [roleOptions, setRoleOptions] = useState<
-      { value: string; label: string }[]
-    >([]);
-    const [rolesError, setRolesError] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [session, setSession] = useState(0);
+    const busy = saving || uploading;
     const [onEventFn, setOnEventFn] = useState<
       NonNullable<UserFormConfig["onEvent"]>
     >(() => () => {});
@@ -50,32 +36,27 @@ const UserFormDrawer = forwardRef<UserFormRef, {}>(
           setUser(config.user);
           setMode(config.mode ?? "edit");
           setSaving(false);
-          setRolesError(false);
-          setRoleOptions([]);
+          setUploading(false);
+          setSession((value) => value + 1);
           setOnEventFn(() => config.onEvent ?? (() => {}));
           form.resetFields();
           form.setFieldsValue({
             account: config.user?.account ?? "",
             nickname: config.user?.nickname ?? "",
             avatar: config.user?.avatar ?? "",
-            roles: config.user?.roles ?? [],
-            metadataText: JSON.stringify(config.user?.metadata ?? {}, null, 2),
           });
           setVisible(true);
-          void getAppRoleOptions()
-            .then((result) => setRoleOptions(result.items))
-            .catch(() => setRolesError(true));
         },
       }),
       [form],
     );
     const close = async () => {
-      if (saving) return;
+      if (busy) return;
       await onEventFn({ type: "cancel" });
       setVisible(false);
     };
     const save = async () => {
-      if (saving) return;
+      if (busy) return;
       let values: Values;
       try {
         values = await form.validateFields();
@@ -92,11 +73,14 @@ const UserFormDrawer = forwardRef<UserFormRef, {}>(
             password: values.password,
           });
         } else {
-          const { metadataText, ...input } = values;
           await onEventFn({
             type: "save",
             id: user?.id,
-            values: { ...input, metadata: JSON.parse(metadataText) },
+            values: {
+              ...values,
+              metadata: user?.metadata ?? {},
+              roles: user?.roles ?? [],
+            },
           });
         }
         setVisible(false);
@@ -121,18 +105,18 @@ const UserFormDrawer = forwardRef<UserFormRef, {}>(
                 : "新建前台用户"
         }
         onClose={() => void close()}
-        closable={!saving}
+        closable={!busy}
         maskClosable={false}
         footer={
           <Space style={{ display: "flex", justifyContent: "flex-end" }}>
-            <Button disabled={saving} onClick={() => void close()}>
+            <Button disabled={busy} onClick={() => void close()}>
               关闭
             </Button>
             {mode !== "view" && (
               <Button
                 type="primary"
                 loading={saving}
-                disabled={mode === "edit" && rolesError}
+                disabled={uploading}
                 onClick={() => void save()}
               >
                 保存
@@ -141,11 +125,7 @@ const UserFormDrawer = forwardRef<UserFormRef, {}>(
           </Space>
         }
       >
-        <Form
-          form={form}
-          layout="vertical"
-          disabled={saving || mode === "view"}
-        >
+        <Form form={form} layout="vertical" disabled={busy || mode === "view"}>
           {mode === "password" ? (
             <Alert
               type="warning"
@@ -173,15 +153,18 @@ const UserFormDrawer = forwardRef<UserFormRef, {}>(
               </Form.Item>
               <Form.Item
                 name="avatar"
-                label="头像地址"
-                rules={[
-                  {
-                    pattern: /^(https?:\/\/[^\s]+|\/[^/\s][^\s]*|)$/,
-                    message: "请输入 HTTP(S) 地址或站内路径",
-                  },
-                ]}
+                label="头像"
+                extra={
+                  mode === "view"
+                    ? undefined
+                    : "PNG、JPEG、WebP、GIF，最大1MB；保存资料后生效"
+                }
               >
-                <Input maxLength={1000} placeholder="https:// 或 /public/..." />
+                <AvatarUpload
+                  key={session}
+                  disabled={saving || mode === "view"}
+                  onBusyChange={setUploading}
+                />
               </Form.Item>
             </>
           )}
@@ -200,49 +183,6 @@ const UserFormDrawer = forwardRef<UserFormRef, {}>(
             >
               <Input.Password autoComplete="new-password" />
             </Form.Item>
-          )}
-          {mode !== "password" && (
-            <>
-              <Form.Item name="roles" label="前台角色">
-                <Select
-                  mode="multiple"
-                  options={roleOptions}
-                  placeholder="可不分配角色"
-                />
-              </Form.Item>
-              {rolesError && (
-                <Alert type="error" message="角色加载失败，请关闭后重试" />
-              )}
-              <Divider orientation="left">额外资料</Divider>
-              <Form.Item
-                name="metadataText"
-                label="JSON 资料"
-                extra="仅保存资料，不用于设置角色、权限或账号状态。"
-                rules={[
-                  {
-                    validator: async (_, value: string) => {
-                      try {
-                        const data: unknown = JSON.parse(value);
-                        if (
-                          !data ||
-                          typeof data !== "object" ||
-                          Array.isArray(data)
-                        )
-                          throw new Error();
-                      } catch {
-                        throw new Error("请输入有效的 JSON 对象，例如 {}。");
-                      }
-                    },
-                  },
-                ]}
-              >
-                <Input.TextArea
-                  rows={8}
-                  spellCheck={false}
-                  style={{ fontFamily: "monospace" }}
-                />
-              </Form.Item>
-            </>
           )}
         </Form>
       </Drawer>

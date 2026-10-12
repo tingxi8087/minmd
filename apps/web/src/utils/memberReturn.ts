@@ -6,7 +6,7 @@ export function memberReturnPath(value: unknown): string {
   )
     return "/files";
   const path = value.split("?")[0];
-  return /^\/(?:files|recent|favorites|shared|trash|settings\/(?:general|members|ai)|(?:document|preview)\/[a-zA-Z0-9_-]+)$/.test(
+  return /^\/(?:files|recent|favorites|shared|trash|settings\/(?:general|members|ai)|(?:document|preview)\/[a-zA-Z0-9_-]+|share\/[a-zA-Z0-9_-]{43}|shared-with-me|notifications)$/.test(
     path,
   )
     ? value

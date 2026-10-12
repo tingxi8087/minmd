@@ -34,3 +34,12 @@ export const getAppRoleOptions = () =>
     "/api/admin/role-options",
     { params: { scope: "app" } },
   );
+export const uploadAppUserAvatar = async (file: File, signal?: AbortSignal) => {
+  const body = new FormData();
+  body.append("file", file);
+  return request.post<never, { url: string }>(
+    "/api/admin/app-users/avatar",
+    body,
+    { signal },
+  );
+};

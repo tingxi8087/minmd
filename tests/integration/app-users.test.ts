@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { and, eq, inArray, like } from "drizzle-orm";
 import { Type } from "@sinclair/typebox";
@@ -19,6 +22,7 @@ import {
   hashPassword,
   hashValidatedPassword,
 } from "../../system/server/src/modules/auth/password";
+import { loadMinmdConfig } from "../../config/minmd";
 import { appPermissions } from "../../config/permissions";
 const url = process.env.TEST_DATABASE_URL;
 if (url && !new URL(url).pathname.endsWith("_test"))
@@ -36,6 +40,7 @@ suite("front and back office identity boundaries", () => {
     AUTH_TRANSPORT: "bearer",
     PUBLIC_ORIGIN: "http://127.0.0.1:5173",
   });
+  let avatarDirectory: string;
   let app: Awaited<ReturnType<typeof buildApp>>;
   let adminToken: string;
   let rootId: string;
@@ -85,11 +90,16 @@ suite("front and back office identity boundaries", () => {
       })
       .returning();
     rootId = root!.id;
+    avatarDirectory = await mkdtemp(join(tmpdir(), "minmd-avatars-test-"));
+    const previousDirectory = process.env.ASSET_STORAGE_DIR;
+    process.env.ASSET_STORAGE_DIR = avatarDirectory;
     app = await buildApp(
       config,
       { logger: false },
       { registrationEnabled: true, allowedOrigins: [config.PUBLIC_ORIGIN] },
     );
+    if (previousDirectory === undefined) delete process.env.ASSET_STORAGE_DIR;
+    else process.env.ASSET_STORAGE_DIR = previousDirectory;
     app.get(
       "/api/app/fixture",
       {
@@ -108,6 +118,8 @@ suite("front and back office identity boundaries", () => {
   });
   afterAll(async () => {
     await app?.close();
+    if (avatarDirectory)
+      await rm(avatarDirectory, { recursive: true, force: true });
     appPermissions.splice(
       appPermissions.findIndex((g) => g.code === "fixture"),
       1,
@@ -117,6 +129,62 @@ suite("front and back office identity boundaries", () => {
     await db.db.delete(roles).where(like(roles.code, `${prefix}%`));
     await db.db.delete(auditLogs).where(eq(auditLogs.actorId, rootId));
     await db.close();
+  });
+  test("后台头像上传校验内容和权限，公开读取并复用相同图片", async () => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const upload = (
+      bytes: Buffer,
+      headers = adminHeaders(),
+      mime = "image/png",
+    ) =>
+      app.inject({
+        method: "POST",
+        url: "/api/admin/app-users/avatar",
+        headers: {
+          ...headers,
+          "content-type": "multipart/form-data; boundary=avatar-test",
+        },
+        payload: Buffer.concat([
+          Buffer.from(
+            `--avatar-test\r\nContent-Disposition: form-data; name="file"; filename="avatar.png"\r\nContent-Type: ${mime}\r\n\r\n`,
+          ),
+          bytes,
+          Buffer.from("\r\n--avatar-test--\r\n"),
+        ]),
+      });
+    const result = await upload(png);
+    expect(result.statusCode).toBe(200);
+    expect((await upload(png)).json().url).toBe(result.json().url);
+    const read = await app.inject(result.json().url);
+    expect(read.statusCode).toBe(200);
+    expect(read.headers["content-type"]).toBe("image/png");
+    expect(read.rawPayload).toEqual(png);
+    expect((await upload(Buffer.from("<svg/>"))).statusCode).toBe(400);
+    expect(
+      (await upload(png, adminHeaders(), "image/svg+xml")).statusCode,
+    ).toBe(400);
+    expect((await upload(Buffer.alloc(1024 * 1024 + 1))).statusCode).toBe(413);
+    expect((await upload(png, { authorization: "" })).statusCode).toBe(401);
+    const account = `${prefix}_no_avatar_permission`;
+    await db.db
+      .insert(admins)
+      .values({
+        account,
+        displayName: "无权限管理员",
+        passwordHash: await hashPassword(password),
+      });
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { account, password },
+    });
+    expect(
+      (await upload(png, { authorization: `Bearer ${login.json().token}` }))
+        .statusCode,
+    ).toBe(403);
   });
   test("前台密码支持6位，注册、后台创建/重置和用户改密拒绝5位", async () => {
     const registration = `${prefix}_short_register`;
@@ -694,6 +762,7 @@ suite("front and back office identity boundaries", () => {
     const cookieApp = await buildApp(
       { ...config, AUTH_TRANSPORT: "cookie" },
       { logger: false },
+      loadMinmdConfig({ ...config, AUTH_TRANSPORT: "cookie" }, {}),
     );
     try {
       const sixAccount = `${prefix}_cookie_six`;

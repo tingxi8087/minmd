@@ -2,12 +2,15 @@ import { createApp, type AppConfig, type AppOptions } from "@mas/system-server";
 import { count, eq } from "drizzle-orm";
 import { adminPermissions, appPermissions } from "../../../config/permissions";
 import { appUserRoles } from "./database/schema/users";
+import { files } from "./database/schema/files";
 import { assets } from "./database/schema/assets";
 import { AppError } from "../../../system/server/src/errors";
 import { registerDocumentVerification } from "./modules/document-verification";
 import { registerSheetVerification } from "./modules/sheet-verification";
+import { registerFileAccess } from "./modules/file-access";
 import { registerDevWeb } from "./modules/dev-web";
 import { registerUsers } from "./modules/users";
+import { registerUserAvatars } from "./modules/users/avatars";
 import { registerSpaces } from "./modules/spaces";
 import { registerFiles, assertSpaceEmpty } from "./modules/files";
 import { initializeFileContent } from "./modules/collaboration/storage";
@@ -87,8 +90,15 @@ export function buildApp(
             );
         },
         onMemberRemoved: async (spaceId, userId) => {
-          rooms?.revokeUser(userId, spaceId);
-          sheetRooms?.revokeUser(userId, spaceId);
+          const affected = await database.db
+            .select({ id: files.id })
+            .from(files)
+            .where(eq(files.spaceId, spaceId));
+          for (const file of affected)
+            await Promise.all([
+              rooms?.revalidateFilePermissions(file.id),
+              sheetRooms?.revalidateFilePermissions(file.id),
+            ]);
         },
       });
       await registerFiles(app, database, {
@@ -99,6 +109,12 @@ export function buildApp(
         },
       });
       await registerAssets(app, database, config);
+      await registerUserAvatars(
+        app,
+        database,
+        config,
+        loadMinmdConfig(config).assetStorageDir,
+      );
       await registerApiKeys(app, database);
       registerAiRateLimit(
         app,
@@ -114,6 +130,14 @@ export function buildApp(
       sheetRooms = await registerSheetRooms(app, database, config);
       rooms = await registerDocumentRooms(app, database, config, sheetRooms);
       await registerContents(app, database, rooms, sheetRooms);
+      await registerFileAccess(app, database, {
+        changed: async (fileId) => {
+          await Promise.all([
+            rooms!.revalidateFilePermissions(fileId),
+            sheetRooms!.revalidateFilePermissions(fileId),
+          ]);
+        },
+      });
       const ai = await registerAi(
         app,
         database,
@@ -125,6 +149,12 @@ export function buildApp(
       await registerMcp(app, database, config, ai);
       await registerVersions(app, database, rooms, sheetRooms);
       await registerShares(app, database, config, {
+        changed: async (fileId) => {
+          await Promise.all([
+            rooms!.revalidateFilePermissions(fileId),
+            sheetRooms!.revalidateFilePermissions(fileId),
+          ]);
+        },
         barrier: (fileId, kind) =>
           kind === "doc"
             ? rooms!.persistBarrier(fileId)

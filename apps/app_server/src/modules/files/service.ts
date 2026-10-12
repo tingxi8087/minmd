@@ -3,18 +3,28 @@ import type { Database } from "../../../../../system/server/src/database/client"
 import type { Transaction } from "../../../../../system/server/src/modules/audit/service";
 import { AppError } from "../../../../../system/server/src/errors";
 import { files, fileFavorites, fileVisits } from "../../database/schema/files";
-import { requireSpaceAccess } from "../spaces/service";
+import {
+  resolveFileAccessBatch,
+  resolveFileAccess,
+  assertFilePermission,
+} from "../file-access/service";
+import type { FilePermission } from "../file-access/policy";
 /** 登录不是文件授权；每次调用都重新检查空间成员资格和软删除状态。 */
 export async function requireFileAccess(
   database: Database | Database["db"] | Transaction,
   userId: string,
   fileId: string,
-  options: { deleted?: boolean } = {},
+  options: { deleted?: boolean; permission?: FilePermission } = {},
 ) {
   const db = "db" in database ? database.db : database;
-  const [file] = await db.select().from(files).where(eq(files.id, fileId));
+  const [file] = await db
+    .select()
+    .from(files)
+    .where(eq(files.id, fileId))
+    .for("share");
   if (!file) throw new AppError("NOT_FOUND", "文件不存在", 404);
-  await requireSpaceAccess(db, userId, file.spaceId);
+  const access = await resolveFileAccess(db, userId, file);
+  assertFilePermission(access.permission, options.permission ?? "read");
   if (file.deletedAt && !options.deleted)
     throw new AppError("FILE_DELETED", "文件已移入回收站", 409);
   return file;
@@ -53,7 +63,9 @@ export async function fileResponses(
     .where(and(eq(fileVisits.userId, userId), inArray(fileVisits.fileId, ids)));
   const favoriteIds = new Set(favorites.map((row) => row.fileId));
   const dates = new Map(visits.map((row) => [row.fileId, row.visitedAt]));
-  return rows.map((row) =>
-    fileResponse(row, favoriteIds.has(row.id), dates.get(row.id) ?? null),
-  );
+  const access = await resolveFileAccessBatch(db, userId, rows);
+  return rows.map((row) => ({
+    ...fileResponse(row, favoriteIds.has(row.id), dates.get(row.id) ?? null),
+    permission: access.get(row.id)?.permission ?? "read",
+  }));
 }

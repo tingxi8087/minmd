@@ -6,3 +6,4 @@ export * from "./assets";
 export * from "./ai";
 export * from "./shares";
 export * from "./demo-imports";
+export * from "./file-access";

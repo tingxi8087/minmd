@@ -22,14 +22,25 @@ export type PresentationContent = {
 };
 export const ASSET_TRANSFER_TIMEOUT_MS = 120_000;
 export const assetsApi = {
-  upload: async (spaceId: string, file: File, signal?: AbortSignal) => {
+  upload: async (
+    spaceId: string,
+    file: File,
+    signal?: AbortSignal,
+    fileId?: string,
+  ) => {
     const body = new FormData();
     body.set("file", file);
     return (
-      await request.post<Asset>(`/app/spaces/${spaceId}/assets`, body, {
-        signal,
-        timeout: ASSET_TRANSFER_TIMEOUT_MS,
-      })
+      await request.post<Asset>(
+        fileId
+          ? `/app/files/${fileId}/assets`
+          : `/app/spaces/${spaceId}/assets`,
+        body,
+        {
+          signal,
+          timeout: ASSET_TRANSFER_TIMEOUT_MS,
+        },
+      )
     ).data;
   },
   download: async (assetId: string, signal?: AbortSignal) =>

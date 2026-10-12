@@ -174,7 +174,17 @@ suite("文件树、回收站与账号资源边界", () => {
     await db.close();
   });
   test("文件查询严格隔离空间和身份，名称变更采用独立修订", async () => {
-    const doc = await create("doc", "文档");
+    let doc = await create("doc", "文档");
+    // 此用例验证成员编辑及修订冲突，显式授予编辑权限；默认只读由文件权限测试覆盖。
+    await app.inject({
+      method: "PUT",
+      url: `/api/app/files/${doc.id}/member-permission`,
+      headers: headers(a),
+      payload: { permission: "edit" },
+    });
+    doc = (
+      await app.inject({ url: `/api/app/files/${doc.id}`, headers: headers(a) })
+    ).json();
     expect(
       (
         await app.inject({
@@ -403,14 +413,12 @@ suite("文件树、回收站与账号资源边界", () => {
       .select()
       .from(fileContents)
       .where(eq(fileContents.fileId, doc.id));
-    await db.db
-      .insert(documentUpdates)
-      .values({
-        fileId: doc.id,
-        epoch: initialContent!.epoch,
-        revision: initialContent!.revision,
-        update: initialContent!.documentState!,
-      });
+    await db.db.insert(documentUpdates).values({
+      fileId: doc.id,
+      epoch: initialContent!.epoch,
+      revision: initialContent!.revision,
+      update: initialContent!.documentState!,
+    });
     expect(
       await db.db
         .select()

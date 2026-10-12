@@ -4,6 +4,7 @@ import { AppError } from "../../../../../system/server/src/errors";
 import { files } from "../../database/schema/files";
 import { lockSpace, requireSpaceAccess } from "../spaces/service";
 import { requireFileAccess } from "./service";
+import type { FilePermission } from "../file-access/policy";
 import type { CreateBody, MoveBody, PatchBody, RestoreBody } from "./schemas";
 type File = typeof files.$inferSelect;
 /** 浏览器与外部AI共用目录事务约束；调用者负责事务及额外权限复验。 */
@@ -55,10 +56,14 @@ async function lockedFile(
   userId: string,
   fileId: string,
   deleted = false,
+  permission: FilePermission = "manage",
 ) {
-  const first = await requireFileAccess(tx, userId, fileId, { deleted });
+  const first = await requireFileAccess(tx, userId, fileId, {
+    deleted,
+    permission,
+  });
   await lockSpace(tx, first.spaceId);
-  return requireFileAccess(tx, userId, fileId, { deleted });
+  return requireFileAccess(tx, userId, fileId, { deleted, permission });
 }
 export async function createFile(
   tx: Transaction,
@@ -90,6 +95,7 @@ export async function createFile(
       createdBy: userId,
       parentId,
       kind: body.kind,
+      memberPermission: body.kind === "folder" ? "edit" : "read",
       name: body.name.trim(),
       position: last ? last.position + 1 : 0,
     })
@@ -103,7 +109,7 @@ export async function renameFile(
   fileId: string,
   body: PatchBody,
 ) {
-  const file = await lockedFile(tx, userId, fileId);
+  const file = await lockedFile(tx, userId, fileId, false, "edit");
   checkMetadataRevision(file, body.expectedMetadataRevision);
   const [updated] = await tx
     .update(files)
@@ -178,6 +184,8 @@ export async function deleteFile(
   const ids = rows
     .filter((row) => subtree.has(row.id) && !row.deletedAt)
     .map((row) => row.id);
+  for (const id of ids)
+    await requireFileAccess(tx, userId, id, { permission: "manage" });
   await tx
     .update(files)
     .set({

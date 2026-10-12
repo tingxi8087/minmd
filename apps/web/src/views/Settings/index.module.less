@@ -8,6 +8,10 @@
     letter-spacing: -0.7px;
   }
 }
+.description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 
 .tabs {
   display: flex;
@@ -239,88 +243,6 @@
     line-height: 1.8;
   }
 }
-.themes {
-  display: flex;
-  gap: var(--content-gap);
-  margin-bottom: 16px;
-}
-.themeCard {
-  width: 210px;
-  padding: 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  > span {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 5px 5px;
-    font-size: 12px;
-    svg:last-child:not(:first-child) {
-      margin-left: auto;
-      color: var(--accent);
-    }
-  }
-  &:hover {
-    border-color: var(--accent);
-  }
-  &.themeSelected {
-    border-color: var(--accent);
-  }
-}
-.themePreview {
-  display: flex;
-  height: 80px;
-  background: var(--preview-paper);
-  border-radius: 5px;
-  border: 1px solid var(--preview-line);
-  overflow: hidden;
-  aside {
-    width: 45px;
-    background: var(--preview-line);
-  }
-  > div {
-    flex: 1;
-    padding: 15px;
-    i {
-      display: block;
-      width: 70%;
-      height: 5px;
-      background: var(--preview-ink);
-      opacity: 0.6;
-      margin-bottom: 12px;
-    }
-    span {
-      display: block;
-      width: 100%;
-      height: 12px;
-      margin-bottom: 5px;
-      background: var(--preview-line);
-    }
-  }
-  &[data-theme="dark"] {
-    background: var(--preview-ink);
-    aside {
-      background: color-mix(
-        in srgb,
-        var(--preview-ink) 90%,
-        var(--preview-paper)
-      );
-    }
-    > div {
-      i {
-        background: var(--preview-paper);
-      }
-      span {
-        background: color-mix(
-          in srgb,
-          var(--preview-ink) 80%,
-          var(--preview-paper)
-        );
-      }
-    }
-  }
-}
 .secret {
   margin-top: 20px;
   padding: 14px;
@@ -347,12 +269,6 @@
 
   .settingRow {
     align-items: flex-start;
-  }
-  .themes {
-    gap: 12px;
-  }
-  .themeCard {
-    width: 50%;
   }
   .tabs {
     gap: 24px;

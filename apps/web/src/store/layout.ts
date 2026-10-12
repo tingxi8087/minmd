@@ -9,6 +9,8 @@ export const clampSidebarWidth = (width: number) =>
 export const useLayout = create<{
   sidebarWidth: number;
   sidebarCollapsed: boolean;
+  themeDialogOpen: boolean;
+  setThemeDialogOpen: (open: boolean) => void;
   setSidebarWidth: (width: number) => void;
   toggleSidebar: () => void;
 }>()(
@@ -16,6 +18,8 @@ export const useLayout = create<{
     (set) => ({
       sidebarWidth: 260,
       sidebarCollapsed: false,
+      themeDialogOpen: false,
+      setThemeDialogOpen: (themeDialogOpen) => set({ themeDialogOpen }),
       setSidebarWidth: (width) =>
         set({ sidebarWidth: clampSidebarWidth(width) }),
       toggleSidebar: () =>
@@ -24,11 +28,19 @@ export const useLayout = create<{
     {
       name: "minmd-layout-v1",
       version: 1,
+      partialize: ({ sidebarWidth, sidebarCollapsed }) => ({
+        sidebarWidth,
+        sidebarCollapsed,
+      }),
       migrate: (persisted) => {
-        const state = persisted as { sidebarWidth?: number; sidebarCollapsed?: boolean };
+        const state = persisted as {
+          sidebarWidth?: number;
+          sidebarCollapsed?: boolean;
+        };
         return {
           ...state,
-          sidebarWidth: state.sidebarWidth === 208 ? 260 : (state.sidebarWidth ?? 260),
+          sidebarWidth:
+            state.sidebarWidth === 208 ? 260 : (state.sidebarWidth ?? 260),
         };
       },
     },

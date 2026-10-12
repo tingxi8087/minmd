@@ -14,7 +14,7 @@ import { requireFileAccess } from "../files/service";
 import { lockSpace } from "../spaces/service";
 import { id, errors } from "../spaces/schemas";
 import { pptxMime, validateAsset } from "./validate";
-import { syncContentAssets } from "./service";
+import { requireAssetAccess, syncContentAssets } from "./service";
 
 export async function registerPresentations(
   app: FastifyInstance,
@@ -88,9 +88,13 @@ export async function bindPresentation(
   fileId: string,
   input: Static<typeof presentationBody>,
 ) {
-  const first = await requireFileAccess(tx, userId, fileId);
+  const first = await requireFileAccess(tx, userId, fileId, {
+    permission: "edit",
+  });
   await lockSpace(tx, first.spaceId);
-  const file = await requireFileAccess(tx, userId, fileId);
+  const file = await requireFileAccess(tx, userId, fileId, {
+    permission: "edit",
+  });
   if (file.kind !== "slide")
     throw new AppError("FILE_KIND_INVALID", "只有幻灯片可以绑定PPTX", 400);
   const [current] = await tx
@@ -145,7 +149,8 @@ export async function bindPresentation(
     };
   const revision = current.revision + 1,
     epoch = current.epoch + 1;
-  await syncContentAssets(tx, fileId, projection);
+  await requireAssetAccess(tx, userId, asset);
+  await syncContentAssets(tx, fileId, projection, undefined, userId);
   await tx
     .update(fileContents)
     .set({
@@ -167,6 +172,6 @@ export async function bindPresentation(
       projection,
     })
     .returning({ id: fileVersions.id });
-  await syncContentAssets(tx, fileId, projection, version!.id);
+  await syncContentAssets(tx, fileId, projection, version!.id, userId);
   return { fileId, revision, epoch, projection };
 }

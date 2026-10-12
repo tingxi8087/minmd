@@ -1,17 +1,19 @@
 import { useEffect, useState, useRef } from "react";
 import { NavLink, useParams } from "react-router-dom";
 import { App, Input, Modal } from "antd";
-import { Check, Moon, Plus, Sun, Trash2, ArrowRightLeft } from "lucide-react";
+import { Palette, Plus, Trash2, ArrowRightLeft } from "lucide-react";
 import { useWorkspace } from "@/store/workspace";
 import { useAuth } from "@/store/auth";
 import { spaceApi, type SpaceMember } from "@/api/spaces";
 import { errorMessage } from "@/http";
 import { useScopedTasks, type ScopedTask } from "@/utils/useScopedTask";
 import styles from "./index.module.less";
+import { useLayout } from "@/store/layout";
 import AiSettings from "./components/AiSettings";
 export default function Settings() {
   const { section } = useParams();
-  const { space, spaces, theme, setTheme, loadSpaces } = useWorkspace();
+  const setThemeDialogOpen = useLayout((state) => state.setThemeDialogOpen);
+  const { space, spaces, theme, loadSpaces } = useWorkspace();
   const user = useAuth((state) => state.user);
   const current = spaces.find((item) => item.id === space);
   const owner = current?.ownerId === user?.id;
@@ -26,6 +28,7 @@ export default function Settings() {
   const [busy, setBusy] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const begin = useScopedTasks();
   const memberRequest = useRef(0);
   const assertHere = () => {
@@ -251,12 +254,21 @@ export default function Settings() {
                 className="secondary-button"
                 onClick={() => {
                   setName(current.name);
+                  setDescription(current.description);
                   setRenameOpen(true);
                 }}
               >
-                修改名称
+                修改资料
               </button>
             )}
+          </div>
+          <div className={styles.settingRow}>
+            <div>
+              <strong>空间描述</strong>
+              <p className={styles.description}>
+                {current.description || "暂无描述"}
+              </p>
+            </div>
           </div>
           <div className={styles.settingRow}>
             <div>
@@ -268,29 +280,18 @@ export default function Settings() {
           <div className={styles.sectionTop}>
             <h2>外观</h2>
           </div>
-          <div className={styles.themes}>
-            {(["light", "dark"] as const).map((value) => (
-              <button
-                key={value}
-                className={`${styles.themeCard} ${theme === value ? styles.themeSelected : ""}`}
-                onClick={() => setTheme(value)}
-              >
-                <div className={styles.themePreview} data-theme={value}>
-                  <aside />
-                  <div>
-                    <i />
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                </div>
-                <span>
-                  {value === "light" ? <Sun size={15} /> : <Moon size={15} />}
-                  {value === "light" ? "晴日 · 浅色" : "夜读 · 深色"}
-                  {theme === value && <Check size={15} />}
-                </span>
-              </button>
-            ))}
+          <div className={styles.settingRow}>
+            <div>
+              <strong>主题</strong>
+              <p>{theme === "light" ? "晴日 · 浅色" : "夜读 · 深色"}</p>
+            </div>
+            <button
+              className="secondary-button"
+              onClick={() => setThemeDialogOpen(true)}
+            >
+              <Palette size={15} />
+              主题设置
+            </button>
           </div>
         </>
       )}
@@ -342,9 +343,14 @@ export default function Settings() {
         />
       </Modal>
       <Modal
-        title="修改空间名称"
+        title="修改空间资料"
         open={renameOpen}
-        onCancel={() => setRenameOpen(false)}
+        onCancel={() => {
+          if (!busy) setRenameOpen(false);
+        }}
+        closable={!busy}
+        maskClosable={!busy}
+        keyboard={!busy}
         okText="保存"
         cancelText="取消"
         confirmLoading={busy}
@@ -358,10 +364,15 @@ export default function Settings() {
           try {
             assertHere();
             await task.wait(() =>
-              spaceApi.update(space, name.trim(), task.signal),
+              spaceApi.update(
+                space,
+                { name: name.trim(), description: description.trim() },
+                task.signal,
+              ),
             );
             await task.wait(() => loadSpaces());
             setRenameOpen(false);
+            message.success("空间资料已保存");
           } catch (error) {
             if (!task.signal.aborted) message.error(errorMessage(error));
           } finally {
@@ -370,12 +381,30 @@ export default function Settings() {
           }
         }}
       >
-        <Input
-          aria-label="新的空间名称"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          maxLength={80}
-        />
+        <div className="field">
+          <label htmlFor="space-name">空间名称</label>
+          <Input
+            id="space-name"
+            aria-label="新的空间名称"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            maxLength={80}
+            disabled={busy}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="space-description">空间描述</label>
+          <Input.TextArea
+            id="space-description"
+            aria-label="空间描述"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            maxLength={2000}
+            autoSize={{ minRows: 3, maxRows: 6 }}
+            placeholder="介绍这个空间，选填"
+            disabled={busy}
+          />
+        </div>
       </Modal>
     </main>
   );

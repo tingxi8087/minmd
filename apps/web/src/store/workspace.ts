@@ -9,6 +9,7 @@ import { deletePresentation } from "@/utils/presentationFiles";
 import { deleteSpreadsheet } from "@/utils/spreadsheetStorage";
 export type FileKind = "doc" | "sheet" | "slide" | "folder";
 export type Entry = {
+  permission?: "read" | "edit" | "manage";
   id: string;
   metadataRevision?: number;
   deletedBatch?: string | null;
@@ -130,6 +131,7 @@ type State = {
 let sessionGeneration = 0;
 let fileRequest = 0;
 export const fromRemoteFile = (file: RemoteFile): Entry => ({
+  ...(file.permission ? { permission: file.permission } : {}),
   id: file.id,
   space: file.spaceId,
   name: file.name,

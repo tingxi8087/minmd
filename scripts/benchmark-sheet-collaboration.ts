@@ -170,6 +170,7 @@ async function benchmark() {
         spaceId,
         name: "10000单元格与1000公式性能验收",
         kind: "sheet",
+        memberPermission: "edit",
         createdBy: users[0]!,
       })
       .returning({ id: files.id });

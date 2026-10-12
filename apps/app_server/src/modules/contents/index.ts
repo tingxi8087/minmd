@@ -88,6 +88,7 @@ export async function registerContents(
         database,
         userId,
         request.params.fileId,
+        { permission: "edit" },
       );
       if (file.kind === "sheet") {
         if (request.body.snapshot)
@@ -114,6 +115,7 @@ export async function registerContents(
         database,
         userId,
         request.params.fileId,
+        { permission: "edit" },
       );
       if (file.kind === "sheet")
         return sheetRooms.replaceWorkbook(file.id, userId, {

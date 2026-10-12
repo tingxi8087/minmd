@@ -204,11 +204,19 @@ export default function Files() {
   const menu = (file: Entry) =>
     trash
       ? [
-          { key: "restore", label: "恢复文件", icon: <Undo2 size={15} /> },
+          {
+            key: "restore",
+            disabled: Boolean(file.permission && file.permission !== "manage"),
+            label: "恢复文件",
+            icon: <Undo2 size={15} />,
+          },
           ...(owner
             ? [
                 {
                   key: "delete",
+                  disabled: Boolean(
+                    file.permission && file.permission !== "manage",
+                  ),
                   label: "永久删除",
                   danger: true,
                   icon: <Trash2 size={15} />,
@@ -227,8 +235,18 @@ export default function Files() {
                   : "查看预览",
             icon: <ArrowRight size={15} />,
           },
-          { key: "rename", label: "重命名", icon: <PencilLine size={15} /> },
-          { key: "move", label: "移动到…", icon: <FolderInput size={15} /> },
+          {
+            key: "rename",
+            disabled: file.permission === "read",
+            label: "重命名",
+            icon: <PencilLine size={15} />,
+          },
+          {
+            key: "move",
+            disabled: Boolean(file.permission && file.permission !== "manage"),
+            label: "移动到…",
+            icon: <FolderInput size={15} />,
+          },
           ...(file.kind !== "folder"
             ? [
                 {
@@ -241,6 +259,7 @@ export default function Files() {
             : []),
           {
             key: "delete",
+            disabled: Boolean(file.permission && file.permission !== "manage"),
             label: "移入回收站",
             danger: true,
             icon: <Trash2 size={15} />,

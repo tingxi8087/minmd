@@ -64,6 +64,20 @@
       "when": 1791736542958,
       "tag": "0008_classy_molten_man",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791795054096,
+      "tag": "0009_left_wraith",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791798727301,
+      "tag": "0010_melodic_firelord",
+      "breakpoints": true
     }
   ]
 }

@@ -1,3 +1,5 @@
+import { filesApi } from "@/api/files";
+import { notifyFileAccessChanged } from "@/api/fileAccess";
 import { useEffect, useState, useRef } from "react";
 import { App, Input, Modal, Select, Upload } from "antd";
 import { validatePresentation } from "@/utils/presentationFiles";
@@ -153,6 +155,14 @@ export default function FileDialogs({
             add(name.trim(), action.kind, parent),
           );
           onCreated?.(id);
+        } else if (action.file.space !== space) {
+          await filesApi.rename(
+            action.file.space,
+            action.file.id,
+            name.trim(),
+            action.file.metadataRevision ?? 0,
+          );
+          notifyFileAccessChanged(action.file.id);
         } else await patch(action.file.id, { name: name.trim() });
       } else if (action.type === "move") {
         if (!(await relocate(action.file.id, parent))) {

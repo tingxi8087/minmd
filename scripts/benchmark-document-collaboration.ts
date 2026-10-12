@@ -300,6 +300,7 @@ async function benchmark() {
         spaceId,
         name: "1000段120k文字混合内容性能验收",
         kind: "doc",
+        memberPermission: "edit",
         createdBy: users[0]!,
       })
       .returning({ id: files.id });

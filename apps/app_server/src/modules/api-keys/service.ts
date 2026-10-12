@@ -68,7 +68,14 @@ export async function authorizeAiFile(
   fileId: string,
 ) {
   const identity = await authorizeAi(db, token, permission);
-  const file = await requireFileAccess(db, identity.userId, fileId);
+  const file = await requireFileAccess(db, identity.userId, fileId, {
+    permission:
+      permission === "read"
+        ? "read"
+        : ["organize", "delete_restore"].includes(permission)
+          ? "manage"
+          : "edit",
+  });
   if (file.spaceId !== identity.spaceId)
     throw new AppError("AI_SPACE_MISMATCH", "密钥仅能操作绑定空间", 403);
   return { identity, file };

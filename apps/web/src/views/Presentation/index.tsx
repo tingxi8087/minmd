@@ -177,6 +177,7 @@ export default function Presentation({ file }: { file: Entry }) {
         file.space,
         binary,
         controller.signal,
+        file.id,
       );
       const saved = await assetsApi.bindPresentation(
         file.id,

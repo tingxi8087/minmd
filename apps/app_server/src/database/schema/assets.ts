@@ -26,6 +26,9 @@ export const assets = pgTable(
     mime: varchar("mime", { length: 120 }).notNull(),
     size: bigint("size", { mode: "number" }).notNull(),
     checksum: varchar("checksum", { length: 64 }).notNull(),
+    uploadedForFileId: uuid("uploaded_for_file_id").references(() => files.id, {
+      onDelete: "set null",
+    }),
     uploadedBy: uuid("uploaded_by")
       .notNull()
       .references(() => appUsers.id, { onDelete: "restrict" }),

@@ -31,9 +31,11 @@ export const spaceApi = {
   },
   create: async (name: string) =>
     (await request.post<Space>("/app/spaces", { name })).data,
-  update: async (id: string, name: string, signal?: AbortSignal) =>
-    (await request.patch<Space>(`/app/spaces/${id}`, { name }, { signal }))
-      .data,
+  update: async (
+    id: string,
+    data: Pick<Space, "name" | "description">,
+    signal?: AbortSignal,
+  ) => (await request.patch<Space>(`/app/spaces/${id}`, data, { signal })).data,
   members: async (id: string, page: number, signal?: AbortSignal) =>
     (
       await request.get<Page<SpaceMember>>(`/app/spaces/${id}/members`, {

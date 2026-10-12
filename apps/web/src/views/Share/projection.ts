@@ -4,6 +4,7 @@ import { sharesApi } from "@/api/shares";
 export function publicDocument(
   projection: JSONContent,
   token: string,
+  authenticated = false,
 ): JSONContent {
   const next = structuredClone(projection);
   const rewrite = (node: JSONContent) => {
@@ -14,7 +15,9 @@ export function publicDocument(
           : typeof node.attrs.src === "string"
             ? node.attrs.src.match(/^\/api\/app\/assets\/([^/?]+)$/)?.[1]
             : undefined;
-      node.attrs.src = id ? sharesApi.assetUrl(token, id) : "";
+      node.attrs.src = id
+        ? sharesApi.assetUrl(token, id, false, authenticated)
+        : "";
     }
     node.content?.forEach(rewrite);
   };

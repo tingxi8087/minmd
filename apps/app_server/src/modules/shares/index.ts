@@ -15,11 +15,18 @@ import {
 import { loadMinmdConfig } from "../../../../../config/minmd";
 import { files } from "../../database/schema/files";
 import { fileShares, shareGuestSessions } from "../../database/schema/shares";
+import { shareUserSessions } from "../../database/schema/file-access";
+import { resolveFileAccess } from "../file-access/service";
 import { fileContents } from "../../database/schema/contents";
 import { assets, fileAssets } from "../../database/schema/assets";
 import { requireFileAccess } from "../files/service";
 import { lockSpace } from "../spaces/service";
-import { shareStatus, requirePublicShare, shareCookie } from "./service";
+import {
+  shareStatus,
+  requirePublicShare,
+  shareCookie,
+  publicShareUser,
+} from "./service";
 import {
   params,
   guestParams,
@@ -33,6 +40,7 @@ import {
   type ShareBody,
 } from "./schemas";
 export interface ShareOptions {
+  changed?: (fileId: string) => Promise<void>;
   barrier?: (fileId: string, kind: string) => Promise<unknown>;
 }
 export async function registerShares(
@@ -41,6 +49,31 @@ export async function registerShares(
   config: AppConfig,
   options: ShareOptions = {},
 ) {
+  app.addHook("onResponse", async (request, reply) => {
+    if (
+      request.routeOptions.url === "/api/app/files/:fileId/share" &&
+      ["PUT", "DELETE"].includes(request.method) &&
+      reply.statusCode >= 200 &&
+      reply.statusCode < 300
+    )
+      await options.changed?.((request.params as { fileId: string }).fileId);
+  });
+  // 登录 Cookie 保持 /api/app 路径，复用访客处理器注册独立的前台鉴权入口。
+  app.addHook("onRoute", (route) => {
+    if (!route.url.startsWith("/api/public/shares/")) return;
+    app.route({
+      ...route,
+      url: route.url.replace("/api/public/shares/", "/api/app/shares/"),
+      exposeHeadRoute: false,
+      config: { ...route.config, auth: true, authScope: "app" },
+      schema: {
+        ...route.schema,
+        tags: ["登录分享"],
+        description:
+          "当前前台账号登录后访问分享；校验链接范围、密码、世代、到期和当前文件状态，不授予空间目录权限。",
+      },
+    });
+  });
   const auth = { auth: true, authScope: "app" as const };
   const meta = (summary: string) => ({
     tags: ["文件分享"],
@@ -92,12 +125,14 @@ export async function registerShares(
           tx,
           request.appIdentity!.id,
           request.params.fileId,
+          { permission: "manage" },
         );
         await lockSpace(tx, initial.spaceId);
         const file = await requireFileAccess(
           tx,
           request.appIdentity!.id,
           initial.id,
+          { permission: "manage" },
         );
         if (file.kind === "folder")
           throw new AppError("FILE_KIND_INVALID", "文件夹不支持公开分享", 400);
@@ -158,6 +193,8 @@ export async function registerShares(
           tokenHash: plainToken ? hashToken(plainToken) : existing!.tokenHash,
           passwordHash: newPassword,
           expiresAt,
+          audience: request.body.audience ?? existing?.audience ?? "anyone",
+          permission: request.body.permission ?? existing?.permission ?? "read",
           revokedAt: null,
           generation,
           updatedAt: new Date(),
@@ -200,9 +237,12 @@ export async function registerShares(
           tx,
           request.appIdentity!.id,
           request.params.fileId,
+          { permission: "manage" },
         );
         await lockSpace(tx, file.spaceId);
-        await requireFileAccess(tx, request.appIdentity!.id, file.id);
+        await requireFileAccess(tx, request.appIdentity!.id, file.id, {
+          permission: "manage",
+        });
         await tx
           .update(fileShares)
           .set({
@@ -222,6 +262,100 @@ export async function registerShares(
           .where(eq(files.id, file.id));
         return { ok: true };
       }),
+  );
+  app.post<{ Params: { token: string }; Body: Record<string, never> }>(
+    "/api/app/shares/:token/accept",
+    {
+      config: auth,
+      schema: {
+        tags: ["文件权限"],
+        summary: "登录用户进入公开分享",
+        description:
+          "校验公开链接、范围、密码和有效期，建立绑定分享世代的短期授权；不加入空间。匿名访客不能调用。",
+        params: guestParams,
+        body: Type.Object({}, { additionalProperties: false }),
+        response: {
+          200: Type.Object({
+            fileId: params.properties.fileId,
+            kind: publicResponse.properties.file.properties.kind,
+            permission: Type.Union(
+              [
+                Type.Literal("read"),
+                Type.Literal("edit"),
+                Type.Literal("manage"),
+              ],
+              { description: "进入文件后的有效权限" },
+            ),
+          }),
+          ...errors,
+        },
+      },
+    },
+    async (request) => {
+      const userId = request.appIdentity!.id;
+      const result = await database.db.transaction(async (tx) => {
+        const first = await requirePublicShare(
+          tx,
+          request.params.token,
+          request.cookies,
+          false,
+          userId,
+        );
+        await lockSpace(tx, first.file.spaceId);
+        const row = await requirePublicShare(
+          tx,
+          request.params.token,
+          request.cookies,
+          false,
+          userId,
+        );
+        const previous = await resolveFileAccess(tx, userId, row.file);
+        // 独立只读允许阅读，但不能因此绕过公开编辑链接的密码要求。
+        if (
+          previous.permission === "manage" ||
+          previous.permission === "edit" ||
+          (previous.permission === "read" && row.share.permission === "read")
+        )
+          return {
+            fileId: row.file.id,
+            kind: row.file.kind,
+            permission: previous.permission,
+          };
+        await requirePublicShare(
+          tx,
+          request.params.token,
+          request.cookies,
+          true,
+          userId,
+          false,
+        );
+        const expiresAt = new Date(
+          Math.min(
+            Date.now() + 24 * 3600000,
+            row.share.expiresAt?.getTime() ?? Infinity,
+          ),
+        );
+        await tx
+          .insert(shareUserSessions)
+          .values({
+            shareId: row.share.id,
+            userId,
+            generation: row.share.generation,
+            expiresAt,
+          })
+          .onConflictDoUpdate({
+            target: [shareUserSessions.shareId, shareUserSessions.userId],
+            set: { generation: row.share.generation, expiresAt },
+          });
+        const access = await resolveFileAccess(tx, userId, row.file);
+        return {
+          fileId: row.file.id,
+          kind: row.file.kind,
+          permission: access.permission!,
+        };
+      });
+      return result;
+    },
   );
   const guestMeta = (summary: string) => ({
     tags: ["访客分享"],
@@ -259,6 +393,7 @@ export async function registerShares(
         request.params.token,
         request.cookies,
         false,
+        await publicShareUser(database.db, config, request),
       );
       let requiresPassword = false;
       try {
@@ -266,6 +401,8 @@ export async function registerShares(
           database.db,
           request.params.token,
           request.cookies,
+          true,
+          await publicShareUser(database.db, config, request),
         );
       } catch (error) {
         if (
@@ -307,12 +444,16 @@ export async function registerShares(
         database.db,
         request.params.token,
         request.cookies,
+        true,
+        await publicShareUser(database.db, config, request),
       );
       await options.barrier?.(row.file.id, row.file.kind);
       row = await requirePublicShare(
         database.db,
         request.params.token,
         request.cookies,
+        true,
+        await publicShareUser(database.db, config, request),
       );
       const [content] = await database.db
         .select()
@@ -371,6 +512,7 @@ export async function registerShares(
         request.params.token,
         request.cookies,
         false,
+        await publicShareUser(database.db, config, request),
       );
       if (!row.share.passwordHash)
         throw new AppError("SHARE_PASSWORD_NOT_REQUIRED", "分享无需密码", 400);
@@ -394,6 +536,7 @@ export async function registerShares(
           request.params.token,
           {},
           false,
+          await publicShareUser(tx, config, request),
         );
         if (current.share.generation !== row.share.generation)
           throw new AppError(
@@ -408,13 +551,15 @@ export async function registerShares(
           expiresAt,
         });
       });
-      reply.setCookie(shareCookie(row.share.id), guestToken, {
-        httpOnly: true,
-        secure: config.APP_ENV === "production",
-        sameSite: "strict",
-        path: `/api/public/shares/${request.params.token}`,
-        expires: expiresAt,
-      });
+      // 同一密码凭证分别限定到当前分享的匿名与登录入口，不扩大登录 Cookie 的路径。
+      for (const prefix of ["/api/public/shares", "/api/app/shares"])
+        reply.setCookie(shareCookie(row.share.id), guestToken, {
+          httpOnly: true,
+          secure: config.APP_ENV === "production",
+          sameSite: "strict",
+          path: `${prefix}/${request.params.token}`,
+          expires: expiresAt,
+        });
       return { ok: true };
     },
   );
@@ -451,12 +596,16 @@ export async function registerShares(
         database.db,
         request.params.token,
         request.cookies,
+        true,
+        await publicShareUser(database.db, config, request),
       );
       await options.barrier?.(row.file.id, row.file.kind);
       row = await requirePublicShare(
         database.db,
         request.params.token,
         request.cookies,
+        true,
+        await publicShareUser(database.db, config, request),
       );
       const [asset] = await database.db
         .select({ asset: assets })

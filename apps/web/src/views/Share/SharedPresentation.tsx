@@ -6,8 +6,10 @@ import { errorMessage } from "@/http";
 export default function SharedPresentation({
   token,
   projection,
+  loadAsset,
 }: {
   token: string;
+  loadAsset?: (assetId: string, signal?: AbortSignal) => Promise<Blob>;
   projection: PresentationProjection;
 }) {
   const canvas = useRef<HTMLDivElement>(null);
@@ -25,11 +27,9 @@ export default function SharedPresentation({
     setPage(0);
     void (async () => {
       if (!projection.assetId) throw new Error("此幻灯片尚未上传文件");
-      const blob = await sharesApi.asset(
-        token,
-        projection.assetId,
-        controller.signal,
-      );
+      const blob = loadAsset
+        ? await loadAsset(projection.assetId, controller.signal)
+        : await sharesApi.asset(token, projection.assetId, controller.signal);
       const { PptxViewer, RECOMMENDED_ZIP_LIMITS } =
         await import("@aiden0z/pptx-renderer");
       if (!active || !canvas.current) return;
@@ -55,7 +55,7 @@ export default function SharedPresentation({
       instance?.destroy();
       if (viewer.current === instance) viewer.current = null;
     };
-  }, [token, projection.assetId]);
+  }, [token, projection.assetId, loadAsset]);
   const show = async (next: number) => {
     if (!viewer.current || loading || next < 0 || next >= count) return;
     try {

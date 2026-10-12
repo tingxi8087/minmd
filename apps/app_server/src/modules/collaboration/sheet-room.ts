@@ -197,7 +197,9 @@ export class SheetRooms {
     fileId: string,
     identity?: Identity,
   ) {
-    const file = await requireFileAccess(tx, userId, fileId);
+    const file = await requireFileAccess(tx, userId, fileId, {
+      permission: "edit",
+    });
     if (file.kind !== "sheet")
       throw new AppError("FILE_KIND_INVALID", "仅表格支持此协作接口", 400);
     if (identity) {
@@ -662,7 +664,13 @@ export class SheetRooms {
         })
         .where(eq(fileContents.fileId, identity.fileId))
         .returning();
-      await syncContentAssets(tx, identity.fileId, persisted!.projection);
+      await syncContentAssets(
+        tx,
+        identity.fileId,
+        persisted!.projection,
+        undefined,
+        identity.userId,
+      );
       await tx
         .update(files)
         .set({ updatedAt: persisted!.updatedAt })
@@ -890,7 +898,13 @@ export class SheetRooms {
             })
             .where(eq(fileContents.fileId, input.fileId))
             .returning();
-          await syncContentAssets(tx, input.fileId, persisted!.projection);
+          await syncContentAssets(
+            tx,
+            input.fileId,
+            persisted!.projection,
+            undefined,
+            input.userId,
+          );
           await tx
             .update(files)
             .set({ updatedAt: now })
@@ -970,7 +984,13 @@ export class SheetRooms {
           })
           .where(eq(fileContents.fileId, fileId))
           .returning();
-        await syncContentAssets(tx, fileId, saved!.projection);
+        await syncContentAssets(
+          tx,
+          fileId,
+          saved!.projection,
+          undefined,
+          userId,
+        );
         const versionId = await this.version(
           tx,
           saved!,
@@ -1020,6 +1040,21 @@ export class SheetRooms {
         this.disconnect(connection, 4003, "登录会话已撤销");
     for (const [key, ticket] of this.tickets)
       if (ticket.sessionId === sessionId) this.tickets.delete(key);
+  }
+  async revalidateFilePermissions(fileId: string) {
+    for (const connection of [...this.connections.values()]) {
+      if (connection.fileId !== fileId || !connection.identity) continue;
+      try {
+        await this.authorize(
+          this.database.db,
+          connection.identity.userId,
+          fileId,
+          connection.identity,
+        );
+      } catch {
+        this.disconnect(connection, 4003, "表格编辑权限已撤销");
+      }
+    }
   }
   revokeFiles(ids: string[], reason = "文件访问权限已撤销", code = 4003) {
     const targets = new Set(ids);

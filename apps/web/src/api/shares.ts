@@ -4,6 +4,8 @@ import { request } from "@/http";
 import type { PresentationProjection } from "@/api/assets";
 export type ShareStatus = {
   visibility: "public" | "private";
+  audience?: "authenticated" | "anyone";
+  permission?: "read" | "edit";
   enabled: boolean;
   hasPassword: boolean;
   expiresAt: string | null;
@@ -28,33 +30,60 @@ export const sharesApi = {
     fileId: string,
     values: {
       visibility: "public" | "private";
+      audience?: "authenticated" | "anyone";
+      permission?: "read" | "edit";
       password?: string | null;
       expiresAt?: string | null;
       rotate?: boolean;
     },
   ) =>
     (await request.put<ShareStatus>(`/app/files/${fileId}/share`, values)).data,
+  accept: async (token: string) =>
+    (
+      await request.post<{
+        fileId: string;
+        kind: "doc" | "sheet" | "slide";
+        permission: "read" | "edit" | "manage";
+      }>(`/app/shares/${encodeURIComponent(token)}/accept`, {})
+    ).data,
   revoke: async (fileId: string) => {
     await request.delete(`/app/files/${fileId}/share`);
   },
-  public: async (token: string, signal?: AbortSignal) =>
+  public: async (token: string, signal?: AbortSignal, authenticated = false) =>
     (
       await request.get<PublicShare>(
-        `/public/shares/${encodeURIComponent(token)}/content`,
+        `/${authenticated ? "app" : "public"}/shares/${encodeURIComponent(token)}/content`,
         { signal },
       )
     ).data,
-  authenticate: async (token: string, password: string) => {
-    await request.post(`/public/shares/${encodeURIComponent(token)}/unlock`, {
-      password,
-    });
+  authenticate: async (
+    token: string,
+    password: string,
+    authenticated = false,
+  ) => {
+    await request.post(
+      `/${authenticated ? "app" : "public"}/shares/${encodeURIComponent(token)}/unlock`,
+      {
+        password,
+      },
+    );
   },
-  assetUrl: (token: string, assetId: string, download = false) =>
-    `/api/public/shares/${encodeURIComponent(token)}/assets/${encodeURIComponent(assetId)}${download ? "?download=true" : ""}`,
-  asset: async (token: string, assetId: string, signal?: AbortSignal) =>
+  assetUrl: (
+    token: string,
+    assetId: string,
+    download = false,
+    authenticated = false,
+  ) =>
+    `/api/${authenticated ? "app" : "public"}/shares/${encodeURIComponent(token)}/assets/${encodeURIComponent(assetId)}${download ? "?download=true" : ""}`,
+  asset: async (
+    token: string,
+    assetId: string,
+    signal?: AbortSignal,
+    authenticated = false,
+  ) =>
     (
       await request.get<Blob>(
-        `/public/shares/${encodeURIComponent(token)}/assets/${encodeURIComponent(assetId)}`,
+        `/${authenticated ? "app" : "public"}/shares/${encodeURIComponent(token)}/assets/${encodeURIComponent(assetId)}`,
         { responseType: "blob", signal },
       )
     ).data,

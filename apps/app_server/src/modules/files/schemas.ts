@@ -25,6 +25,12 @@ export const revision = Type.Integer({
 });
 export const fileSchema = Type.Object({
   id,
+  permission: Type.Optional(
+    Type.Union(
+      [Type.Literal("read"), Type.Literal("edit"), Type.Literal("manage")],
+      { description: "当前账号有效文件权限" },
+    ),
+  ),
   favorite: Type.Boolean({ description: "当前账号是否收藏" }),
   accessedAt: Type.Union([Type.String(), Type.Null()], {
     description: "当前账号最近访问时间",
@@ -37,6 +43,9 @@ export const fileSchema = Type.Object({
   createdBy: id,
   visibility: Type.Union([Type.Literal("public"), Type.Literal("private")], {
     description: "公开或私有可见性",
+  }),
+  memberPermission: Type.Union([Type.Literal("read"), Type.Literal("edit")], {
+    description: "空间成员默认权限",
   }),
   metadataRevision: revision,
   deletedBatch: Type.Union([id, Type.Null()], { description: "删除批次" }),

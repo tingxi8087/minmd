@@ -1,7 +1,10 @@
+import { filesApi } from "@/api/files";
+import { notifyFileAccessChanged } from "@/api/fileAccess";
+import FileAccessGate from "@/components/FileAccessGate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams, useBlocker } from "react-router-dom";
-import { App, Input, Modal } from "antd";
+import { App, Input, Modal, Tooltip } from "antd";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { TextSelection } from "@tiptap/pm/state";
 import { BubbleMenu } from "@tiptap/react/menus";
@@ -37,6 +40,10 @@ import { Markdown } from "@tiptap/markdown";
 import {
   ArrowLeft,
   Users,
+  Check,
+  CloudOff,
+  LoaderCircle,
+  CircleAlert,
   History,
   PencilLine,
   FolderInput,
@@ -52,7 +59,6 @@ import {
   FileText,
   ImagePlus,
   Smile,
-  ListTree,
   LockKeyhole,
   Globe2,
   MoreHorizontal,
@@ -101,25 +107,13 @@ const shouldShowFormatting: NonNullable<
 const bubbleContainer = () => document.body;
 export default function Document() {
   const { id } = useParams();
-  const space = useWorkspace((s) => s.space);
-  const file = useWorkspace((s) =>
-    s.files.find(
-      (f) => f.id === id && f.space === space && f.kind === "doc" && !f.deleted,
-    ),
+  return (
+    <FileAccessGate fileId={id ?? ""}>
+      {(file) => <DocumentMode key={file.id} file={file} />}
+    </FileAccessGate>
   );
-  const navigate = useNavigate();
-  if (!file)
-    return (
-      <div className={styles.notFound}>
-        <FileText size={30} />
-        <h2>文档不存在或不在当前空间</h2>
-        <button className="secondary-button" onClick={() => navigate("/files")}>
-          返回空间
-        </button>
-      </div>
-    );
-  return <DocumentMode key={file.id} file={file} />;
 }
+
 function DocumentMode({ file }: { file: Entry }) {
   const collaboration = useDocumentCollaboration(file);
   if (!collaboration.session?.loaded)
@@ -155,7 +149,25 @@ function DocumentEditor({
   const navigate = useNavigate();
   const contextMenu = useContextMenu();
   const { message, modal } = App.useApp();
-  const patch = useWorkspace((s) => s.patch);
+  const patchStore = useWorkspace((s) => s.patch);
+  const patch = async (id: string, value: Partial<Entry>) => {
+    const workspace = useWorkspace.getState();
+    if (
+      workspace.space === file.space &&
+      workspace.files.some((item) => item.id === id)
+    )
+      return patchStore(id, value);
+    if (value.name !== undefined)
+      await filesApi.rename(
+        file.space,
+        id,
+        value.name,
+        file.metadataRevision ?? 0,
+      );
+    if (value.favorite !== undefined)
+      await filesApi.favorite(file.space, id, value.favorite);
+    notifyFileAccessChanged(id);
+  };
   const visit = useWorkspace((s) => s.visit);
   const [headerHost, setHeaderHost] = useState<HTMLElement | null>(null);
   useEffect(
@@ -434,7 +446,12 @@ function DocumentEditor({
     }
     const epoch = session.epoch;
     try {
-      const asset = await assetsApi.upload(file.space, imageFile);
+      const asset = await assetsApi.upload(
+        file.space,
+        imageFile,
+        undefined,
+        file.id,
+      );
       if (!editor.isDestroyed && session.epoch === epoch)
         editor
           .chain()
@@ -485,6 +502,7 @@ function DocumentEditor({
     },
     {
       key: "move",
+      disabled: Boolean(file.permission && file.permission !== "manage"),
       label: "移动到…",
       icon: <FolderInput size={15} />,
       run: () => setAction({ type: "move", file }),
@@ -625,6 +643,29 @@ function DocumentEditor({
       ),
     ];
   };
+  const saveNotice =
+    status === "failed"
+      ? "保存失败"
+      : session
+        ? verification.notice ||
+          (!verification.connected
+            ? "连接已断开"
+            : verification.saved && status === "saved"
+              ? "已保存到服务器"
+              : "正在保存…")
+        : status === "saving"
+          ? "正在保存…"
+          : "已保存";
+  const saveProblem =
+    status === "failed" ||
+    Boolean(session && verification.notice && verification.ready);
+  const SaveIcon = saveProblem
+    ? CircleAlert
+    : session && !verification.connected
+      ? CloudOff
+      : status === "saving" || (session && !verification.saved)
+        ? LoaderCircle
+        : Check;
   const documentHeader = (
     <div className={styles.docHeader}>
       <TooltipButton
@@ -636,12 +677,32 @@ function DocumentEditor({
       </TooltipButton>
       <FileText size={17} className={styles.docIcon} />
       <span className={styles.headerTitle}>{file.name}</span>
-      {status !== "saved" && (
-        <span className={styles.saveStatus} role="status">
-          {status === "saving" ? "保存中…" : "保存失败"}
-        </span>
-      )}
       <div className={styles.headerActions}>
+        <Tooltip title={saveNotice} mouseEnterDelay={0.1}>
+          <span
+            className={styles.saveIndicator}
+            role="status"
+            aria-label={saveNotice}
+            data-error={saveProblem}
+          >
+            {session && (verification.notice || !verification.connected) ? (
+              <button
+                className="icon-button"
+                aria-label={`${saveNotice}，点击重新连接`}
+                onClick={() => collaboration.restart()}
+              >
+                <SaveIcon size={16} />
+              </button>
+            ) : (
+              <SaveIcon
+                size={16}
+                className={
+                  SaveIcon === LoaderCircle ? styles.saving : undefined
+                }
+              />
+            )}
+          </span>
+        </Tooltip>
         <span className={styles.documentStats} aria-label="协作会话数量">
           <Users size={14} />
           {verification.count}/{verification.limit}
@@ -670,19 +731,6 @@ function DocumentEditor({
         >
           <Star size={16} fill={file.favorite ? "currentColor" : "none"} />
         </TooltipButton>
-        <TooltipButton
-          className="icon-button"
-          aria-label={outlineOpen ? "收起文档目录" : "展开文档目录"}
-          aria-expanded={outlineOpen}
-          aria-controls="document-outline"
-          onClick={() => setOutlineOpen(!outlineOpen)}
-        >
-          {outlineOpen ? (
-            <PanelRightClose size={17} />
-          ) : (
-            <PanelRightOpen size={17} />
-          )}
-        </TooltipButton>
         <button
           className="secondary-button"
           onClick={() => setAction({ type: "share", file })}
@@ -706,20 +754,6 @@ function DocumentEditor({
   return (
     <main className={styles.page}>
       {headerHost ? createPortal(documentHeader, headerHost) : documentHeader}
-      {session && (
-        <div className={styles.verification} role="status">
-          {verification.notice ||
-            `${verification.saved ? "已保存到服务器" : verification.synced ? "已同步，正在持久化…" : "正在同步…"}`}
-          {!verification.connected && (
-            <button
-              className="secondary-button"
-              onClick={() => collaboration.restart()}
-            >
-              重新连接
-            </button>
-          )}
-        </div>
-      )}
       {collaboration.drafts.length > 0 && (
         <div className={styles.verification} role="status">
           检测到未确认的恢复草稿（历史 epoch {collaboration.drafts[0].epoch}）
@@ -899,10 +933,6 @@ function DocumentEditor({
           aria-label="文档目录"
         >
           <div className={styles.outlineHeader}>
-            <span className={styles.outlineHeading} aria-hidden={!outlineOpen}>
-              <ListTree size={14} />
-              文档目录
-            </span>
             <TooltipButton
               className="icon-button"
               aria-label={outlineOpen ? "收起目录" : "展开目录"}

@@ -201,7 +201,7 @@ export default function Login() {
         <section className={styles.card} aria-label="账号登录">
           <div className={styles.brand}>
             <BrandIcon size={32} />
-            <span>minmd.</span>
+            <span>minmd</span>
           </div>
           <h1>打开你的空间</h1>
           <form

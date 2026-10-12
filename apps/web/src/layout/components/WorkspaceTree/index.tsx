@@ -93,12 +93,14 @@ export default function WorkspaceTree() {
       : []),
     {
       key: "rename",
+      disabled: f.permission === "read",
       label: "重命名",
       icon: <PencilLine size={15} />,
       run: () => setAction({ type: "rename", file: f }),
     },
     {
       key: "move",
+      disabled: Boolean(f.permission && f.permission !== "manage"),
       label: "移动到…",
       icon: <FolderInput size={15} />,
       run: () => setAction({ type: "move", file: f }),
@@ -126,6 +128,7 @@ export default function WorkspaceTree() {
     { key: "delete-divider", type: "divider" },
     {
       key: "delete",
+      disabled: Boolean(f.permission && f.permission !== "manage"),
       label: "移入回收站",
       icon: <Trash2 size={15} />,
       danger: true,
@@ -226,7 +229,15 @@ export default function WorkspaceTree() {
           if (f) contextMenu.open(event, fileMenu(f), "文件操作");
         }}
         blockNode
-        draggable={{ icon: false }}
+        draggable={{
+          icon: false,
+          nodeDraggable: (node) => {
+            const file = files.find((file) => file.id === node.key);
+            return Boolean(
+              file && (!file.permission || file.permission === "manage"),
+            );
+          },
+        }}
         treeData={build(null)}
         expandedKeys={expanded}
         onExpand={setExpanded}

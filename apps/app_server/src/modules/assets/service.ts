@@ -10,7 +10,9 @@ import {
   fileAssets,
   versionAssets,
 } from "../../database/schema/assets";
+import { fileVersions } from "../../database/schema/contents";
 import { files } from "../../database/schema/files";
+import { requireFileAccess } from "../files/service";
 import { requireSpaceAccess } from "../spaces/service";
 import { validateAsset } from "./validate";
 
@@ -23,6 +25,7 @@ export async function storeAsset(
   suppliedMime: string,
   bytes: Buffer,
   hooks: {
+    fileId?: string;
     authorize?: (tx: Transaction) => Promise<void>;
     onCommitted?: (
       tx: Transaction,
@@ -37,7 +40,16 @@ export async function storeAsset(
     ) => Promise<void>;
   } = {},
 ) {
-  await requireSpaceAccess(database, userId, spaceId);
+  const authorizeTarget = async (db: Database | Transaction) => {
+    if (hooks.fileId) {
+      const file = await requireFileAccess(db, userId, hooks.fileId, {
+        permission: "edit",
+      });
+      if (file.spaceId !== spaceId)
+        throw new AppError("ASSET_SPACE_MISMATCH", "附件目标空间不匹配", 403);
+    } else await requireSpaceAccess(db, userId, spaceId);
+  };
+  await authorizeTarget(database);
   const parsed = await validateAsset(bytes, filename, suppliedMime);
   const storageKey = crypto.randomUUID();
   await mkdir(directory, { recursive: true });
@@ -46,12 +58,13 @@ export async function storeAsset(
     await Bun.write(`${path}.tmp`, bytes);
     await rename(`${path}.tmp`, path);
     const row = await database.db.transaction(async (tx) => {
-      await requireSpaceAccess(tx, userId, spaceId);
+      await authorizeTarget(tx);
       await hooks.authorize?.(tx);
       const [row] = await tx
         .insert(assets)
         .values({
           spaceId,
+          uploadedForFileId: hooks.fileId ?? null,
           storageKey,
           filename: basename(filename).slice(0, 200) || "附件",
           mime: parsed.mime,
@@ -68,6 +81,7 @@ export async function storeAsset(
         slides: parsed.slides,
         url: `/api/app/assets/${row!.id}`,
       };
+
       await hooks.onCommitted?.(tx, result);
       return result;
     });
@@ -77,12 +91,62 @@ export async function storeAsset(
     throw error;
   }
 }
+/** 外部协作者只读取获授权文件的附件；临时上传允许目标文件编辑者预览，匿名分享仍仅开放正文引用。 */
+export async function requireAssetAccess(
+  database: Database | Database["db"] | Transaction,
+  userId: string,
+  asset: typeof assets.$inferSelect,
+) {
+  const db = "db" in database ? database.db : database;
+  try {
+    await requireSpaceAccess(db, userId, asset.spaceId);
+    return;
+  } catch (error) {
+    if (!(error instanceof AppError) || error.statusCode !== 403) throw error;
+  }
+  const allowed = async (fileId: string, permission: "read" | "edit") => {
+    try {
+      await requireFileAccess(db, userId, fileId, { permission });
+      return true;
+    } catch (error) {
+      if (
+        !(error instanceof AppError) ||
+        ![403, 404, 409].includes(error.statusCode ?? 500)
+      )
+        throw error;
+      return false;
+    }
+  };
+  if (
+    asset.uploadedForFileId &&
+    (await allowed(
+      asset.uploadedForFileId,
+      asset.uploadedBy === userId ? "read" : "edit",
+    ))
+  )
+    return;
+  const current = await db
+    .select({ fileId: fileAssets.fileId })
+    .from(fileAssets)
+    .where(eq(fileAssets.assetId, asset.id));
+  for (const reference of current)
+    if (await allowed(reference.fileId, "read")) return;
+  const history = await db
+    .select({ fileId: fileVersions.fileId })
+    .from(versionAssets)
+    .innerJoin(fileVersions, eq(fileVersions.id, versionAssets.versionId))
+    .where(eq(versionAssets.assetId, asset.id));
+  for (const reference of history)
+    if (await allowed(reference.fileId, "edit")) return;
+  throw new AppError("ASSET_FORBIDDEN", "没有附件访问权限", 403);
+}
 /** 当前及版本引用分别记录，不能因正文删图清掉历史原文件。 */
 export async function syncContentAssets(
   tx: Transaction,
   fileId: string,
   projection: Record<string, unknown>,
   versionId?: string,
+  actorId?: string,
 ) {
   const ids = new Set<string>();
   const visit = (value: unknown, depth: number) => {
@@ -108,7 +172,7 @@ export async function syncContentAssets(
   if (!file) throw new AppError("NOT_FOUND", "文件不存在", 404);
   const rows = ids.size
     ? await tx
-        .select({ id: assets.id })
+        .select()
         .from(assets)
         .where(
           and(eq(assets.spaceId, file.spaceId), inArray(assets.id, [...ids])),
@@ -117,6 +181,8 @@ export async function syncContentAssets(
     : [];
   if (rows.length !== ids.size)
     throw new AppError("ASSET_FORBIDDEN", "附件不存在或属于其他空间", 403);
+  if (actorId)
+    for (const asset of rows) await requireAssetAccess(tx, actorId, asset);
   if (versionId) {
     if (ids.size)
       await tx

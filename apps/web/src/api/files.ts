@@ -1,5 +1,6 @@
 import { request } from "@/http";
 export type RemoteFile = {
+  permission?: "read" | "edit" | "manage";
   id: string;
   spaceId: string;
   kind: "doc" | "sheet" | "slide" | "folder";

@@ -9,10 +9,11 @@ import type { Database } from "../../../../../system/server/src/database/client"
 import type { AppConfig } from "../../../../../system/server/src/config/env";
 import { AppError } from "../../../../../system/server/src/errors";
 import { loadMinmdConfig } from "../../../../../config/minmd";
+import { requireFileAccess } from "../files/service";
 import { assets } from "../../database/schema/assets";
 import { requireSpaceAccess } from "../spaces/service";
 import { id, errors } from "../spaces/schemas";
-import { storeAsset, cleanUnboundAssets } from "./service";
+import { requireAssetAccess, storeAsset, cleanUnboundAssets } from "./service";
 import { registerPresentations } from "./presentation";
 
 export const assetSchema = Type.Object({
@@ -81,6 +82,57 @@ export async function registerAssets(
       );
     },
   );
+  app.post<{ Params: { fileId: string }; Body: { file: MultipartFile } }>(
+    "/api/app/files/:fileId/assets",
+    {
+      config: { auth: true, authScope: "app" },
+      schema: {
+        tags: ["私有附件"],
+        summary: "向可编辑文件上传附件",
+        description:
+          "空间外指定编辑者也可调用；仅授权当前文件，上传和绑定在事务内重新验证文件编辑权限。",
+        consumes: ["multipart/form-data"],
+        params: Type.Object({ fileId: id }, { additionalProperties: false }),
+        body: Type.Object(
+          {
+            file: Type.Object(
+              {
+                type: Type.Literal("file"),
+                filename: Type.String(),
+                mimetype: Type.String(),
+              },
+              { additionalProperties: true },
+            ),
+          },
+          { additionalProperties: false },
+        ),
+        response: { 200: assetSchema, ...errors, 413: errors[400] },
+      },
+    },
+    async (request) => {
+      const file = await requireFileAccess(
+        database,
+        request.appIdentity!.id,
+        request.params.fileId,
+        { permission: "edit" },
+      );
+      if (file.kind === "folder")
+        throw new AppError("FILE_KIND_INVALID", "文件夹不能插入附件", 400);
+      const upload = request.body.file;
+      if (!upload || upload.type !== "file")
+        throw new AppError("ASSET_INVALID", "请选择上传文件", 400);
+      return storeAsset(
+        database,
+        settings.assetStorageDir,
+        request.appIdentity!.id,
+        file.spaceId,
+        upload.filename,
+        upload.mimetype,
+        await upload.toBuffer(),
+        { fileId: file.id },
+      );
+    },
+  );
   app.get<{ Params: { assetId: string }; Querystring: { download?: boolean } }>(
     "/api/app/assets/:assetId",
     {
@@ -114,11 +166,7 @@ export async function registerAssets(
         .from(assets)
         .where(eq(assets.id, request.params.assetId));
       if (!asset) throw new AppError("NOT_FOUND", "附件不存在", 404);
-      await requireSpaceAccess(
-        database,
-        request.appIdentity!.id,
-        asset.spaceId,
-      );
+      await requireAssetAccess(database, request.appIdentity!.id, asset);
       const path = join(resolve(settings.assetStorageDir), asset.storageKey);
       try {
         await stat(path);

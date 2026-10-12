@@ -58,7 +58,7 @@ export async function registerVersions(
     fileId: string,
     versionId: string,
   ) => {
-    await requireFileAccess(database, userId, fileId);
+    await requireFileAccess(database, userId, fileId, { permission: "edit" });
     const [version] = await database.db
       .select()
       .from(fileVersions)
@@ -95,6 +95,7 @@ export async function registerVersions(
         database,
         request.appIdentity!.id,
         request.params.fileId,
+        { permission: "edit" },
       );
       const [result] = await database.db
         .select({ total: count() })
@@ -171,6 +172,7 @@ export async function registerVersions(
           tx,
           request.appIdentity!.id,
           request.params.fileId,
+          { permission: "edit" },
         );
         const [version] = await tx
           .select()
@@ -224,6 +226,7 @@ export async function registerVersions(
         database,
         request.appIdentity!.id,
         request.params.fileId,
+        { permission: "edit" },
       );
       if (file.kind === "sheet")
         return sheetRooms.replaceWorkbook(file.id, request.appIdentity!.id, {

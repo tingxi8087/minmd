@@ -17,6 +17,14 @@ export const fileShares = pgTable("file_shares", {
     .unique()
     .references(() => files.id, { onDelete: "cascade" }),
   tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+  audience: varchar("audience", { length: 20 })
+    .$type<"authenticated" | "anyone">()
+    .notNull()
+    .default("anyone"),
+  permission: varchar("permission", { length: 16 })
+    .$type<"read" | "edit">()
+    .notNull()
+    .default("read"),
   generation: integer("generation").notNull().default(1),
   passwordHash: varchar("password_hash", { length: 300 }),
   expiresAt: time("expires_at"),

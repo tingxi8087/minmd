@@ -35,6 +35,10 @@ export const files = pgTable(
     visibility: varchar("visibility", { length: 16 })
       .notNull()
       .default("private"),
+    memberPermission: varchar("member_permission", { length: 16 })
+      .$type<"read" | "edit">()
+      .notNull()
+      .default("read"),
     metadataRevision: integer("metadata_revision").notNull().default(1),
     deletedBatch: uuid("deleted_batch"),
     deletedAt: time("deleted_at"),
@@ -44,6 +48,10 @@ export const files = pgTable(
   (t) => [
     index("files_tree_idx").on(t.spaceId, t.parentId, t.deletedAt, t.position),
     index("files_deleted_batch_idx").on(t.spaceId, t.deletedBatch),
+    check(
+      "files_member_permission",
+      sql`${t.memberPermission} in ('read','edit')`,
+    ),
     check("files_kind", sql`${t.kind} in ('doc','sheet','slide','folder')`),
     check("files_visibility", sql`${t.visibility} in ('public','private')`),
   ],

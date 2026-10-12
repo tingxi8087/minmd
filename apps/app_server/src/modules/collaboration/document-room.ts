@@ -364,6 +364,7 @@ export class DocumentRooms {
         this.database,
         context.userId,
         context.fileId,
+        { permission: "edit" },
       );
       if (file.kind !== "doc") throw Error("类型无效");
       const [current] = await this.database.db
@@ -397,7 +398,9 @@ export class DocumentRooms {
   ) {
     if (schemaVersion !== 1)
       throw new AppError("SCHEMA_UNSUPPORTED", "客户端文档格式不兼容", 409);
-    const file = await requireFileAccess(this.database, userId, fileId);
+    const file = await requireFileAccess(this.database, userId, fileId, {
+      permission: "edit",
+    });
     if (file.kind !== "doc")
       throw new AppError("FILE_KIND_INVALID", "仅文档支持此协作接口", 400);
     const [current] = await this.database.db
@@ -479,6 +482,7 @@ export class DocumentRooms {
       current.fileId,
       current.projection,
       version!.id,
+      actorId,
     );
     return version!.id;
   }
@@ -511,7 +515,9 @@ export class DocumentRooms {
           savedAt: current.updatedAt.toISOString(),
         };
       if (context?.userId) {
-        await requireFileAccess(tx, context.userId, fileId);
+        await requireFileAccess(tx, context.userId, fileId, {
+          permission: "edit",
+        });
         const [session] = await tx
           .select({ id: appUserSessions.id })
           .from(appUserSessions)
@@ -575,7 +581,13 @@ export class DocumentRooms {
         })
         .where(eq(fileContents.fileId, fileId))
         .returning();
-      await syncContentAssets(tx, fileId, saved!.projection);
+      await syncContentAssets(
+        tx,
+        fileId,
+        saved!.projection,
+        undefined,
+        context?.userId,
+      );
       await this.compactUpdates(tx, saved!);
       const [last] = await tx
         .select({ createdAt: fileVersions.createdAt })
@@ -685,11 +697,13 @@ export class DocumentRooms {
     fileId: string,
     options: { snapshot?: number[]; manual?: boolean; note?: string } = {},
   ) {
-    await requireFileAccess(this.database, userId, fileId);
+    await requireFileAccess(this.database, userId, fileId, {
+      permission: "edit",
+    });
     const saved = await this.persistBarrier(fileId, options.snapshot);
     if (!options.manual) return saved;
     const latest = await this.database.db.transaction(async (tx) => {
-      await requireFileAccess(tx, userId, fileId);
+      await requireFileAccess(tx, userId, fileId, { permission: "edit" });
       const [current] = await tx
         .select()
         .from(fileContents)
@@ -725,9 +739,11 @@ export class DocumentRooms {
       await this.persistBarrier(fileId);
       const result = await this.enqueue(fileId, async () =>
         this.database.db.transaction(async (tx) => {
-          const file = await requireFileAccess(tx, userId, fileId);
+          const file = await requireFileAccess(tx, userId, fileId, {
+            permission: "edit",
+          });
           await lockSpace(tx, file.spaceId);
-          await requireFileAccess(tx, userId, fileId);
+          await requireFileAccess(tx, userId, fileId, { permission: "edit" });
           const [current] = await tx
             .select()
             .from(fileContents)
@@ -763,7 +779,13 @@ export class DocumentRooms {
             })
             .where(eq(fileContents.fileId, fileId))
             .returning();
-          await syncContentAssets(tx, fileId, saved!.projection);
+          await syncContentAssets(
+            tx,
+            fileId,
+            saved!.projection,
+            undefined,
+            userId,
+          );
           await this.compactUpdates(tx, saved!);
           const versionId = await this.version(
             tx,
@@ -825,9 +847,11 @@ export class DocumentRooms {
       const result = await this.enqueue(fileId, async () =>
         this.database.db.transaction(async (tx) => {
           await input.beforeTransaction?.(tx);
-          const file = await requireFileAccess(tx, userId, fileId);
+          const file = await requireFileAccess(tx, userId, fileId, {
+            permission: "edit",
+          });
           await lockSpace(tx, file.spaceId);
-          await requireFileAccess(tx, userId, fileId);
+          await requireFileAccess(tx, userId, fileId, { permission: "edit" });
           await input.authorize?.(tx);
           const [current] = await tx
             .select()
@@ -882,7 +906,13 @@ export class DocumentRooms {
             })
             .where(eq(fileContents.fileId, fileId))
             .returning();
-          await syncContentAssets(tx, fileId, saved!.projection);
+          await syncContentAssets(
+            tx,
+            fileId,
+            saved!.projection,
+            undefined,
+            userId,
+          );
           await this.compactUpdates(tx, saved!);
           const versionId = await this.version(
             tx,
@@ -918,6 +948,17 @@ export class DocumentRooms {
       return result;
     } finally {
       this.paused.delete(fileId);
+    }
+  }
+  async revalidateFilePermissions(fileId: string) {
+    for (const [key, socket] of [...this.sockets]) {
+      if (socket.context.fileId !== fileId || !socket.context.userId) continue;
+      try {
+        await this.validate(socket.context);
+      } catch {
+        socket.close(4003, "文档编辑权限已撤销");
+        this.sockets.delete(key);
+      }
     }
   }
   revokeFiles(fileIds: string[]) {
@@ -1051,6 +1092,7 @@ export async function registerDocumentRooms(
         database,
         request.appIdentity!.id,
         request.params.fileId,
+        { permission: "edit" },
       );
       if (file.kind === "sheet" && sheets)
         return sheets.issueTicket(
