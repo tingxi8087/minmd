@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { App, Dropdown, Tree, type TreeProps } from "antd";
 import type { DataNode } from "antd/es/tree";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -47,8 +47,12 @@ export default function WorkspaceTree() {
   const contextMenu = useContextMenu();
   const location = useLocation();
   const [expanded, setExpanded] = useState<React.Key[]>([]);
+  const draggedId = useRef<string | null>(null);
+  const [folderDropTarget, setFolderDropTarget] = useState<string | null>(null);
   useEffect(() => {
     setExpanded([]);
+    draggedId.current = null;
+    setFolderDropTarget(null);
   }, [space]);
   const [action, setAction] = useState<FileAction | null>(null);
   const selected =
@@ -152,6 +156,42 @@ export default function WorkspaceTree() {
       },
     },
   ];
+  const move = (id: string, parent: string | null, index?: number) => {
+    void relocate(id, parent, index)
+      .then((moved) => {
+        if (!moved) {
+          message.warning("无法移动到该位置");
+          return;
+        }
+        if (parent) setExpanded((keys) => [...new Set([...keys, parent])]);
+      })
+      .catch((error: unknown) => message.error(errorMessage(error)));
+  };
+  const isFolderBody = (
+    event: React.DragEvent<HTMLDivElement>,
+    file: Entry,
+  ) => {
+    if (file.kind !== "folder" || !draggedId.current) return false;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    // 行主体用于移入，上下边缘仍交给 Tree 的同级排序判定。
+    return (
+      event.clientY >= bounds.top + 4 && event.clientY <= bounds.bottom - 4
+    );
+  };
+  const onFolderDragOver = (
+    event: React.DragEvent<HTMLDivElement>,
+    f: Entry,
+  ) => {
+    if (!isFolderBody(event, f)) {
+      setFolderDropTarget(null);
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const allowed = canMove(files, draggedId.current!, f.id);
+    event.dataTransfer.dropEffect = allowed ? "move" : "none";
+    setFolderDropTarget(allowed ? f.id : null);
+  };
   const build = (parent: string | null, path = new Set<string>()): DataNode[] =>
     siblings(files, space, parent)
       .filter((f) => !path.has(f.id))
@@ -161,7 +201,28 @@ export default function WorkspaceTree() {
         return {
           key: f.id,
           title: (
-            <div className={styles.node}>
+            <div
+              className={`${styles.node} ${folderDropTarget === f.id ? styles.folderDropTarget : ""}`}
+              onDragEnter={(event) => onFolderDragOver(event, f)}
+              onDragOver={(event) => onFolderDragOver(event, f)}
+              onDragLeave={(event) => {
+                if (
+                  !event.currentTarget.contains(
+                    event.relatedTarget as Node | null,
+                  )
+                )
+                  setFolderDropTarget(null);
+              }}
+              onDrop={(event) => {
+                if (!isFolderBody(event, f)) return;
+                event.preventDefault();
+                event.stopPropagation();
+                const id = draggedId.current!;
+                draggedId.current = null;
+                setFolderDropTarget(null);
+                if (canMove(files, id, f.id)) move(id, f.id);
+              }}
+            >
               <Icon size={15} className={styles.fileIcon} data-kind={f.kind} />
               <span className={styles.name}>{f.name}</span>
               <button
@@ -197,15 +258,9 @@ export default function WorkspaceTree() {
       dropToGap,
       Boolean(node.expanded && node.children?.length),
     );
-    void relocate(moving.id, parent, index)
-      .then((moved) => {
-        if (!moved) {
-          message.warning("无法移动到该位置");
-          return;
-        }
-        if (parent) setExpanded((keys) => [...new Set([...keys, parent])]);
-      })
-      .catch((error: unknown) => message.error(errorMessage(error)));
+    draggedId.current = null;
+    setFolderDropTarget(null);
+    move(moving.id, parent, index);
   };
   return (
     <section className={styles.treeSection}>
@@ -229,6 +284,13 @@ export default function WorkspaceTree() {
           if (f) contextMenu.open(event, fileMenu(f), "文件操作");
         }}
         blockNode
+        onDragStart={({ node }) => {
+          draggedId.current = String(node.key);
+        }}
+        onDragEnd={() => {
+          draggedId.current = null;
+          setFolderDropTarget(null);
+        }}
         draggable={{
           icon: false,
           nodeDraggable: (node) => {

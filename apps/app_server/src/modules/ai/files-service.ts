@@ -44,7 +44,7 @@ class Replay extends AppError {
     super("AI_REQUEST_REPLAY", "请求已提交", 409);
   }
 }
-/** API Key使用既有空间策略授权，文件操作与成功幂等结果提交同一事务。 */
+/** API Key使用独立权限授权，文件操作与成功幂等结果提交同一事务。 */
 export class AiFileService {
   async readMetadata(token: string, fileId: string) {
     const guard = new AiExecution(this.executionTimeoutMs);

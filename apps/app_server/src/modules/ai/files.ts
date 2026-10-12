@@ -101,7 +101,7 @@ export async function registerAiFiles(
   const meta = (summary: string, scope: string) => ({
     tags: ["外部AI文件"],
     summary,
-    description: `显式Bearer API密钥须取得空间策略和密钥的${scope}交集授权，只操作密钥绑定空间。同事务复验授权并保存幂等结果；不开放空间、成员、分享和永久删除权限。`,
+    description: `显式Bearer API密钥须取得密钥的${scope}授权，只操作密钥绑定空间。同事务复验授权并保存幂等结果；不开放空间、成员、分享和永久删除权限。`,
   });
   app.post<{ Body: Static<typeof create> }>(
     "/api/v1/files",

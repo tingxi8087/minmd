@@ -111,26 +111,6 @@ if (url && !new URL(url).pathname.endsWith("_test"))
     );
     expect(space.statusCode).toBe(200);
     spaceId = space.json().id;
-    expect(
-      (
-        await app.inject({
-          method: "PUT",
-          url: `/api/app/spaces/${spaceId}/ai-policy`,
-          headers: h(login),
-          payload: {
-            enabled: true,
-            permissions: [
-              "read",
-              "edit",
-              "create",
-              "organize",
-              "delete_restore",
-              "upload",
-            ],
-          },
-        })
-      ).statusCode,
-    ).toBe(200);
     key = (
       await send(
         "POST",
@@ -800,7 +780,7 @@ if (url && !new URL(url).pathname.endsWith("_test"))
     ).toBe(200);
     expect((await invoke()).statusCode).toBe(401);
   });
-  test("同账号另一空间也不可写，策略缩权实时拒绝旧密钥", async () => {
+  test("同账号另一空间也不可写，密钥缩权实时拒绝后续调用", async () => {
     const space = await send(
       "POST",
       "/api/app/spaces",
@@ -847,11 +827,18 @@ if (url && !new URL(url).pathname.endsWith("_test"))
       (await send("POST", `/api/v1/files/${docId}/purge`, { confirm: true }))
         .statusCode,
     ).toBe(404);
-    const policy = await app.inject({
-      method: "PUT",
-      url: `/api/app/spaces/${spaceId}/ai-policy`,
+    const ownKeys = await app.inject({
+      url: `/api/app/spaces/${spaceId}/api-keys`,
       headers: h(login),
-      payload: { enabled: true, permissions: ["read"] },
+    });
+    const originalKey = ownKeys
+      .json<{ items: { id: string; prefix: string }[] }>()
+      .items.find((item) => key.startsWith(item.prefix))!;
+    const policy = await app.inject({
+      method: "PATCH",
+      url: `/api/app/api-keys/${originalKey.id}`,
+      headers: h(login),
+      payload: { name: "缩权助手", permissions: ["read"] },
     });
     expect(policy.statusCode).toBe(200);
     expect(

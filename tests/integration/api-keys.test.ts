@@ -3,7 +3,10 @@ import { eq, inArray } from "drizzle-orm";
 import { buildApp } from "../../apps/app_server/src/app";
 import { createDatabase } from "../../system/server/src/database/client";
 import { loadConfig } from "../../system/server/src/config/env";
-import { hashPassword } from "../../system/server/src/modules/auth/password";
+import {
+  hashPassword,
+  hashToken,
+} from "../../system/server/src/modules/auth/password";
 import { appUsers } from "../../apps/app_server/src/database/schema/users";
 import {
   spaces,
@@ -19,7 +22,7 @@ import { AppError } from "../../system/server/src/errors";
 const url = process.env.TEST_DATABASE_URL;
 if (url && !new URL(url).pathname.endsWith("_test"))
   throw Error("密钥测试只允许独立_test数据库");
-(url ? describe : describe.skip)("空间AI策略和密钥授权交集", () => {
+(url ? describe : describe.skip)("空间独立密钥权限管理", () => {
   const db = createDatabase(url ?? "postgresql://localhost/unused_test");
   const users: string[] = [],
     spaceIds: string[] = [],
@@ -29,13 +32,6 @@ if (url && !new URL(url).pathname.endsWith("_test"))
     memberToken: string,
     spaceId: string;
   const header = (token = ownerToken) => ({ authorization: `Bearer ${token}` });
-  const setPolicy = (enabled: boolean, permissions: string[]) =>
-    app.inject({
-      method: "PUT",
-      url: `/api/app/spaces/${spaceId}/ai-policy`,
-      headers: header(),
-      payload: { enabled, permissions },
-    });
   const issue = (permissions?: string[], token = memberToken) =>
     app.inject({
       method: "POST",
@@ -54,7 +50,7 @@ if (url && !new URL(url).pathname.endsWith("_test"))
       }),
       { logger: false },
     );
-    for (const suffix of ["owner", "member"]) {
+    for (const suffix of ["owner", "member", "other"]) {
       const [user] = await db.db
         .insert(appUsers)
         .values({
@@ -70,7 +66,7 @@ if (url && !new URL(url).pathname.endsWith("_test"))
       });
       expect(login.statusCode).toBe(200);
       if (suffix === "owner") ownerToken = login.json().token;
-      else memberToken = login.json().token;
+      else if (suffix === "member") memberToken = login.json().token;
     }
     const result = await app.inject({
       method: "POST",
@@ -81,7 +77,10 @@ if (url && !new URL(url).pathname.endsWith("_test"))
     expect(result.statusCode).toBe(200);
     spaceId = result.json().id;
     spaceIds.push(spaceId);
-    await db.db.insert(spaceMembers).values({ spaceId, userId: users[1]! });
+    await db.db.insert(spaceMembers).values([
+      { spaceId, userId: users[1]! },
+      { spaceId, userId: users[2]! },
+    ]);
   });
   afterAll(async () => {
     await app?.close();
@@ -94,7 +93,6 @@ if (url && !new URL(url).pathname.endsWith("_test"))
     await db.close();
   });
   test("AI密钥额度在HTTP和MCP间共享，跨IP不重置，不同密钥独立", async () => {
-    await setPolicy(true, ["read"]);
     const first = (await issue(["read"], ownerToken)).json().secret as string;
     const second = (await issue(["read"], ownerToken)).json().secret as string;
     const limited = Fastify({ logger: false });
@@ -121,54 +119,80 @@ if (url && !new URL(url).pathname.endsWith("_test"))
       expect(rejected.json().code).toBe("AI_RATE_LIMITED");
       expect(Number(rejected.headers["retry-after"])).toBeGreaterThan(0);
       expect((await call(second, "GET", "192.0.2.1")).statusCode).toBe(200);
-      await setPolicy(false, ["read"]);
-      expect((await call(second, "GET", "192.0.2.1")).statusCode).toBe(403);
+      const secondKey = await db.db
+        .select()
+        .from(apiKeys)
+        .where(eq(apiKeys.tokenHash, hashToken(second)));
+      await app.inject({
+        method: "DELETE",
+        url: `/api/app/api-keys/${secondKey[0]!.id}`,
+        headers: header(),
+      });
+      expect((await call(second, "GET", "192.0.2.1")).statusCode).toBe(401);
     } finally {
       await limited.close();
-      await setPolicy(false, ["read"]);
     }
   });
-  test("默认关闭、负责人限定、签发只返回一次明文及权限不可扩大", async () => {
-    const initial = await app.inject({
-      url: `/api/app/spaces/${spaceId}/ai-policy`,
-      headers: header(),
-    });
-    expect(initial.json<{ enabled: boolean; permissions: string[] }>()).toEqual(
-      { enabled: false, permissions: ["read"] },
-    );
-    expect((await issue()).statusCode).toBe(403);
-    expect(
-      (
-        await app.inject({
-          method: "PUT",
-          url: `/api/app/spaces/${spaceId}/ai-policy`,
-          headers: header(memberToken),
-          payload: { enabled: true, permissions: ["read"] },
-        })
-      ).statusCode,
-    ).toBe(403);
-    expect((await setPolicy(true, ["read", "edit"])).statusCode).toBe(200);
-    expect((await issue(["upload"])).statusCode).toBe(403);
+  test("独立授权、创建者查看原文、负责人管理、修改即时生效与物理删除", async () => {
     const issued = await issue(["read"]);
     expect(issued.statusCode).toBe(200);
     const { secret, key } = issued.json();
-    expect(secret).toStartWith("minmd_");
-    const listed = await app.inject({
+    const list = await app.inject({
       url: `/api/app/spaces/${spaceId}/api-keys`,
-      headers: header(memberToken),
+      headers: header(),
     });
-    expect(listed.body).not.toContain(secret);
-    expect(listed.body).not.toContain("tokenHash");
-    expect((await authorizeAi(db.db, secret, "read")).permissions).toEqual([
-      "read",
-    ]);
+    expect(list.body).not.toContain(secret);
+    expect(list.body).not.toContain("encryptedSecret");
+    expect(list.body).not.toContain("tokenHash");
+    const reveal = await app.inject({
+      method: "POST",
+      url: `/api/app/api-keys/${key.id}/reveal`,
+      headers: header(memberToken),
+      payload: {},
+    });
+    expect(reveal.statusCode).toBe(200);
+    expect(reveal.json().secret).toBe(secret);
+    expect(reveal.headers["cache-control"]).toBe("no-store");
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: `/api/app/api-keys/${key.id}/reveal`,
+          headers: header(),
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(403);
     await expect(authorizeAi(db.db, secret, "edit")).rejects.toThrow("未授予");
-    await setPolicy(false, ["read", "edit"]);
-    await expect(authorizeAi(db.db, secret, "read")).rejects.toThrow("关闭");
-    await setPolicy(true, ["read", "edit", "upload"]);
-    await expect(authorizeAi(db.db, secret, "upload")).rejects.toThrow(
-      "未授予",
-    );
+    expect(
+      (
+        await app.inject({
+          method: "PATCH",
+          url: `/api/app/api-keys/${key.id}`,
+          headers: header(),
+          payload: { name: "已修改", permissions: ["edit"] },
+        })
+      ).statusCode,
+    ).toBe(200);
+    await expect(authorizeAi(db.db, secret, "read")).rejects.toThrow("未授予");
+    expect((await authorizeAi(db.db, secret, "edit")).permissions).toEqual([
+      "edit",
+    ]);
+    const [stored] = await db.db
+      .select()
+      .from(apiKeys)
+      .where(eq(apiKeys.id, key.id));
+    expect(stored!.encryptedSecret).not.toContain(secret);
+    expect(
+      (
+        await app.inject({
+          method: "PATCH",
+          url: `/api/app/api-keys/${key.id}`,
+          headers: header(memberToken),
+          payload: { name: "空权限", permissions: [] },
+        })
+      ).statusCode,
+    ).toBe(400);
     expect(
       (
         await app.inject({
@@ -178,7 +202,79 @@ if (url && !new URL(url).pathname.endsWith("_test"))
         })
       ).statusCode,
     ).toBe(200);
-    await expect(authorizeAi(db.db, secret, "read")).rejects.toThrow("撤销");
+    expect(
+      await db.db.select().from(apiKeys).where(eq(apiKeys.id, key.id)),
+    ).toHaveLength(0);
+    await expect(authorizeAi(db.db, secret, "read")).rejects.toThrow("无效");
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: `/api/app/api-keys/${key.id}/reveal`,
+          headers: header(memberToken),
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(404);
+  });
+  test("其他成员不能修改、删除或查看他人密钥；旧密钥原文不可恢复", async () => {
+    const issued = (await issue(["read"], ownerToken)).json();
+    const path = `/api/app/api-keys/${issued.key.id}`;
+    for (const [method, url, payload] of [
+      ["POST", `${path}/reveal`, {}],
+      ["PATCH", path, { name: "越权", permissions: ["edit"] }],
+      ["DELETE", path, undefined],
+    ] as const) {
+      expect(
+        (
+          await app.inject({
+            method,
+            url,
+            headers: header(memberToken),
+            ...(payload ? { payload } : {}),
+          })
+        ).statusCode,
+      ).toBe(403);
+    }
+    const list = await app.inject({
+      url: `/api/app/spaces/${spaceId}/api-keys`,
+      headers: header(memberToken),
+    });
+    expect(list.body).not.toContain(issued.key.id);
+    expect(
+      (await app.inject({ method: "POST", url: `${path}/reveal`, payload: {} }))
+        .statusCode,
+    ).toBe(401);
+    await db.db
+      .update(apiKeys)
+      .set({ encryptedSecret: null })
+      .where(eq(apiKeys.id, issued.key.id));
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: `${path}/reveal`,
+          headers: header(),
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(409);
+    expect((await authorizeAi(db.db, issued.secret, "read")).keyId).toBe(
+      issued.key.id,
+    );
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: `/api/app/spaces/${spaceId}/api-keys`,
+          headers: header(),
+          payload: {
+            name: "未来日期",
+            expiresAt: new Date(Date.now() - 1000).toISOString(),
+          },
+        })
+      ).statusCode,
+    ).toBe(400);
   });
   test("成员移除、账号停用与过期每次请求实时失效", async () => {
     const issued = await issue(["read"]);

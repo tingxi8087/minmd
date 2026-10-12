@@ -7,6 +7,13 @@ const origin = z
   .url()
   .refine((value) => new URL(value).origin === value);
 const schema = z.object({
+  AI_KEY_ENCRYPTION_KEY: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z
+      .string()
+      .regex(/^[a-fA-F0-9]{64}$/)
+      .optional(),
+  ),
   AI_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(1000).default(60),
   AI_EXECUTION_TIMEOUT_MS: z.coerce
     .number()
@@ -71,6 +78,7 @@ export function loadMinmdConfig(
     );
   }
   return {
+    aiKeyEncryptionKey: parsed.data.AI_KEY_ENCRYPTION_KEY,
     aiRequestsPerMinute: parsed.data.AI_REQUESTS_PER_MINUTE,
     aiExecutionTimeoutMs: parsed.data.AI_EXECUTION_TIMEOUT_MS,
     assetStorageDir: parsed.data.ASSET_STORAGE_DIR,

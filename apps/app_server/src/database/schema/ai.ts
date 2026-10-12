@@ -20,7 +20,7 @@ export const aiPermissions = [
   "upload",
 ] as const;
 export type AiPermission = (typeof aiPermissions)[number];
-/** 空间策略实时参与每一次外部调用授权，关闭后不删除密钥签发范围。 */
+/** 旧版策略仅保留迁移来源，当前权限由密钥独立配置。 */
 export const spaceAiPolicies = pgTable("space_ai_policies", {
   spaceId: uuid("space_id")
     .primaryKey()
@@ -34,7 +34,7 @@ export const spaceAiPolicies = pgTable("space_ai_policies", {
     .notNull()
     .defaultNow(),
 });
-/** API Key仅存哈希，创建者退出空间或停用后即失效。 */
+/** 哈希用于认证，加密原文仅供创建者查看；离开空间或停用后失效。 */
 export const apiKeys = pgTable(
   "api_keys",
   {
@@ -47,6 +47,7 @@ export const apiKeys = pgTable(
       .references(() => appUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 80 }).notNull(),
     prefix: varchar("prefix", { length: 20 }).notNull(),
+    encryptedSecret: varchar("encrypted_secret", { length: 512 }),
     tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
     permissions: jsonb("permissions").$type<AiPermission[]>().notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }),

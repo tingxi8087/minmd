@@ -1,17 +1,66 @@
-import { useEffect, useState } from "react";
-import { App, Checkbox, Input, Modal, Switch } from "antd";
-import { Copy, Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { App, Checkbox, Input, Modal } from "antd";
+import {
+  Copy,
+  Plus,
+  Trash2,
+  PencilLine,
+  KeyRound,
+  ShieldCheck,
+  Eye,
+} from "lucide-react";
 import {
   aiApi,
   aiPermissionNames,
   aiTemplates,
   type AiPermission,
-  type AiPolicy,
   type ApiKey,
 } from "@/api/ai";
+import { useAuth } from "@/store/auth";
 import { errorMessage } from "@/http";
 import styles from "../index.module.less";
+import ui from "./AiSettings.module.less";
 const permissions = Object.keys(aiPermissionNames) as AiPermission[];
+const presets: {
+  id: string;
+  name: string;
+  detail: string;
+  permissions: AiPermission[];
+}[] = [
+  {
+    id: "read",
+    name: "只读助手",
+    detail: "搜索、阅读与总结",
+    permissions: ["read"],
+  },
+  {
+    id: "edit",
+    name: "内容编辑",
+    detail: "阅读与修改现有内容",
+    permissions: ["read", "edit"],
+  },
+  {
+    id: "organize",
+    name: "内容整理",
+    detail: "创建、编辑、整理与上传",
+    permissions: ["read", "create", "edit", "organize", "upload"],
+  },
+  { id: "full", name: "完整文件操作", detail: "含删除与恢复文件", permissions },
+];
+const permissionHints: Record<AiPermission, string> = {
+  read: "读取目录、文档和表格",
+  create: "创建文档、表格与文件夹",
+  edit: "修改文档正文和单元格",
+  organize: "调整名称与目录位置",
+  delete_restore: "移入回收站或恢复",
+  upload: "上传图片与附件",
+};
+const localDate = (date: string) => {
+  const value = new Date(date);
+  return new Date(value.getTime() - value.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16);
+};
 export default function AiSettings({
   spaceId,
   owner,
@@ -20,118 +69,127 @@ export default function AiSettings({
   owner: boolean;
 }) {
   const { message, modal } = App.useApp();
-  const [policy, setPolicy] = useState<AiPolicy | null>(null);
-  const [savedPolicy, setSavedPolicy] = useState<AiPolicy | null>(null);
+  const userId = useAuth((state) => state.user?.id);
   const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true),
+    [error, setError] = useState("");
   const [reload, setReload] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [scope, setScope] = useState<AiPermission[]>([]);
-  const [expires, setExpires] = useState("");
-  const [secret, setSecret] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [open, setOpen] = useState(false),
+    [editing, setEditing] = useState<ApiKey | null>(null);
+  const [name, setName] = useState(""),
+    [scope, setScope] = useState<AiPermission[]>(["read"]);
+  const [expires, setExpires] = useState(""),
+    [expiryMode, setExpiryMode] = useState("90");
+  const [busy, setBusy] = useState(false),
+    [secret, setSecret] = useState("");
+  const [revealed, setRevealed] = useState<{
+    id: string;
+    secret: string;
+  } | null>(null);
+  const [revealing, setRevealing] = useState<string | null>(null);
   const [template, setTemplate] = useState<"http" | "mcp">("http");
+  const currentScope = `${userId}:${spaceId}`;
+  const context = useRef(currentScope);
+  context.current = currentScope;
   useEffect(() => {
-    let active = true;
     const controller = new AbortController();
     setLoading(true);
     setError("");
-    void Promise.all([
-      aiApi.policy(spaceId, controller.signal),
-      aiApi.keys(spaceId, controller.signal),
-    ])
-      .then(([policy, keys]) => {
-        if (active) {
-          setPolicy(policy);
-          setSavedPolicy(policy);
-          setKeys(keys);
-        }
+    setKeys([]);
+    setOpen(false);
+    setSecret("");
+    setRevealed(null);
+    setBusy(false);
+    setRevealing(null);
+    void aiApi
+      .keys(spaceId, controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) setKeys(items);
       })
-      .catch((error: unknown) => {
-        if (active) setError(errorMessage(error));
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) setError(errorMessage(reason));
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
     return () => {
-      active = false;
       controller.abort();
+      context.current = "";
     };
-  }, [spaceId, reload]);
-  const save = async () => {
-    if (!policy || saving) return;
-    setSaving(true);
+  }, [spaceId, userId, reload]);
+  const copy = async (text: string) => {
     try {
-      const result = await aiApi.savePolicy(spaceId, policy);
-      setPolicy(result);
-      setSavedPolicy(result);
-      message.success("空间 AI 策略已保存");
-    } catch (error) {
-      message.error(errorMessage(error));
-    } finally {
-      setSaving(false);
-    }
-  };
-  const closeCreate = () => {
-    if (creating) return;
-    if (secret)
-      modal.confirm({
-        title: "完整密钥仅显示这一次",
-        content: "关闭后无法再查看，请确认已复制并妥善保存。",
-        okText: "已保存，关闭",
-        cancelText: "继续查看",
-        onOk: () => {
-          setSecret("");
-          setCreateOpen(false);
-        },
-      });
-    else setCreateOpen(false);
-  };
-  const create = async () => {
-    if (creating || secret || !savedPolicy?.enabled) return;
-    if (!name.trim()) {
-      message.warning("请输入密钥名称");
-      return;
-    }
-    if (
-      !scope.length ||
-      scope.some((value) => !savedPolicy.permissions.includes(value))
-    ) {
-      message.warning("请选择空间策略允许的权限");
-      return;
-    }
-    if (expires && new Date(expires).getTime() <= Date.now()) {
-      message.warning("有效期需要晚于当前时间");
-      return;
-    }
-    setCreating(true);
-    try {
-      const result = await aiApi.create(spaceId, {
-        name: name.trim(),
-        permissions: scope,
-        expiresAt: expires ? new Date(expires).toISOString() : null,
-      });
-      setSecret(result.secret);
-      setKeys((keys) => [result.key, ...keys]);
-    } catch (error) {
-      message.error(errorMessage(error));
-    } finally {
-      setCreating(false);
-    }
-  };
-  const text = aiTemplates(window.location.origin)[template];
-  const copy = async (value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
+      await navigator.clipboard.writeText(text);
       message.success("已复制");
     } catch {
       message.error("复制失败，请手动选择内容");
     }
   };
-  if (loading) return <p role="status">正在读取空间 AI 设置…</p>;
+  const edit = (key: ApiKey | null) => {
+    setEditing(key);
+    setName(key?.name ?? "");
+    setScope(key?.permissions ?? ["read"]);
+    setExpiryMode(key ? (key.expiresAt ? "custom" : "never") : "90");
+    setExpires(key?.expiresAt ? localDate(key.expiresAt) : "");
+    setSecret("");
+    setOpen(true);
+  };
+  const save = async () => {
+    if (busy || secret) return;
+    if (!name.trim()) {
+      message.warning("请输入密钥名称");
+      return;
+    }
+    if (!scope.length) {
+      message.warning("请选择至少一项操作权限");
+      return;
+    }
+    const expiresAt =
+      expiryMode === "never"
+        ? null
+        : expiryMode === "custom"
+          ? expires
+            ? new Date(expires).toISOString()
+            : ""
+          : new Date(Date.now() + Number(expiryMode) * 86400000).toISOString();
+    if (
+      expiresAt === "" ||
+      (expiresAt && new Date(expiresAt).getTime() <= Date.now())
+    ) {
+      message.warning("请选择晚于当前时间的有效期");
+      return;
+    }
+    const operationScope = currentScope;
+    setBusy(true);
+    try {
+      const input = { name: name.trim(), permissions: scope, expiresAt };
+      if (editing) {
+        const updated = await aiApi.update(editing.id, input);
+        if (context.current !== operationScope) return;
+        setKeys((items) =>
+          items.map((item) => (item.id === updated.id ? updated : item)),
+        );
+        setOpen(false);
+        message.success("密钥设置已更新");
+      } else {
+        const result = await aiApi.create(spaceId, input);
+        if (context.current !== operationScope) return;
+        setKeys((items) => [result.key, ...items]);
+        setSecret(result.secret);
+      }
+    } catch (reason) {
+      if (context.current === operationScope)
+        message.error(errorMessage(reason));
+    } finally {
+      if (context.current === operationScope) setBusy(false);
+    }
+  };
+  const preset = presets.find(
+    (item) =>
+      item.permissions.length === scope.length &&
+      item.permissions.every((permission) => scope.includes(permission)),
+  );
+  if (loading) return <p role="status">正在读取空间密钥…</p>;
   if (error)
     return (
       <p role="alert">
@@ -146,66 +204,12 @@ export default function AiSettings({
     );
   return (
     <>
-      <div className={styles.settingRow}>
-        <div>
-          <strong>允许 AI 访问此空间</strong>
-          <p>
-            仅开放下面勾选的操作，创建空间、成员管理及权限管理不会授权给 AI。
-          </p>
-        </div>
-        <Switch
-          checked={policy?.enabled}
-          disabled={!owner || saving}
-          onChange={(enabled) =>
-            setPolicy((value) => value && { ...value, enabled })
-          }
-          aria-label="空间 AI 总开关"
-        />
-      </div>
-      <div className="field" style={{ marginTop: 12 }}>
-        <Checkbox.Group
-          value={policy?.permissions}
-          disabled={!owner || saving}
-          options={permissions.map((value) => ({
-            value,
-            label: aiPermissionNames[value],
-          }))}
-          onChange={(values) =>
-            setPolicy(
-              (value) =>
-                value && { ...value, permissions: values as AiPermission[] },
-            )
-          }
-        />
-        {owner ? (
-          <button
-            className="secondary-button"
-            disabled={saving}
-            onClick={() => void save()}
-          >
-            {saving ? "正在保存…" : "保存空间策略"}
-          </button>
-        ) : (
-          <span className="muted">空间策略由负责人设置。</span>
-        )}
-      </div>
       <div className={styles.sectionTop}>
-        <h2>我的 API 密钥</h2>
-        <button
-          className="secondary-button"
-          disabled={!savedPolicy?.enabled}
-          onClick={() => {
-            setName("");
-            setExpires("");
-            setSecret("");
-            setScope(
-              savedPolicy?.permissions.includes("read")
-                ? ["read"]
-                : (savedPolicy?.permissions.slice(0, 1) ?? []),
-            );
-            setCreateOpen(true);
-          }}
-        >
+        <div>
+          <h2>{owner ? "空间 API 密钥" : "我的 API 密钥"}</h2>
+          <p className="muted">每把密钥独立授权，用于 HTTP API 和 MCP 接入。</p>
+        </div>
+        <button className="secondary-button" onClick={() => edit(null)}>
           <Plus size={15} />
           创建密钥
         </button>
@@ -213,16 +217,14 @@ export default function AiSettings({
       <div className={styles.keyList}>
         {keys.length ? (
           keys.map((key) => (
-            <div key={key.id} className={styles.keyRow}>
+            <div className={styles.keyRow} key={key.id}>
               <div>
                 <strong>
-                  {key.name}{" "}
-                  {key.revokedAt
-                    ? "· 已撤销"
-                    : key.expiresAt &&
-                        new Date(key.expiresAt).getTime() <= Date.now()
-                      ? "· 已过期"
-                      : ""}
+                  {key.name}
+                  {key.expiresAt &&
+                  new Date(key.expiresAt).getTime() <= Date.now()
+                    ? " · 已过期"
+                    : ""}
                 </strong>
                 <code>{key.prefix}…</code>
                 <p>
@@ -233,42 +235,91 @@ export default function AiSettings({
                 <p>
                   有效期：
                   {key.expiresAt
-                    ? new Date(key.expiresAt).toLocaleString()
-                    : "长期"}{" "}
-                  · 最近调用：
+                    ? new Date(key.expiresAt).toLocaleString("zh-CN")
+                    : "长期有效"}{" "}
+                  · 最近使用：
                   {key.lastUsedAt
-                    ? new Date(key.lastUsedAt).toLocaleString()
+                    ? new Date(key.lastUsedAt).toLocaleString("zh-CN")
                     : "尚未使用"}
                 </p>
+                {!key.canReveal && (
+                  <p className="muted">
+                    旧密钥仅存哈希，完整值无法恢复；可继续使用或重新创建。
+                  </p>
+                )}
               </div>
-              <button
-                className="icon-button"
-                disabled={Boolean(key.revokedAt)}
-                aria-label={`撤销密钥 ${key.name}`}
-                onClick={() =>
-                  modal.confirm({
-                    title: "撤销 API 密钥？",
-                    content: `${key.name} 将立即停止访问此空间。`,
-                    okText: "撤销",
-                    cancelText: "取消",
-                    onOk: async () => {
+              <div className={ui.actions}>
+                {key.createdBy === userId && key.canReveal && (
+                  <button
+                    className="icon-button"
+                    disabled={revealing !== null}
+                    aria-label={`查看密钥 ${key.name}`}
+                    onClick={async () => {
+                      const operationScope = currentScope;
+                      setRevealing(key.id);
                       try {
-                        await aiApi.revoke(key.id);
-                        setReload((value) => value + 1);
-                      } catch (error) {
-                        message.error(errorMessage(error));
-                        throw error;
+                        const value = await aiApi.reveal(key.id);
+                        if (context.current === operationScope)
+                          setRevealed({ id: key.id, secret: value });
+                      } catch (reason) {
+                        if (context.current === operationScope)
+                          message.error(errorMessage(reason));
+                      } finally {
+                        if (context.current === operationScope)
+                          setRevealing(null);
                       }
-                    },
-                  })
-                }
-              >
-                <Trash2 size={15} />
-              </button>
+                    }}
+                  >
+                    <Eye size={16} />
+                  </button>
+                )}
+                <button
+                  className="icon-button"
+                  aria-label={`编辑密钥 ${key.name}`}
+                  onClick={() => edit(key)}
+                >
+                  <PencilLine size={16} />
+                </button>
+                <button
+                  className="icon-button"
+                  aria-label={`删除密钥 ${key.name}`}
+                  onClick={() => {
+                    const operationScope = currentScope;
+                    modal.confirm({
+                      title: `删除「${key.name}」？`,
+                      content: "删除后使用此密钥的 AI 将无法继续访问。",
+                      okText: "删除",
+                      okButtonProps: { danger: true },
+                      cancelText: "取消",
+                      onOk: async () => {
+                        if (context.current !== operationScope) return;
+                        try {
+                          await aiApi.revoke(key.id);
+                        } catch (reason) {
+                          if (context.current === operationScope)
+                            message.error(errorMessage(reason));
+                          throw reason;
+                        }
+                        if (context.current !== operationScope) return;
+                        setKeys((items) =>
+                          items.filter((item) => item.id !== key.id),
+                        );
+                        setRevealed((value) =>
+                          value?.id === key.id ? null : value,
+                        );
+                      },
+                    });
+                  }}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
           ))
         ) : (
-          <p className={styles.keyEmpty}>暂无密钥</p>
+          <p className={styles.keyEmpty}>
+            还没有密钥，创建一把连接你的 AI 助手。
+          </p>
         )}
       </div>
       <div className={styles.sectionTop}>
@@ -289,29 +340,54 @@ export default function AiSettings({
           >
             MCP
           </button>
-          <button onClick={() => void copy(text)}>
+          <button
+            onClick={() =>
+              void copy(aiTemplates(window.location.origin)[template])
+            }
+          >
             <Copy size={14} />
             复制模板
           </button>
         </div>
-        <pre>{text}</pre>
+        <pre>{aiTemplates(window.location.origin)[template]}</pre>
       </div>
       <Modal
-        title={secret ? "保存完整 API 密钥" : "创建 API 密钥"}
-        open={createOpen}
-        onCancel={closeCreate}
-        onOk={secret ? closeCreate : () => void create()}
-        okText={secret ? "已保存，关闭" : "创建"}
-        cancelText={secret ? "继续查看" : "取消"}
+        open={open}
+        title={
+          secret ? "密钥已创建" : editing ? "编辑空间密钥" : "创建空间密钥"
+        }
+        width={560}
+        onCancel={() => {
+          if (!busy) {
+            setOpen(false);
+            setSecret("");
+          }
+        }}
+        onOk={
+          secret
+            ? () => {
+                setOpen(false);
+                setSecret("");
+              }
+            : () => void save()
+        }
+        okText={secret ? "完成" : editing ? "保存修改" : "创建密钥"}
+        cancelText="取消"
+        confirmLoading={busy}
+        closable={!busy}
+        maskClosable={!busy}
+        keyboard={!busy}
         cancelButtonProps={{ style: secret ? { display: "none" } : undefined }}
-        confirmLoading={creating}
-        maskClosable={!secret && !creating}
-        keyboard={!secret && !creating}
-        closable={!creating}
       >
         {secret ? (
           <>
-            <p>完整密钥仅显示一次。离开此页面后无法再次查看。</p>
+            <div className={ui.intro}>
+              <KeyRound size={24} />
+              <div>
+                <strong>准备好连接 AI 了</strong>
+                <p>你也可以稍后在密钥列表中查看和复制。</p>
+              </div>
+            </div>
             <div className={styles.secret}>
               <code>{secret}</code>
               <button
@@ -322,44 +398,150 @@ export default function AiSettings({
                 <Copy size={16} />
               </button>
             </div>
+            <div className={styles.codePanel}>
+              <div className={styles.codeTabs}>
+                <button
+                  className={template === "http" ? styles.codeActive : ""}
+                  onClick={() => setTemplate("http")}
+                >
+                  HTTP API
+                </button>
+                <button
+                  className={template === "mcp" ? styles.codeActive : ""}
+                  onClick={() => setTemplate("mcp")}
+                >
+                  MCP
+                </button>
+                <button
+                  onClick={() =>
+                    void copy(
+                      aiTemplates(window.location.origin)[template].replaceAll(
+                        "<API_KEY>",
+                        secret,
+                      ),
+                    )
+                  }
+                >
+                  <Copy size={14} />
+                  复制配置
+                </button>
+              </div>
+              <pre>
+                {aiTemplates(window.location.origin)[template].replaceAll(
+                  "<API_KEY>",
+                  secret,
+                )}
+              </pre>
+            </div>
           </>
         ) : (
           <>
+            <div className={ui.intro}>
+              <ShieldCheck size={24} />
+              <div>
+                <strong>为这个助手选择合适的权限</strong>
+                <p>
+                  实际访问仍受你的文件权限限制。不会开放空间、成员或分享权限管理。
+                </p>
+              </div>
+            </div>
             <div className="field">
-              <label>密钥名称</label>
+              <label htmlFor="ai-key-name">密钥名称</label>
               <Input
+                id="ai-key-name"
                 autoFocus
-                aria-label="密钥名称"
                 value={name}
                 maxLength={80}
-                disabled={creating}
+                disabled={busy}
+                placeholder="例如：写作助手"
                 onChange={(event) => setName(event.target.value)}
               />
             </div>
             <div className="field">
-              <label>操作权限</label>
+              <label>
+                权限预设{" "}
+                <span className="muted">· {preset?.name ?? "自定义"}</span>
+              </label>
+              <div className={ui.presets}>
+                {presets.map((item) => (
+                  <button
+                    key={item.id}
+                    disabled={busy}
+                    className={preset?.id === item.id ? ui.selected : ""}
+                    aria-pressed={preset?.id === item.id}
+                    onClick={() => setScope([...item.permissions])}
+                  >
+                    <strong>{item.name}</strong>
+                    <span>{item.detail}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className={ui.permissions}>
               <Checkbox.Group
                 value={scope}
-                options={(savedPolicy?.permissions ?? []).map((value) => ({
-                  value,
-                  label: aiPermissionNames[value],
-                }))}
-                disabled={creating}
+                disabled={busy}
                 onChange={(values) => setScope(values as AiPermission[])}
-              />
+              >
+                {permissions.map((value) => (
+                  <Checkbox key={value} value={value}>
+                    <strong>{aiPermissionNames[value]}</strong>
+                    <span>{permissionHints[value]}</span>
+                  </Checkbox>
+                ))}
+              </Checkbox.Group>
             </div>
             <div className="field">
-              <label>有效期（可选）</label>
-              <input
-                type="datetime-local"
-                aria-label="密钥有效期"
-                value={expires}
-                disabled={creating}
-                onChange={(event) => setExpires(event.target.value)}
-              />
+              <label>有效期</label>
+              <div className={ui.expiry}>
+                {[
+                  { id: "30", name: "30 天" },
+                  { id: "90", name: "90 天" },
+                  { id: "never", name: "永久" },
+                  { id: "custom", name: "自定义" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    disabled={busy}
+                    className={expiryMode === item.id ? ui.selected : ""}
+                    aria-pressed={expiryMode === item.id}
+                    onClick={() => setExpiryMode(item.id)}
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+              {expiryMode === "custom" && (
+                <input
+                  type="datetime-local"
+                  aria-label="密钥有效期"
+                  value={expires}
+                  disabled={busy}
+                  onChange={(event) => setExpires(event.target.value)}
+                />
+              )}
             </div>
           </>
         )}
+      </Modal>
+      <Modal
+        open={revealed !== null}
+        title="查看完整密钥"
+        width={520}
+        footer={null}
+        onCancel={() => setRevealed(null)}
+      >
+        <p className="muted">此密钥拥有配置的操作权限，请妥善保管。</p>
+        <div className={styles.secret}>
+          <code>{revealed?.secret}</code>
+          <button
+            className="icon-button"
+            aria-label="复制密钥"
+            onClick={() => revealed && void copy(revealed.secret)}
+          >
+            <Copy size={16} />
+          </button>
+        </div>
       </Modal>
     </>
   );

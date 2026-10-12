@@ -204,7 +204,7 @@ export async function registerAi(
         tags: ["外部AI文档"],
         summary: "读取文档稳定块与修订",
         description:
-          "仅绑定空间的Bearer API密钥可读取；每次请求实时检查创建者成员资格、账号状态、密钥有效期及空间策略。返回持久化检查点，可指定稳定块ID分批读取。",
+          "仅绑定空间的Bearer API密钥可读取；每次请求实时检查创建者成员资格、账号状态、密钥有效期及密钥权限。返回持久化检查点，可指定稳定块ID分批读取。",
         params,
         querystring: Type.Object(
           {
@@ -287,7 +287,7 @@ export async function registerAi(
         tags: ["外部AI表格"],
         summary: "读取工作表元数据或指定范围",
         description:
-          "Bearer密钥实时权限交集验证；不传sheetId只返回工作表列表。指定0基闭区间读取值、公式和按需格式，每次最多2000格、512KiB；不返回历史。",
+          "Bearer密钥实时权限验证；不传sheetId只返回工作表列表。指定0基闭区间读取值、公式和按需格式，每次最多2000格、512KiB；不返回历史。",
         params,
         querystring: Type.Unsafe<WorkbookRead>(
           workbookHttpSchema(workbookReadSchema),

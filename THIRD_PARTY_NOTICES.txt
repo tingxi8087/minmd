@@ -1,5 +1,5 @@
 MinMD 第三方版权及许可证全文
-bun.lock SHA-256: 098cda67550a33a7b398c527f5a80e069f6e1d0e36ff562c57568e25ab915c3d
+bun.lock SHA-256: b43bbc3edbcff0df2d37e2cfb77282c34348230d5a4bc80dcce8042ab80dc382
 范围：所有工作区生产依赖及其已安装的传递、可选和同伴依赖；可能保守包含构建期依赖。项目自有工作区由根LICENSE覆盖。
 许可声明及版权全文来自已安装发布包；少数发布包未附全文时，使用docs/licenses/package-overrides/sources.json中逐版本核实并保留的证据。依赖升级需重新生成，不能沿用旧版本通知。
 双许可证组件采用许可表达式中的宽松分支：JSZip选择MIT；相关许可原文仍完整保留。

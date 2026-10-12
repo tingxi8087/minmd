@@ -26,6 +26,7 @@ if (url && !new URL(url).pathname.endsWith("_test"))
     readKey: string,
     spaceId: string,
     fileId: string;
+  let keyId: string;
   let replayBody: Record<string, unknown>,
     replayResponse: string,
     structuralReplayBody: Record<string, unknown>,
@@ -95,13 +96,6 @@ if (url && !new URL(url).pathname.endsWith("_test"))
     expect(space.statusCode).toBe(200);
     spaceId = space.json().id;
     spaceIds.push(spaceId);
-    const policy = await app.inject({
-      method: "PUT",
-      url: `/api/app/spaces/${spaceId}/ai-policy`,
-      headers: headers(loginToken),
-      payload: { enabled: true, permissions: ["read", "edit"] },
-    });
-    expect(policy.statusCode).toBe(200);
     for (const permissions of [["read", "edit"], ["read"]]) {
       const issued = await app.inject({
         method: "POST",
@@ -110,8 +104,10 @@ if (url && !new URL(url).pathname.endsWith("_test"))
         payload: { name: "Workbook API", permissions },
       });
       expect(issued.statusCode).toBe(200);
-      if (permissions.includes("edit")) key = issued.json().secret;
-      else readKey = issued.json().secret;
+      if (permissions.includes("edit")) {
+        key = issued.json().secret;
+        keyId = issued.json().key.id;
+      } else readKey = issued.json().secret;
     }
     const file = await app.inject({
       method: "POST",
@@ -353,10 +349,10 @@ if (url && !new URL(url).pathname.endsWith("_test"))
     expect(
       (
         await app.inject({
-          method: "PUT",
-          url: `/api/app/spaces/${spaceId}/ai-policy`,
+          method: "PATCH",
+          url: `/api/app/api-keys/${keyId}`,
           headers: headers(loginToken),
-          payload: { enabled: true, permissions: ["read"] },
+          payload: { name: "Workbook API", permissions: ["read"] },
         })
       ).statusCode,
     ).toBe(200);
@@ -366,10 +362,10 @@ if (url && !new URL(url).pathname.endsWith("_test"))
     expect(
       (
         await app.inject({
-          method: "PUT",
-          url: `/api/app/spaces/${spaceId}/ai-policy`,
+          method: "PATCH",
+          url: `/api/app/api-keys/${keyId}`,
           headers: headers(loginToken),
-          payload: { enabled: false, permissions: ["read"] },
+          payload: { name: "Workbook API", permissions: ["edit"] },
         })
       ).statusCode,
     ).toBe(200);
@@ -398,10 +394,10 @@ if (url && !new URL(url).pathname.endsWith("_test"))
     expect(
       (
         await app.inject({
-          method: "PUT",
-          url: `/api/app/spaces/${spaceId}/ai-policy`,
+          method: "PATCH",
+          url: `/api/app/api-keys/${keyId}`,
           headers: headers(loginToken),
-          payload: { enabled: true, permissions: ["read", "edit"] },
+          payload: { name: "Workbook API", permissions: ["read", "edit"] },
         })
       ).statusCode,
     ).toBe(200);

@@ -115,7 +115,12 @@ export function buildApp(
         config,
         loadMinmdConfig(config).assetStorageDir,
       );
-      await registerApiKeys(app, database);
+      await registerApiKeys(
+        app,
+        database,
+        config,
+        loadMinmdConfig(config).aiKeyEncryptionKey,
+      );
       registerAiRateLimit(
         app,
         database,

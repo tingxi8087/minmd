@@ -8,7 +8,6 @@ export const aiPermissionNames = {
   upload: "上传图片与文件",
 } as const;
 export type AiPermission = keyof typeof aiPermissionNames;
-export type AiPolicy = { enabled: boolean; permissions: AiPermission[] };
 export type ApiKey = {
   id: string;
   spaceId: string;
@@ -16,21 +15,13 @@ export type ApiKey = {
   name: string;
   prefix: string;
   permissions: AiPermission[];
+  canReveal: boolean;
   expiresAt: string | null;
   revokedAt: string | null;
   lastUsedAt: string | null;
   createdAt: string;
 };
 export const aiApi = {
-  policy: async (spaceId: string, signal?: AbortSignal) =>
-    (
-      await request.get<AiPolicy>(`/app/spaces/${spaceId}/ai-policy`, {
-        signal,
-      })
-    ).data,
-  savePolicy: async (spaceId: string, policy: AiPolicy) =>
-    (await request.put<AiPolicy>(`/app/spaces/${spaceId}/ai-policy`, policy))
-      .data,
   keys: async (spaceId: string, signal?: AbortSignal) =>
     (
       await request.get<{ items: ApiKey[] }>(
@@ -52,6 +43,21 @@ export const aiApi = {
         input,
       )
     ).data,
+  update: async (
+    keyId: string,
+    input: {
+      name: string;
+      permissions: AiPermission[];
+      expiresAt: string | null;
+    },
+  ) => (await request.patch<ApiKey>(`/app/api-keys/${keyId}`, input)).data,
+  reveal: async (keyId: string) =>
+    (
+      await request.post<{ secret: string }>(
+        `/app/api-keys/${keyId}/reveal`,
+        {},
+      )
+    ).data.secret,
   revoke: async (keyId: string) => {
     await request.delete(`/app/api-keys/${keyId}`);
   },

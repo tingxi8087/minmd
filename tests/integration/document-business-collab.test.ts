@@ -1007,16 +1007,6 @@ interface Client {
     const a = await connect(),
       b = await connect(bToken);
     try {
-      expect(
-        (
-          await app.inject({
-            method: "PUT",
-            url: `/api/app/spaces/${spaceId}/ai-policy`,
-            headers: headers(),
-            payload: { enabled: true, permissions: ["read", "edit"] },
-          })
-        ).statusCode,
-      ).toBe(200);
       const issued = await app.inject({
         method: "POST",
         url: `/api/app/spaces/${spaceId}/api-keys`,

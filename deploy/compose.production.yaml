@@ -22,6 +22,7 @@ x-app-environment: &app-environment
   WEB_CMS_DIST: /app/dist/web-cms
   STATIC_DIR: /app/runtime/public
   STATIC_PATH: /public
+  AI_KEY_ENCRYPTION_KEY: ${AI_KEY_ENCRYPTION_KEY:-}
   ASSET_STORAGE_DIR: /var/lib/minmd/assets
   ASSET_UNBOUND_GRACE_HOURS: ${ASSET_UNBOUND_GRACE_HOURS:-24}
   DOC_COLLAB_VERIFY_ENABLED: "false"

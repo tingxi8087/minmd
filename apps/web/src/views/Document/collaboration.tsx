@@ -132,11 +132,19 @@ export function useDocumentCollaboration(file: Entry) {
         if (!connected) ready = false;
         update({
           connected,
+          notice: connected
+            ? current?.loaded
+              ? ""
+              : "正在同步文档…"
+            : status === "connecting"
+              ? current?.loaded
+                ? "正在重新连接文档…"
+                : "正在连接文档…"
+              : "连接已断开，正在重新验证身份并重连",
           ...(!connected
             ? {
                 ready: false,
                 synced: false,
-                notice: "连接已断开，正在重新验证身份并重连",
               }
             : {}),
         });

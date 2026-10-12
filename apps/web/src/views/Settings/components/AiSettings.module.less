@@ -1,0 +1,105 @@
+.intro {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  margin: 12px 0 20px;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  color: var(--accent);
+  > svg {
+    flex-shrink: 0;
+  }
+  strong {
+    color: var(--text);
+  }
+  p {
+    margin: 6px 0 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  button {
+    text-align: left;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+  strong {
+    display: block;
+    font-size: 13px;
+  }
+  span {
+    display: block;
+    margin-top: 5px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  button:hover {
+    background: var(--accent-soft);
+  }
+}
+.selected {
+  border-color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+}
+.permissions {
+  margin: 18px 0;
+  :global(.ant-checkbox-group) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 10px;
+  }
+  :global(.ant-checkbox-wrapper) {
+    align-items: flex-start;
+    margin: 0;
+  }
+  strong {
+    display: block;
+    font-weight: 500;
+    font-size: 13px;
+  }
+  :global(.ant-checkbox-wrapper) > span:last-child > span {
+    display: block;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+}
+.expiry {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  button {
+    flex: 1;
+    padding: 7px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+}
+@media (max-width: 480px) {
+  .permissions :global(.ant-checkbox-group) {
+    grid-template-columns: 1fr;
+  }
+  .actions {
+    flex-wrap: wrap;
+  }
+}

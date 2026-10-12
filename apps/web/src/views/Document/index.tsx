@@ -16,6 +16,7 @@ import {
 } from "@tiptap/extension-text-style";
 import { hasCustomTextStyle } from "./utils/markdownExport";
 import { shouldRecordDraft } from "./collaborationState";
+import { useDocumentTitle } from "./useDocumentTitle";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import {
@@ -46,7 +47,6 @@ import {
   LoaderCircle,
   CircleAlert,
   History,
-  PencilLine,
   FolderInput,
   Undo2,
   Redo2,
@@ -117,7 +117,16 @@ export default function Document() {
 
 function DocumentMode({ file }: { file: Entry }) {
   const collaboration = useDocumentCollaboration(file);
-  if (!collaboration.session?.loaded)
+  const initialLoading =
+    collaboration.view.notice === "正在连接文档…" ||
+    collaboration.view.notice === "正在同步文档…";
+  if (!collaboration.session?.loaded) {
+    if (initialLoading)
+      return (
+        <div className={styles.documentLoading} role="status">
+          正在加载文档…
+        </div>
+      );
     return (
       <div className={styles.verification} role="status">
         {collaboration.view.notice || "正在加载文档…"}
@@ -126,6 +135,7 @@ function DocumentMode({ file }: { file: Entry }) {
         </button>
       </div>
     );
+  }
   return (
     <DocumentEditor
       key={`${file.id}/${collaboration.session.epoch}`}
@@ -175,7 +185,7 @@ function DocumentEditor({
     () => setHeaderHost(document.getElementById("document-header")),
     [],
   );
-  const [title, setTitle] = useState(file.name);
+  const [title, setTitle] = useDocumentTitle(file.name);
   const [status, setStatus] = useState<"saved" | "saving" | "failed">("saved");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -496,12 +506,6 @@ function DocumentEditor({
     setLinkOpen(false);
   };
   const documentItems = (): ContextItem[] => [
-    {
-      key: "rename",
-      label: "重命名",
-      icon: <PencilLine size={15} />,
-      run: () => setAction({ type: "rename", file }),
-    },
     {
       key: "move",
       disabled: Boolean(file.permission && file.permission !== "manage"),

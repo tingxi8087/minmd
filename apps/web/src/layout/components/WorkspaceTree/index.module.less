@@ -45,7 +45,9 @@
   :global(.ant-tree-treenode:focus-within .ant-tree-node-content-wrapper) {
     background: var(--hover);
   }
-  :global(.ant-tree-treenode:has(.ant-tree-node-selected) .ant-tree-switcher::before) {
+  :global(
+    .ant-tree-treenode:has(.ant-tree-node-selected) .ant-tree-switcher::before
+  ) {
     background: var(--accent-soft) !important;
   }
   :global(.ant-tree-switcher_open) svg {
@@ -107,6 +109,11 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.folderDropTarget {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
 }
 .fileIcon {
   color: var(--folder);

@@ -125,7 +125,7 @@ export async function registerMcp(
         tags: ["MCP"],
         summary: "空间AI的Streamable HTTP入口",
         description:
-          "官方SDK处理MCP JSON-RPC协议，使用独立Bearer API密钥。工具发现不会授予操作权限，每次调用重新校验空间策略、密钥与创建者资格；不使用Cookie身份。",
+          "官方SDK处理MCP JSON-RPC协议，使用独立Bearer API密钥。工具发现不会授予操作权限，每次调用重新校验密钥权限与创建者资格；不使用Cookie身份。",
         body: Type.Record(Type.String(), Type.Unknown(), {
           description: "MCP JSON-RPC协议消息，由官方SDK校验",
         }),

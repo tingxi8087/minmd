@@ -23,7 +23,7 @@ request.defaults.adapter = async (config) => {
   };
   if (conflict)
     throw new AxiosError(
-      "权限不能超出空间策略",
+      "密钥无权操作",
       "ERR_BAD_RESPONSE",
       config,
       undefined,
@@ -31,19 +31,6 @@ request.defaults.adapter = async (config) => {
     );
   return response;
 };
-assert.deepEqual(await aiApi.policy("space"), {
-  enabled: false,
-  permissions: ["read"],
-});
-await aiApi.savePolicy("space", {
-  enabled: true,
-  permissions: ["read", "edit"],
-});
-assert.deepEqual(calls.at(-1), {
-  path: "/app/spaces/space/ai-policy",
-  method: "put",
-  body: { enabled: true, permissions: ["read", "edit"] },
-});
 const key = await aiApi.create("space", {
   name: "助手",
   permissions: ["read"],
@@ -67,6 +54,16 @@ await assert.rejects(
   "后端拒绝权限时不得伪造创建成功",
 );
 conflict = false;
+await aiApi.update("key", {
+  name: "修改助手",
+  permissions: ["read", "edit"],
+  expiresAt: null,
+});
+assert.equal(calls.at(-1)?.method, "patch");
+assert.equal(calls.at(-1)?.path, "/app/api-keys/key");
+await aiApi.reveal("key");
+assert.equal(calls.at(-1)?.path, "/app/api-keys/key/reveal");
+assert.deepEqual(calls.at(-1)?.body, {});
 await aiApi.revoke("key");
 assert.equal(calls.at(-1)?.path, "/app/api-keys/key");
 assert.equal(calls.at(-1)?.method, "delete");
@@ -87,5 +84,5 @@ assert.deepEqual(Object.keys(aiPermissionNames), [
   "upload",
 ]);
 console.log(
-  "AI前台流程验证通过：六项空间策略、最小密钥scope、一次密钥响应、无明文列表、拒绝授权不假成功、撤销与Bearer模板",
+  "AI前台流程验证通过：六项独立密钥权限、创建与修改、独立查看接口、无明文列表、拒绝授权不假成功、删除与Bearer模板",
 );
