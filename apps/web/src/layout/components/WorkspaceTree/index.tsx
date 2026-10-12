@@ -16,16 +16,22 @@ import {
   Table2,
   Presentation,
 } from "lucide-react";
-import { Entry, FileKind, kindNames, useWorkspace } from "@/store/workspace";
+import {
+  type Entry,
+  type FileKind,
+  kindNames,
+  useWorkspace,
+} from "@/store/workspace";
 import {
   canContain,
   canMove,
   siblings,
   treeDropDestination,
 } from "@/utils/fileTree";
-import FileDialogs, { FileAction } from "@/components/FileDialogs";
+import FileDialogs, { type FileAction } from "@/components/FileDialogs";
 import { useContextMenu, type ContextItem } from "@/components/ContextMenu";
 import TooltipButton from "@/components/TooltipButton";
+import { errorMessage } from "@/http";
 import styles from "./index.module.less";
 
 const icons = {
@@ -41,6 +47,9 @@ export default function WorkspaceTree() {
   const contextMenu = useContextMenu();
   const location = useLocation();
   const [expanded, setExpanded] = useState<React.Key[]>([]);
+  useEffect(() => {
+    setExpanded([]);
+  }, [space]);
   const [action, setAction] = useState<FileAction | null>(null);
   const selected =
     location.pathname.match(/\/(?:document|preview)\/([^/]+)/)?.[1] ||
@@ -100,7 +109,11 @@ export default function WorkspaceTree() {
             key: "favorite",
             label: f.favorite ? "取消收藏" : "添加收藏",
             icon: <Star size={15} />,
-            run: () => patch(f.id, { favorite: !f.favorite }),
+            run: () => {
+              void patch(f.id, { favorite: !f.favorite }).catch(
+                (error: unknown) => message.error(errorMessage(error)),
+              );
+            },
           },
           {
             key: "share",
@@ -117,19 +130,20 @@ export default function WorkspaceTree() {
       icon: <Trash2 size={15} />,
       danger: true,
       run: () => {
-        if (files.some((child) => child.parent === f.id)) {
-          message.info("请先移动或删除其下的文件");
-          return;
-        }
         modal.confirm({
           title: "移入回收站？",
-          content: `${f.name}可以在回收站恢复。`,
+          content: `${f.name}及其子文件可以在回收站恢复。`,
           okText: "移入回收站",
           cancelText: "取消",
           okButtonProps: { danger: true },
-          onOk: () => {
-            patch(f.id, { deleted: true });
-            if (selected === f.id) navigate("/files");
+          onOk: async () => {
+            try {
+              await patch(f.id, { deleted: true });
+              if (selected === f.id) navigate("/files");
+            } catch (error) {
+              message.error(errorMessage(error));
+              throw error;
+            }
           },
         });
       },
@@ -180,9 +194,15 @@ export default function WorkspaceTree() {
       dropToGap,
       Boolean(node.expanded && node.children?.length),
     );
-    if (!relocate(moving.id, parent, index))
-      return message.warning("无法移动到该位置");
-    if (parent) setExpanded((keys) => [...new Set([...keys, parent])]);
+    void relocate(moving.id, parent, index)
+      .then((moved) => {
+        if (!moved) {
+          message.warning("无法移动到该位置");
+          return;
+        }
+        if (parent) setExpanded((keys) => [...new Set([...keys, parent])]);
+      })
+      .catch((error: unknown) => message.error(errorMessage(error)));
   };
   return (
     <section className={styles.treeSection}>

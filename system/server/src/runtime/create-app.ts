@@ -39,6 +39,11 @@ export async function createApp({
   validateCatalog(permissions);
   const { logger, ...serverOptions } = options;
   const app = Fastify({
+    bodyLimit: config.HTTP_BODY_LIMIT_BYTES,
+    // 只信任显式配置的代理地址，不能用跳数或客户端转发头授予信任。
+    trustProxy: config.TRUST_PROXY_ADDRESSES.length
+      ? config.TRUST_PROXY_ADDRESSES
+      : false,
     logger:
       logger === false
         ? false
@@ -57,7 +62,8 @@ export async function createApp({
             serializers: {
               req: (req) => ({
                 method: req.method,
-                url: req.url?.split("?")[0],
+                // 路径参数也可能是访问凭证；只记录路由模板，不记录原始URL。
+                url: req.routeOptions?.url ?? "<unmatched>",
                 hostname: req.hostname,
               }),
             },

@@ -28,6 +28,13 @@ export default defineConfig(({ mode }) => {
       port: readDevPort(process.env.WEB_PORT ?? env.WEB_PORT, 5173),
       strictPort: true,
       proxy: {
+        "/mcp": {
+          target:
+            process.env.API_PROXY_TARGET ||
+            env.API_PROXY_TARGET ||
+            "http://127.0.0.1:9811",
+          changeOrigin: false,
+        },
         "/api": {
           target:
             process.env.API_PROXY_TARGET ||

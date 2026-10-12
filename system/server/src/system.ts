@@ -27,6 +27,12 @@ declare module "fastify" {
 }
 
 export const errorSchema = Type.Object({
+  currentRevision: Type.Optional(
+    Type.Integer({ minimum: 1, description: "冲突时的当前内容修订号" }),
+  ),
+  currentEpoch: Type.Optional(
+    Type.Integer({ minimum: 1, description: "冲突时的当前内容世代" }),
+  ),
   code: Type.String({ description: "稳定错误码", example: "NOT_FOUND" }),
   message: Type.String({
     description: "错误说明",
@@ -97,6 +103,12 @@ export const systemPlugin = fp<{
             ? "服务器内部错误"
             : "请求参数或格式不正确",
         requestId: request.id,
+        ...(error instanceof AppError && status === 409 && error.conflict
+          ? {
+              currentRevision: error.conflict.currentRevision,
+              currentEpoch: error.conflict.currentEpoch,
+            }
+          : {}),
       });
     });
     app.setNotFoundHandler((request, reply) =>

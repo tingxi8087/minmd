@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { and, eq, like } from "drizzle-orm";
+import { and, eq, inArray, like } from "drizzle-orm";
 import { Type } from "@sinclair/typebox";
 import { buildApp } from "../../apps/app_server/src/app";
 import {
@@ -15,7 +15,10 @@ import {
 } from "../../system/server/src/database/schema/system";
 import { createDatabase } from "../../system/server/src/database/client";
 import { loadConfig } from "../../system/server/src/config/env";
-import { hashPassword } from "../../system/server/src/modules/auth/password";
+import {
+  hashPassword,
+  hashValidatedPassword,
+} from "../../system/server/src/modules/auth/password";
 import { appPermissions } from "../../config/permissions";
 const url = process.env.TEST_DATABASE_URL;
 if (url && !new URL(url).pathname.endsWith("_test"))
@@ -82,7 +85,11 @@ suite("front and back office identity boundaries", () => {
       })
       .returning();
     rootId = root!.id;
-    app = await buildApp(config, { logger: false });
+    app = await buildApp(
+      config,
+      { logger: false },
+      { registrationEnabled: true, allowedOrigins: [config.PUBLIC_ORIGIN] },
+    );
     app.get(
       "/api/app/fixture",
       {
@@ -110,6 +117,80 @@ suite("front and back office identity boundaries", () => {
     await db.db.delete(roles).where(like(roles.code, `${prefix}%`));
     await db.db.delete(auditLogs).where(eq(auditLogs.actorId, rootId));
     await db.close();
+  });
+  test("前台密码支持6位，注册、后台创建/重置和用户改密拒绝5位", async () => {
+    const registration = `${prefix}_short_register`;
+    for (const [value, status] of [
+      ["12345", 400],
+      ["123456", 200],
+    ] as const) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/app/auth/register",
+        payload: { account: registration, password: value },
+      });
+      expect(response.statusCode).toBe(status);
+    }
+    const account = `${prefix}_short_managed`;
+    for (const [value, status] of [
+      ["12345", 400],
+      ["123456", 200],
+    ] as const) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/admin/app-users",
+        headers: adminHeaders(),
+        payload: { ...input(account), password: value },
+      });
+      expect(response.statusCode).toBe(status);
+    }
+    const [managed] = await db.db
+      .select()
+      .from(appUsers)
+      .where(eq(appUsers.account, account));
+    expect(managed).toBeDefined();
+    for (const [value, status] of [
+      ["54321", 400],
+      ["654321", 200],
+    ] as const) {
+      const response = await app.inject({
+        method: "POST",
+        url: `/api/admin/app-users/${managed!.id}/password`,
+        headers: adminHeaders(),
+        payload: { password: value },
+      });
+      expect(response.statusCode).toBe(status);
+    }
+    const session = await app.inject({
+      method: "POST",
+      url: "/api/app/auth/login",
+      payload: { account, password: "654321" },
+    });
+    expect(session.statusCode).toBe(200);
+    for (const [value, status] of [
+      ["11223", 400],
+      ["112233", 200],
+    ] as const) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/app/auth/password",
+        headers: { authorization: `Bearer ${session.json().token}` },
+        payload: { oldPassword: "654321", password: value },
+      });
+      expect(response.statusCode).toBe(status);
+    }
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/app/auth/login",
+          payload: { account, password: "112233" },
+        })
+      ).statusCode,
+    ).toBe(200);
+    await db.db
+      .delete(appUsers)
+      .where(inArray(appUsers.account, [registration, account]));
   });
   test("registration rejects privilege fields, normalizes account and stores a hash", async () => {
     for (const extra of [
@@ -615,6 +696,28 @@ suite("front and back office identity boundaries", () => {
       { logger: false },
     );
     try {
+      const sixAccount = `${prefix}_cookie_six`;
+      await db.db.insert(appUsers).values({
+        account: sixAccount,
+        passwordHash: await hashValidatedPassword("123456"),
+      });
+      const shortLogin = await cookieApp.inject({
+        method: "POST",
+        url: "/api/app/auth/login",
+        payload: { account: sixAccount, password: "123456" },
+      });
+      expect(shortLogin.statusCode).toBe(200);
+      expect(shortLogin.json().csrfToken).toBeString();
+      expect(shortLogin.json().token).toBeUndefined();
+      const sixCookie = String(shortLogin.headers["set-cookie"]).split(";")[0];
+      expect(
+        (
+          await cookieApp.inject({
+            url: "/api/app/auth/me",
+            headers: { cookie: sixCookie },
+          })
+        ).json().user.account,
+      ).toBe(sixAccount);
       const res = await cookieApp.inject({
         method: "POST",
         url: "/api/app/auth/login",

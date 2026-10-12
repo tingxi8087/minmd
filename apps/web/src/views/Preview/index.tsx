@@ -1,3 +1,5 @@
+import { App } from "antd";
+import { errorMessage } from "@/http";
 import { lazy, Suspense, useEffect } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useWorkspace } from "@/store/workspace";
@@ -7,12 +9,13 @@ const Spreadsheet = lazy(() => import("@/views/Spreadsheet"));
 export default function Preview() {
   const { id } = useParams(),
     navigate = useNavigate();
+  const { message } = App.useApp();
   const { files, space, visit } = useWorkspace();
   const file = files.find(
     (f) => f.id === id && f.space === space && !f.deleted,
   );
   useEffect(() => {
-    if (file) visit(file.id);
+    if (file) void visit(file.id).catch((error: unknown) => message.error(errorMessage(error)));
   }, [file?.id, visit]);
   if (!file)
     return (

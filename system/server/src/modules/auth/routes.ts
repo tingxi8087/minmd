@@ -73,6 +73,7 @@ export async function registerAuthRoutes(
   app.post<{ Body: { account: string; password: string } }>(
     "/api/auth/login",
     {
+      bodyLimit: 1024 * 1024,
       config: { auth: false, rateLimit: { max: 10, timeWindow: "1 minute" } },
       schema: {
         tags: ["认证"],

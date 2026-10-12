@@ -1,105 +1,86 @@
-import { useState } from "react";
-import { useParams, NavLink } from "react-router-dom";
-import { App, Input, Modal, Select } from "antd";
-import {
-  ArrowUpRight,
-  Check,
-  Copy,
-  KeyRound,
-  Moon,
-  Plus,
-  Sun,
-  Trash2,
-  Users,
-} from "lucide-react";
-import { spaces, useWorkspace } from "@/store/workspace";
+import { useEffect, useState, useRef } from "react";
+import { NavLink, useParams } from "react-router-dom";
+import { App, Input, Modal } from "antd";
+import { Check, Moon, Plus, Sun, Trash2, ArrowRightLeft } from "lucide-react";
+import { useWorkspace } from "@/store/workspace";
+import { useAuth } from "@/store/auth";
+import { spaceApi, type SpaceMember } from "@/api/spaces";
+import { errorMessage } from "@/http";
+import { useScopedTasks, type ScopedTask } from "@/utils/useScopedTask";
 import styles from "./index.module.less";
-const members = [
-  {
-    name: "Tingxi",
-    initials: "T",
-    email: "tingxi@example.com",
-    role: "所有者",
-    status: "你",
-  },
-  {
-    name: "林小满",
-    initials: "L",
-    email: "xiaoman@example.com",
-    role: "编辑者",
-    status: "",
-  },
-  {
-    name: "陈一",
-    initials: "C",
-    email: "chenyi@example.com",
-    role: "编辑者",
-    status: "",
-  },
-  {
-    name: "周可",
-    initials: "Z",
-    email: "zhouke@example.com",
-    role: "查看者",
-    status: "",
-  },
-];
+import AiSettings from "./components/AiSettings";
 export default function Settings() {
   const { section } = useParams();
-  const { space, theme, setTheme, keys, addKey, removeKey, reset } =
-    useWorkspace();
-  const current = spaces.find((s) => s.id === space)!;
+  const { space, spaces, theme, setTheme, loadSpaces } = useWorkspace();
+  const user = useAuth((state) => state.user);
+  const current = spaces.find((item) => item.id === space);
+  const owner = current?.ownerId === user?.id;
   const { message, modal } = App.useApp();
-  const [keyOpen, setKeyOpen] = useState(false);
+  const [members, setMembers] = useState<SpaceMember[]>([]);
+  const [memberTotal, setMemberTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [failure, setFailure] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [account, setAccount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const [name, setName] = useState("");
-  const [access, setAccess] = useState<"read" | "write">("read");
-  const [secret, setSecret] = useState("");
-  const [tab, setTab] = useState<"mcp" | "api">("mcp");
-  const copy = async (value: string) => {
+  const begin = useScopedTasks();
+  const memberRequest = useRef(0);
+  const assertHere = () => {
+    if (
+      useAuth.getState().user !== user ||
+      useWorkspace.getState().space !== space
+    )
+      throw new DOMException("空间或身份已切换", "AbortError");
+  };
+  const refreshMembers = async (existing?: ScopedTask) => {
+    assertHere();
+    const own = existing ? undefined : begin();
+    const task = existing ?? own!;
+    const requestId = ++memberRequest.current;
+    setLoading(true);
+    setFailure("");
     try {
-      await navigator.clipboard.writeText(value);
-      message.success("已复制");
-    } catch {
-      message.error("复制失败，请手动选择文本");
+      const result = await task.wait(() =>
+        spaceApi.members(space, page, task.signal),
+      );
+      if (requestId !== memberRequest.current) return;
+      setMembers(result.items);
+      setMemberTotal(result.total);
+    } catch (error) {
+      if (!task.signal.aborted && requestId === memberRequest.current)
+        setFailure(errorMessage(error));
+    } finally {
+      own?.finish();
+      if (!task.signal.aborted && requestId === memberRequest.current)
+        setLoading(false);
     }
   };
-  const config =
-    tab === "mcp"
-      ? JSON.stringify(
-          {
-            mcpServers: {
-              minmd: {
-                url: "https://your-minmd.example/mcp",
-                headers: { Authorization: "Bearer <YOUR_API_KEY>" },
-              },
-            },
-          },
-          null,
-          2,
-        )
-      : "GET https://your-minmd.example/api/v1/spaces/<SPACE_ID>/files\nAuthorization: Bearer <YOUR_API_KEY>";
-  const createKey = () => {
-    if (!name.trim()) {
-      message.warning("请输入密钥名称");
-      return;
-    }
-    const key = "demo_minmd_" + crypto.randomUUID().replaceAll("-", "");
-    addKey({
-      id: crypto.randomUUID(),
-      name: name.trim(),
-      prefix: key.slice(0, 17) + "…",
-      space,
-      access,
-      created: "刚刚",
-    });
-    setSecret(key);
-    setKeyOpen(false);
-    setName("");
-  };
+  useEffect(() => {
+    setPage(1);
+    setMembers([]);
+    setMemberTotal(0);
+    setFailure("");
+    setAddOpen(false);
+    setRenameOpen(false);
+    setAccount("");
+    setBusy(false);
+  }, [space, user]);
+  useEffect(() => {
+    if (section !== "members" || !space) return;
+    const task = begin();
+    void refreshMembers(task);
+    return () => {
+      task.controller.abort();
+      task.finish();
+    };
+  }, [space, user, section, page]);
+  if (!current) return null;
   return (
     <main className={styles.page}>
       <h1>空间设置</h1>
-
       <div className={styles.tabs}>
         <NavLink to="/settings/general">通用设置</NavLink>
         <NavLink to="/settings/members">空间成员</NavLink>
@@ -108,180 +89,193 @@ export default function Settings() {
       {section === "members" ? (
         <>
           <div className={styles.sectionTop}>
-            <div>
-              <h2>
-                空间成员 <small>{current.members}</small>
-              </h2>
-            </div>
-            <button
-              className="secondary-button"
-              onClick={() =>
-                modal.info({
-                  title: "成员管理",
-                  content:
-                    "此处展示空间成员。账号管理将复用 MAS 后台；空间成员分配功能在后端接入时实现。",
-                  okText: "知道了",
-                })
-              }
-            >
-              <Users size={15} />
-              管理成员
-            </button>
+            <h2>
+              空间成员 <small>{memberTotal}</small>
+            </h2>
+            {owner && (
+              <button
+                className="secondary-button"
+                onClick={() => setAddOpen(true)}
+              >
+                <Plus size={15} />
+                添加成员
+              </button>
+            )}
           </div>
+          {failure && (
+            <p role="alert">
+              {failure}{" "}
+              <button
+                className="secondary-button"
+                onClick={() => void refreshMembers()}
+              >
+                重试
+              </button>
+            </p>
+          )}
+          {loading && <p role="status">正在加载成员…</p>}
           <div className={styles.members}>
             <div className={styles.memberHead}>
               <span>成员</span>
               <span>空间角色</span>
             </div>
-            {(space === "personal" ? members.slice(0, 1) : members).map(
-              (m, i) => (
-                <div key={m.email} className={styles.member}>
-                  <span className={styles.memberAvatar} data-index={i}>
-                    {m.initials}
-                  </span>
-                  <div>
-                    <strong>
-                      {m.name}{" "}
-                      {m.status && <span className="badge">{m.status}</span>}
-                    </strong>
-                    <small>{m.email}</small>
-                  </div>
-                  <span>{m.role}</span>
+            {members.map((member) => (
+              <div className={styles.member} key={member.id}>
+                <span className={styles.memberAvatar}>
+                  {(member.nickname || member.account)
+                    .slice(0, 1)
+                    .toUpperCase()}
+                </span>
+                <div>
+                  <strong>
+                    {member.nickname || member.account}
+                    {member.id === user?.id && (
+                      <span className="badge">你</span>
+                    )}
+                  </strong>
+                  <small>{member.account}</small>
                 </div>
-              ),
-            )}
-          </div>
-        </>
-      ) : section === "ai" ? (
-        <>
-          <div className={styles.sectionTop}>
-            <div>
-              <h2>API 密钥</h2>
-              <p>演示密钥与配置，API / MCP 尚未接入。</p>
-            </div>
-            <button className="primary-button" onClick={() => setKeyOpen(true)}>
-              <Plus size={15} />
-              创建密钥
-            </button>
-          </div>
-          <div className={styles.keyList}>
-            {keys.filter((k) => k.space === space).length ? (
-              keys
-                .filter((k) => k.space === space)
-                .map((k) => (
-                  <div className={styles.keyRow} key={k.id}>
-                    <KeyRound size={18} />
-                    <div>
-                      <strong>{k.name}</strong>
-                      <code>{k.prefix}</code>
-                    </div>
-                    <span className="badge">
-                      {k.access === "read" ? "只读" : "读写"}
-                    </span>
+                <span>{member.role === "owner" ? "负责人" : "成员"}</span>
+                {owner && member.role !== "owner" && (
+                  <>
                     <button
                       className="icon-button"
-                      aria-label={`撤销密钥 ${k.name}`}
+                      aria-label={`转移负责人给 ${member.account}`}
                       onClick={() =>
                         modal.confirm({
-                          title: "撤销这个演示密钥？",
-                          content: k.name,
-                          okText: "撤销",
+                          title: "转移空间负责人？",
+                          content: `将空间交给 ${member.nickname || member.account}，你的身份将变为成员。`,
+                          okText: "转移",
                           cancelText: "取消",
-                          onOk: () => removeKey(k.id),
+                          onOk: async () => {
+                            const task = begin();
+                            try {
+                              assertHere();
+                              await task.wait(() =>
+                                spaceApi.transfer(
+                                  space,
+                                  member.id,
+                                  task.signal,
+                                ),
+                              );
+                              await task.wait(() => loadSpaces());
+                              await refreshMembers(task);
+                            } catch (error) {
+                              if (!task.signal.aborted) {
+                                message.error(errorMessage(error));
+                                throw error;
+                              }
+                            } finally {
+                              task.finish();
+                            }
+                          },
                         })
                       }
                     >
-                      <Trash2 size={16} />
+                      <ArrowRightLeft size={15} />
                     </button>
-                  </div>
-                ))
-            ) : (
-              <div className={styles.keyEmpty}>
-                <KeyRound size={25} strokeWidth={1.3} />
-                <strong>还没有 API 密钥</strong>
+                    <button
+                      className="icon-button"
+                      aria-label={`移除成员 ${member.account}`}
+                      onClick={() =>
+                        modal.confirm({
+                          title: "移除空间成员？",
+                          content: member.nickname || member.account,
+                          okText: "移除",
+                          cancelText: "取消",
+                          onOk: async () => {
+                            const task = begin();
+                            try {
+                              assertHere();
+                              await task.wait(() =>
+                                spaceApi.removeMember(
+                                  space,
+                                  member.id,
+                                  task.signal,
+                                ),
+                              );
+                              await refreshMembers(task);
+                            } catch (error) {
+                              if (!task.signal.aborted) {
+                                message.error(errorMessage(error));
+                                throw error;
+                              }
+                            } finally {
+                              task.finish();
+                            }
+                          },
+                        })
+                      }
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </>
+                )}
               </div>
-            )}
+            ))}
           </div>
-          <div className={styles.sectionTop}>
-            <div>
-              <h2>连接你的工具</h2>
-              <p>复制配置模板，替换部署地址和密钥后使用。</p>
-            </div>
-          </div>
-          <div className={styles.codePanel}>
-            <div className={styles.codeTabs}>
+          {memberTotal > 100 && (
+            <div className={styles.sectionTop}>
               <button
-                className={tab === "mcp" ? styles.codeActive : ""}
-                onClick={() => setTab("mcp")}
+                className="secondary-button"
+                disabled={page === 1}
+                onClick={() => setPage(page - 1)}
               >
-                MCP 配置
+                上一页
               </button>
+              <span>第 {page} 页</span>
               <button
-                className={tab === "api" ? styles.codeActive : ""}
-                onClick={() => setTab("api")}
+                className="secondary-button"
+                disabled={page * 100 >= memberTotal}
+                onClick={() => setPage(page + 1)}
               >
-                HTTP API
-              </button>
-              <button onClick={() => void copy(config)}>
-                <Copy size={14} />
-                复制
+                下一页
               </button>
             </div>
-            <pre>{config}</pre>
-          </div>
+          )}
         </>
+      ) : section === "ai" ? (
+        <AiSettings key={space} spaceId={space} owner={owner} />
       ) : (
         <>
-          <div className={styles.settingRow}>
-            <div>
-              <strong>数据存储</strong>
-              <p>文件与修改保存在当前浏览器，尚未接入后端。</p>
-            </div>
-          </div>
           <div className={styles.sectionTop}>
-            <div>
-              <h2>空间信息</h2>
-            </div>
+            <h2>空间信息</h2>
           </div>
           <div className={styles.settingRow}>
             <div>
               <strong>空间名称</strong>
               <p>{current.name}</p>
             </div>
-            <span className="badge">{current.caption}</span>
+            {owner && (
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  setName(current.name);
+                  setRenameOpen(true);
+                }}
+              >
+                修改名称
+              </button>
+            )}
           </div>
           <div className={styles.settingRow}>
             <div>
-              <strong>后台管理</strong>
-              <p>待接入 MAS 管理后台。</p>
+              <strong>当前账号</strong>
+              <p>{user?.nickname || user?.account}</p>
             </div>
-            <button
-              className="secondary-button"
-              onClick={() =>
-                modal.info({
-                  title: "管理后台待接入",
-                  content:
-                    "这一版只实现 MinMD 前台。后续沿用 mas-backend-cli 的管理后台，不额外重做账号与权限页面。",
-                  okText: "知道了",
-                })
-              }
-            >
-              管理入口 <ArrowUpRight size={14} />
-            </button>
+            <span className="badge">{owner ? "负责人" : "成员"}</span>
           </div>
           <div className={styles.sectionTop}>
-            <div>
-              <h2>外观</h2>
-            </div>
+            <h2>外观</h2>
           </div>
           <div className={styles.themes}>
-            {(["light", "dark"] as const).map((t) => (
+            {(["light", "dark"] as const).map((value) => (
               <button
-                key={t}
-                className={`${styles.themeCard} ${theme === t ? styles.themeSelected : ""}`}
-                onClick={() => setTheme(t)}
+                key={value}
+                className={`${styles.themeCard} ${theme === value ? styles.themeSelected : ""}`}
+                onClick={() => setTheme(value)}
               >
-                <div className={styles.themePreview} data-theme={t}>
+                <div className={styles.themePreview} data-theme={value}>
                   <aside />
                   <div>
                     <i />
@@ -291,97 +285,97 @@ export default function Settings() {
                   </div>
                 </div>
                 <span>
-                  {t === "light" ? <Sun size={15} /> : <Moon size={15} />}{" "}
-                  {t === "light" ? "晴日 · 浅色" : "夜读 · 深色"}
-                  {theme === t && <Check size={15} />}
+                  {value === "light" ? <Sun size={15} /> : <Moon size={15} />}
+                  {value === "light" ? "晴日 · 浅色" : "夜读 · 深色"}
+                  {theme === value && <Check size={15} />}
                 </span>
               </button>
             ))}
           </div>
-          <div className={styles.settingRow}>
-            <div>
-              <strong>重置演示数据</strong>
-              <p>清除本地文件修改与演示密钥，恢复初始样例。</p>
-            </div>
-            <button
-              className="secondary-button"
-              onClick={() =>
-                modal.confirm({
-                  title: "重置本地演示？",
-                  content: "本地新建文件和修改将被清除。",
-                  okText: "重置",
-                  cancelText: "取消",
-                  onOk: () => {
-                    reset();
-                    message.success("已恢复初始演示数据");
-                  },
-                })
-              }
-            >
-              重置
-            </button>
-          </div>
         </>
       )}
       <Modal
-        title="创建演示密钥"
-        open={keyOpen}
-        onCancel={() => setKeyOpen(false)}
-        onOk={createKey}
-        okText="创建"
+        title="添加空间成员"
+        open={addOpen}
+        onCancel={() => setAddOpen(false)}
+        confirmLoading={busy}
+        okText="添加"
         cancelText="取消"
+        onOk={async () => {
+          if (!account.trim()) {
+            message.warning("请输入现有账号");
+            return;
+          }
+          setBusy(true);
+          const task = begin();
+          try {
+            assertHere();
+            const result = await task.wait(() =>
+              spaceApi.accounts(space, account.trim(), task.signal),
+            );
+            const match = result.items.find(
+              (item) =>
+                item.account.toLowerCase() === account.trim().toLowerCase(),
+            );
+            if (!match) throw new Error("未找到该账号，请先在管理后台创建账号");
+            await task.wait(() =>
+              spaceApi.addMember(space, match.id, task.signal),
+            );
+            await refreshMembers(task);
+            task.assertActive();
+            setAccount("");
+            setAddOpen(false);
+          } catch (error) {
+            if (!task.signal.aborted) message.error(errorMessage(error));
+          } finally {
+            task.finish();
+            if (!task.signal.aborted) setBusy(false);
+          }
+        }}
       >
-        <div className="field">
-          <label>密钥名称</label>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="例如：我的 AI 助手"
-            maxLength={64}
-          />
-        </div>
-        <div className="field">
-          <label>绑定空间</label>
-          <Input value={current.name} disabled />
-        </div>
-        <div className="field">
-          <label>访问权限</label>
-          <Select
-            value={access}
-            onChange={setAccess}
-            options={[
-              { value: "read", label: "只读 · 读取内容" },
-              { value: "write", label: "读写 · 读取并修改内容" },
-            ]}
-          />
-        </div>
-        <p className="dialog-note">
-          仅演示交互，生成的密钥无法调用 API 或 MCP。
-        </p>
+        <Input
+          aria-label="成员账号"
+          value={account}
+          onChange={(event) => setAccount(event.target.value)}
+          placeholder="输入现有账号"
+          maxLength={64}
+        />
       </Modal>
       <Modal
-        title="演示密钥已创建"
-        open={!!secret}
-        onCancel={() => setSecret("")}
-        footer={
-          <button className="primary-button" onClick={() => setSecret("")}>
-            我已保存
-          </button>
-        }
+        title="修改空间名称"
+        open={renameOpen}
+        onCancel={() => setRenameOpen(false)}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={busy}
+        onOk={async () => {
+          if (!name.trim()) {
+            message.warning("请输入空间名称");
+            return;
+          }
+          setBusy(true);
+          const task = begin();
+          try {
+            assertHere();
+            await task.wait(() =>
+              spaceApi.update(space, name.trim(), task.signal),
+            );
+            await task.wait(() => loadSpaces());
+            setRenameOpen(false);
+          } catch (error) {
+            if (!task.signal.aborted) message.error(errorMessage(error));
+          } finally {
+            task.finish();
+            if (!task.signal.aborted) setBusy(false);
+          }
+        }}
       >
-        <p className="dialog-note">
-          完整值仅在此窗口显示。当前密钥为演示值，不具备访问能力。
-        </p>
-        <div className={styles.secret}>
-          <code>{secret}</code>
-          <button
-            className="icon-button"
-            aria-label="复制演示密钥"
-            onClick={() => void copy(secret)}
-          >
-            <Copy size={15} />
-          </button>
-        </div>
+        <Input
+          aria-label="新的空间名称"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          maxLength={80}
+        />
       </Modal>
     </main>
   );

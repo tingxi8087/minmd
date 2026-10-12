@@ -206,6 +206,12 @@ export const DocumentImage = Image.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
+      assetId: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("data-asset-id"),
+        renderHTML: (attrs) =>
+          attrs.assetId ? { "data-asset-id": attrs.assetId } : {},
+      },
       align: {
         default: "left",
         parseHTML: (element) => {

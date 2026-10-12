@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { App } from "antd";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useBlocker } from "react-router-dom";
+import { useAuth } from "@/store/auth";
 import {
   ArrowLeft,
   Check,
@@ -10,23 +11,26 @@ import {
   Users,
   AlertCircle,
   LoaderCircle,
+  Undo2,
+  Redo2,
+  History,
 } from "lucide-react";
 import { Workbook, type WorkbookInstance } from "@fortune-sheet/react";
-import type { Op, Sheet } from "@fortune-sheet/core";
 import "@fortune-sheet/react/dist/index.css";
 import TooltipButton from "@/components/TooltipButton";
 import FileIcon from "@/components/FileIcon";
 import FileHeader from "@/components/FileHeader";
 import FileDialogs, { type FileAction } from "@/components/FileDialogs";
 import { type Entry, useWorkspace } from "@/store/workspace";
-import { getSpreadsheet, saveSpreadsheet } from "@/utils/spreadsheetStorage";
-import { createWorkbook, prepareWorkbook } from "./workbook";
 import { importXlsx, exportXlsx } from "./exchange";
+import { useSheetCollaboration } from "./useSheetCollaboration";
+import SheetHistory from "./SheetHistory";
+import { shouldWarnSheetLeave } from "./recovery";
 import styles from "./index.module.less";
 const tools: Record<string, string[]> = {
   开始: [
-    "undo",
-    "redo",
+    "server-undo",
+    "server-redo",
     "format-painter",
     "clear-format",
     "|",
@@ -65,239 +69,99 @@ const tools: Record<string, string[]> = {
   ],
   视图: ["freeze", "search", "screenshot"],
 };
-type Pending = { sequence: number; ops: Op[] };
 export default function Spreadsheet({ file }: { file: Entry }) {
   const navigate = useNavigate(),
-    { message } = App.useApp();
-  const theme = useWorkspace((s) => s.theme);
+    { message, modal } = App.useApp();
+  const theme = useWorkspace((state) => state.theme);
   const api = useRef<WorkbookInstance>(null),
-    input = useRef<HTMLInputElement>(null),
-    live = useRef<Sheet[]>([]),
-    socket = useRef<WebSocket | null>(null),
-    revision = useRef(0),
-    sender = useRef(""),
-    sequence = useRef(0),
-    pending = useRef<Pending[]>([]),
-    sending = useRef(false),
-    remote = useRef(false);
-  const [data, setData] = useState<Sheet[]>(),
-    [generation, setGeneration] = useState(0),
-    [tab, setTab] = useState("开始"),
+    input = useRef<HTMLInputElement>(null);
+  const surface = useRef<HTMLDivElement>(null);
+  const collaboration = useSheetCollaboration(
+    file.id,
+    api,
+    file.space,
+    surface,
+  );
+  const [tab, setTab] = useState("开始"),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [state, setState] = useState("loading"),
     [action, setAction] = useState<FileAction | null>(null),
-    [collaborating, setCollaborating] = useState(false),
-    [connected, setConnected] = useState(false),
-    [members, setMembers] = useState({ count: 0, limit: 10 }),
-    [notice, setNotice] = useState("");
-  const collabRef = useRef(false);
-  collabRef.current = collaborating;
+    [history, setHistory] = useState(false);
+  const blocker = useBlocker(({ nextLocation }) =>
+    shouldWarnSheetLeave(
+      Boolean(useAuth.getState().user),
+      collaboration.pendingCount,
+      nextLocation.pathname,
+    ),
+  );
   useEffect(() => {
-    let cancelled = false;
-    setCollaborating(false);
-    setData(undefined);
-    setError("");
-    setState("loading");
-    void getSpreadsheet(file.id)
-      .then((saved) => {
-        if (cancelled) return;
-        const sheets =
-          saved ||
-          createWorkbook(file.id, file.name, file.id === "sheet-budget");
-        live.current = sheets;
-        setData(sheets);
-        setState("saved");
-      })
-      .catch(() => setError("表格读取失败"));
-    return () => {
-      cancelled = true;
-    };
-  }, [file.id]);
+    if (blocker.state !== "blocked") return;
+    const dialog = modal.confirm({
+      title: "表格修改尚未确认保存",
+      content:
+        "未确认修改的恢复副本已保留在此浏览器。离开后可重新打开并下载检查。",
+      okText: "离开",
+      cancelText: "继续编辑",
+      onOk: () => blocker.proceed(),
+      onCancel: () => blocker.reset(),
+    });
+    return () => dialog.destroy();
+  }, [blocker.state]);
   const save = useCallback(async () => {
-    if (collabRef.current) {
-      if (pending.current.length) throw Error("协作修改仍在同步，请稍后保存");
-      if (socket.current?.readyState !== WebSocket.OPEN)
-        throw Error("协作连接已断开");
-    }
-    setState("saving");
-    await saveSpreadsheet(file.id, api.current?.getAllSheets() || live.current);
-    useWorkspace
-      .getState()
-      .patch(file.id, { spreadsheet: { savedAt: new Date().toISOString() } });
-    setState("saved");
-  }, [file.id]);
-  const saveRef = useRef(save);
-  saveRef.current = save;
-  const pump = () => {
-    const ws = socket.current;
+    const editor = document.activeElement;
     if (
-      !ws ||
-      ws.readyState !== WebSocket.OPEN ||
-      sending.current ||
-      !pending.current.length
-    )
-      return;
-    sending.current = true;
-    const item = pending.current[0];
-    ws.send(JSON.stringify({ type: "op", base: revision.current, ...item }));
-  };
-  useEffect(() => {
-    if (!collaborating || !data) return;
-    let cancelled = false;
-    setConnected(false);
-    setNotice("正在连接开发协作验证…");
-    pending.current = [];
-    sending.current = false;
-    const ws = new WebSocket(
-      `${import.meta.env.DEV ? import.meta.env.MINMD_SHEET_VERIFY_WS : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}`}/api/experimental/sheets/${encodeURIComponent(file.id)}`,
-    );
-    socket.current = ws;
-    const recover = () => {
-      if (pending.current.length) {
-        void saveSpreadsheet(
-          `${file.id}-conflict`,
-          api.current?.getAllSheets() || live.current,
-        );
-        pending.current = [];
-        sending.current = false;
-        setNotice("未确认修改已保留为本地副本，请下载后重新连接");
-      }
-    };
-    ws.onopen = () =>
-      ws.send(JSON.stringify({ type: "initialize", data: live.current }));
-    ws.onmessage = (event) => {
-      if (cancelled) return;
-      const packet = JSON.parse(event.data);
-      if (packet.typeConflict) {
-        recover();
-        live.current = packet.data;
-        setData(prepareWorkbook(packet.data));
-        revision.current = packet.revision;
-        setGeneration((n) => n + 1);
-        setNotice(packet.message);
-        setState("saved");
-        return;
-      }
-      if (packet.type === "snapshot") {
-        live.current = packet.data;
-        setData(prepareWorkbook(packet.data));
-        revision.current = packet.revision;
-        sender.current = packet.sender;
-        setMembers({ count: packet.count, limit: packet.limit });
-        setGeneration((n) => n + 1);
-        setConnected(true);
-        setNotice("");
-        setState("saved");
-      } else if (packet.type === "op") {
-        const own = packet.sender === sender.current;
-        remote.current = true;
-        try {
-          if (
-            !own ||
-            packet.ops.every(
-              (op: Op) =>
-                ["add", "replace", "remove"].includes(op.op) &&
-                op.path[0] === "data" &&
-                op.path.length >= 3,
-            )
-          )
-            api.current?.applyOp(packet.ops);
-        } finally {
-          remote.current = false;
-        }
-        revision.current = packet.revision;
-        if (own) {
-          if (pending.current[0]?.sequence === packet.sequence)
-            pending.current.shift();
-          sending.current = false;
-          setState(pending.current.length ? "saving" : "saved");
-          pump();
-        }
-      } else if (packet.type === "members")
-        setMembers({ count: packet.count, limit: packet.limit });
-      else if (
-        packet.type === "presence" &&
-        packet.presence.userId !== sender.current
-      )
-        api.current?.addPresences([packet.presence]);
-      else if (packet.type === "leave")
-        api.current?.removePresences([
-          {
-            userId: packet.sender,
-            username: `编辑者 ${packet.sender.slice(0, 4)}`,
-          },
-        ]);
-      else if (packet.type === "full") {
-        setMembers({ count: packet.limit, limit: packet.limit });
-        setNotice(packet.message);
-        setConnected(false);
-      } else if (packet.type === "error") {
-        recover();
-        setNotice(packet.message);
-        setConnected(false);
-        ws.close();
-      }
-    };
-    ws.onclose = () => {
-      if (!cancelled) {
-        setConnected(false);
-        recover();
-        setNotice(
-          (current) => current || "协作连接已断开，重新连接后将加载服务器内容",
-        );
-      }
-    };
-    ws.onerror = () => {
-      if (!cancelled) setNotice("协作验证连接失败，请检查后端验证开关");
-    };
-    return () => {
-      cancelled = true;
-      recover();
-      ws.close();
-      socket.current = null;
-    };
-    // 初始数据只在建立连接时提交，不能在每次编辑后重建会话。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collaborating, file.id]);
-  useEffect(() => {
-    if (!data || collaborating) return;
-    const timer = setTimeout(
-      () => void save().catch(() => setState("error")),
-      400,
-    );
-    return () => clearTimeout(timer);
-  }, [data, collaborating, save]);
+      editor instanceof HTMLElement &&
+      editor.matches(".luckysheet-cell-input, .fortune-fx-input")
+    ) {
+      editor.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          code: "Enter",
+          bubbles: true,
+        }),
+      );
+      editor.blur();
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+    }
+    await collaboration.checkpoint();
+    message.success("已保存到服务器");
+  }, [collaboration, message]);
+  const saveRef = useRef(save),
+    undoRef = useRef(collaboration.undo);
+  saveRef.current = save;
+  undoRef.current = collaboration.undo;
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s")
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (!["s", "z", "y"].includes(key)) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest(".ant-modal, .ant-drawer")
+      )
         return;
       event.preventDefault();
       event.stopImmediatePropagation();
       if (event.repeat) return;
-      (document.activeElement as HTMLElement)?.blur();
-      requestAnimationFrame(
-        () => void saveRef.current().catch((e) => message.warning(e.message)),
-      );
+      if (key === "s") {
+        void saveRef
+          .current()
+          .catch((error: unknown) =>
+            message.warning(
+              error instanceof Error ? error.message : "保存失败",
+            ),
+          );
+      } else undoRef.current(key === "y" || event.shiftKey);
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
   }, [message]);
-  const changed = useCallback((sheets: Sheet[]) => {
-    live.current = sheets;
-    setData(sheets);
-    if (!collabRef.current) setState("saving");
-  }, []);
-  const onOp = (ops: Op[]) => {
-    if (remote.current || !collaborating || !connected || !ops.length) return;
-    pending.current.push({ sequence: ++sequence.current, ops });
-    setState("saving");
-    pump();
-  };
-  const download = async (recovery = false) => {
+  const download = async (recovery = false, recoveryKey?: string) => {
     try {
       const sheets = recovery
-        ? await getSpreadsheet(`${file.id}-conflict`)
+        ? await collaboration.recovery(recoveryKey)
         : api.current?.getAllSheets();
       if (!sheets) throw Error("没有可下载的内容");
       const blob = await exportXlsx(sheets, file.name),
@@ -307,22 +171,33 @@ export default function Spreadsheet({ file }: { file: Entry }) {
       anchor.download = `${file.name}${recovery ? "-未确认修改" : ""}.xlsx`;
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (e) {
-      message.error(e instanceof Error ? e.message : "导出失败");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "导出失败");
     }
   };
   const imported = async (binary?: File) => {
-    if (!binary || collaborating) return;
+    if (!binary || !collaboration.editable) return;
+    const confirmed = await new Promise<boolean>((resolve) =>
+      modal.confirm({
+        title: "替换当前表格？",
+        content: "当前内容会保存为历史版本，在线编辑者将重新载入新版本。",
+        okText: "导入并替换",
+        cancelText: "取消",
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      }),
+    );
+    if (!confirmed) {
+      if (input.current) input.current.value = "";
+      return;
+    }
     setBusy(true);
     try {
       const sheets = await importXlsx(binary, file.id, file.name);
-      await saveSpreadsheet(file.id, sheets);
-      live.current = sheets;
-      setData(sheets);
-      setGeneration((n) => n + 1);
-      message.success("已导入基础数据、公式和样式；图表等高级对象不支持");
-    } catch (e) {
-      message.error(e instanceof Error ? e.message : "导入失败");
+      await collaboration.replace(sheets);
+      message.success("已导入并保存到服务器；图表等高级对象不支持");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "导入失败");
     } finally {
       setBusy(false);
       if (input.current) input.current.value = "";
@@ -343,35 +218,45 @@ export default function Spreadsheet({ file }: { file: Entry }) {
         <div className={styles.actions}>
           <TooltipButton
             className="icon-button"
-            aria-label={state === "saved" ? "保存表格" : "正在同步表格"}
-            onClick={() => void save().catch((e) => message.warning(e.message))}
+            aria-label={
+              collaboration.state === "saved" ? "保存表格" : "表格同步状态"
+            }
+            disabled={!collaboration.editable}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() =>
+              void save().catch((error: unknown) =>
+                message.warning(
+                  error instanceof Error ? error.message : "保存失败",
+                ),
+              )
+            }
           >
-            {state === "saved" ? (
+            {collaboration.state === "saved" ? (
               <Check size={16} />
-            ) : state === "error" ? (
+            ) : ["error", "disconnected"].includes(collaboration.state) ? (
               <AlertCircle size={16} />
             ) : (
               <LoaderCircle size={16} />
             )}
           </TooltipButton>
-          {import.meta.env.DEV && (
-            <button
-              className="secondary-button"
-              aria-label="开发协作验证"
-              disabled={!data}
-              onClick={() => {
-                setCollaborating((v) => !v);
-                setNotice("");
-              }}
-            >
-              <Users size={15} />
-              {collaborating ? `${members.count}/${members.limit}` : "协作验证"}
-            </button>
-          )}
+          <span
+            className={styles.members}
+            aria-label={`在线编辑 ${collaboration.members.count}，上限 ${collaboration.members.limit}`}
+          >
+            <Users size={15} />
+            {collaboration.members.count}/{collaboration.members.limit}
+          </span>
+          <TooltipButton
+            className="icon-button"
+            aria-label="表格版本历史"
+            onClick={() => setHistory(true)}
+          >
+            <History size={16} />
+          </TooltipButton>
           <TooltipButton
             className="icon-button"
             aria-label="导入 XLSX 到当前表格"
-            disabled={busy || collaborating || !data}
+            disabled={busy || !collaboration.editable}
             onClick={() => input.current?.click()}
           >
             <Upload size={16} />
@@ -379,7 +264,7 @@ export default function Spreadsheet({ file }: { file: Entry }) {
           <TooltipButton
             className="icon-button"
             aria-label="导出 XLSX"
-            disabled={!data}
+            disabled={!collaboration.data}
             onClick={() => void download()}
           >
             <Download size={16} />
@@ -398,23 +283,36 @@ export default function Spreadsheet({ file }: { file: Entry }) {
         type="file"
         accept=".xlsx"
         hidden
-        onChange={(e) => void imported(e.target.files?.[0])}
+        onChange={(event) => void imported(event.target.files?.[0])}
       />
-      {collaborating && (
-        <div className={styles.collaboration}>
-          <span>{notice || "开发协作验证 · 演示身份"}</span>
-          {!connected && (
-            <>
-              <button
-                onClick={() => {
-                  setCollaborating(false);
-                  setTimeout(() => setCollaborating(true), 0);
-                }}
-              >
-                重新连接
-              </button>
-              <button onClick={() => void download(true)}>下载本地副本</button>
-            </>
+      {(collaboration.notice ||
+        collaboration.hasRecovery ||
+        collaboration.state !== "saved") && (
+        <div className={styles.collaboration} role="status">
+          <span>
+            {collaboration.notice ||
+              (collaboration.state === "connecting"
+                ? "正在连接…"
+                : collaboration.pendingCount
+                  ? "修改待同步"
+                  : collaboration.state === "saved"
+                    ? "本地恢复副本已保留"
+                    : "连接已断开")}
+          </span>
+          {!collaboration.connected && (
+            <button onClick={collaboration.reload}>重新连接</button>
+          )}
+          {collaboration.hasRecovery && (
+            <span>
+              {collaboration.recoveryCopies.map((copy) => (
+                <button
+                  key={copy.key}
+                  onClick={() => void download(true, copy.key)}
+                >
+                  下载恢复副本 · epoch {copy.draft.epoch}
+                </button>
+              ))}
+            </span>
           )}
         </div>
       )}
@@ -430,41 +328,58 @@ export default function Spreadsheet({ file }: { file: Entry }) {
           </button>
         ))}
       </div>
-      <div className={styles.editor} aria-label="表格编辑器">
-        {data && (
+      <div ref={surface} className={styles.editor} aria-label="表格编辑器">
+        {collaboration.data && (
           <Workbook
-            key={`${file.id}-${generation}`}
+            key={`${file.id}-${collaboration.generation}`}
             ref={api}
-            data={data}
+            data={collaboration.data}
             lang="zh"
-            forceCalculation={true}
-            allowEdit={!collaborating || connected}
+            forceCalculation={false}
+            allowEdit={collaboration.editable && !busy}
             toolbarItems={tools[tab]}
-            onChange={changed}
-            onOp={onOp}
-            hooks={{
-              afterSelectionChange: (sheetId, selection) => {
-                const ws = socket.current;
-                if (collaborating && ws?.readyState === WebSocket.OPEN)
-                  ws.send(
-                    JSON.stringify({
-                      type: "presence",
-                      sheetId,
-                      r: selection.row[0],
-                      c: selection.column[0],
-                    }),
-                  );
+            customToolbarItems={[
+              {
+                key: "server-undo",
+                tooltip: "撤销本人的修改",
+                icon: <Undo2 size={16} />,
+                onClick: () => collaboration.undo(),
               },
+              {
+                key: "server-redo",
+                tooltip: "重做本人的修改",
+                icon: <Redo2 size={16} />,
+                onClick: () => collaboration.undo(true),
+              },
+            ]}
+            onChange={collaboration.onChange}
+            onOp={collaboration.onOp}
+            hooks={{
+              afterSelectionChange: (sheetId, selection) =>
+                collaboration.presence(
+                  sheetId,
+                  selection.row_focus ?? selection.row[0],
+                  selection.column_focus ?? selection.column[0],
+                ),
             }}
           />
         )}
       </div>
-      {(!data || busy || error) && (
+      {(!collaboration.data || busy) && (
         <div className={styles.status}>
-          {error || (busy ? "正在处理 Excel…" : "正在打开表格…")}
+          {busy ? "正在处理 Excel…" : "正在打开表格…"}
         </div>
       )}
       <FileDialogs action={action} close={() => setAction(null)} />
+      <SheetHistory
+        file={file}
+        open={history}
+        close={() => setHistory(false)}
+        revision={collaboration.revision}
+        epoch={collaboration.epoch}
+        reload={collaboration.reload}
+        checkpoint={collaboration.checkpoint}
+      />
     </main>
   );
 }

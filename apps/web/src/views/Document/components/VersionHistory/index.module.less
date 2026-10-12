@@ -1,0 +1,117 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.version {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  &:hover,
+  &:focus-visible {
+    background: var(--hover);
+  }
+  strong {
+    font-size: 13px;
+  }
+  span {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+}
+.pages,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  button {
+    flex-shrink: 0;
+  }
+}
+.preview {
+  max-height: 60vh;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  color: var(--text);
+  :global(.tiptap) {
+    outline: none;
+    min-height: 180px;
+    font-size: 14px;
+    line-height: 1.7;
+    p {
+      margin: 6px 0;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    td,
+    th {
+      border: 1px solid var(--border);
+      padding: 6px;
+    }
+    img {
+      max-width: 100%;
+    }
+    aside {
+      background: var(--surface-soft);
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+    }
+  }
+}
+
+.preview :global(.tiptap) {
+  img[data-align="center"] {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  img[data-align="right"] {
+    display: block;
+    margin-left: auto;
+  }
+  aside[data-callout] {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: var(--slide-soft);
+    > span {
+      line-height: 1.7;
+    }
+    > div {
+      flex: 1;
+    }
+  }
+  section[data-fold] {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  pre {
+    padding: 12px;
+    background: var(--surface-soft);
+    border-radius: var(--radius-sm);
+    overflow: auto;
+  }
+  .hljs-keyword {
+    color: var(--code-keyword);
+  }
+  .hljs-string {
+    color: var(--code-string);
+  }
+  .hljs-number {
+    color: var(--code-number);
+  }
+  .hljs-comment {
+    color: var(--text-secondary);
+  }
+}

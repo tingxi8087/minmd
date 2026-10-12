@@ -192,9 +192,9 @@ const UserFormDrawer = forwardRef<UserFormRef, {}>(
               rules={[
                 {
                   required: true,
-                  min: 12,
+                  min: 6,
                   max: 128,
-                  message: "密码长度为 12–128 位",
+                  message: "密码长度为 6–128 位",
                 },
               ]}
             >

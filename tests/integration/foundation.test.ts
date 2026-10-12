@@ -90,6 +90,78 @@ suite("PostgreSQL foundation", () => {
     expect(response.json().database).toBe("connected");
     expect(response.headers["x-request-id"]).toBeTruthy();
   });
+  test("forwarded client addresses require explicit proxy trust", async () => {
+    for (const trusted of [false, true]) {
+      const candidate = await buildApp({
+        ...config,
+        LOG_LEVEL: "silent",
+        TRUST_PROXY_ADDRESSES: trusted ? ["127.0.0.1"] : [],
+      });
+      try {
+        candidate.get(
+          "/api/test-client-address",
+          {
+            config: { auth: false },
+            schema: { response: { 200: Type.Object({ ip: Type.String() }) } },
+          },
+          async (request) => ({ ip: request.ip }),
+        );
+        const response = await candidate.inject({
+          url: "/api/test-client-address",
+          remoteAddress: "127.0.0.1",
+          headers: { "x-forwarded-for": "198.51.100.9, 192.0.2.8" },
+        });
+        expect(response.statusCode).toBe(200);
+        expect(response.json().ip).toBe(trusted ? "192.0.2.8" : "127.0.0.1");
+        const direct = await candidate.inject({
+          url: "/api/test-client-address",
+          remoteAddress: "203.0.113.4",
+          headers: { "x-forwarded-for": "198.51.100.9" },
+        });
+        expect(direct.json().ip).toBe("203.0.113.4");
+      } finally {
+        await candidate.close();
+      }
+    }
+  });
+  test("JSON body limits accept document-sized payloads and reject oversize", async () => {
+    const candidate = await buildApp({
+      ...config,
+      LOG_LEVEL: "silent",
+      HTTP_BODY_LIMIT_BYTES: 3 * 1024 * 1024,
+    });
+    try {
+      candidate.post<{ Body: { text: string } }>(
+        "/api/test-body-limit",
+        {
+          config: { auth: false },
+          schema: {
+            body: Type.Object(
+              { text: Type.String() },
+              { additionalProperties: false },
+            ),
+            response: { 200: Type.Object({ length: Type.Integer() }) },
+          },
+        },
+        async (request) => ({ length: request.body.text.length }),
+      );
+      const accepted = await candidate.inject({
+        method: "POST",
+        url: "/api/test-body-limit",
+        payload: { text: "x".repeat(2 * 1024 * 1024) },
+      });
+      expect(accepted.statusCode).toBe(200);
+      expect(accepted.json().length).toBe(2 * 1024 * 1024);
+      const rejected = await candidate.inject({
+        method: "POST",
+        url: "/api/test-body-limit",
+        payload: { text: "x".repeat(4 * 1024 * 1024) },
+      });
+      expect(rejected.statusCode).toBe(413);
+    } finally {
+      await candidate.close();
+    }
+  });
   test("database transactions roll back", async () => {
     const id = crypto.randomUUID();
     await expect(
@@ -125,6 +197,12 @@ suite("PostgreSQL foundation", () => {
     expect(output).not.toContain("secret-database-password");
     expect(output).not.toContain("secret-query");
     expect(output).not.toContain("secret-token");
+    await app.inject(
+      "/api/public/shares/secret-path-token?token=secret-query-token",
+    );
+    const afterUnknown = logs.join("");
+    expect(afterUnknown).not.toContain("secret-path-token");
+    expect(afterUnknown).not.toContain("secret-query-token");
   });
   test("unauthenticated requests fail closed", async () => {
     expect((await app.inject("/api/test-protected")).statusCode).toBe(401);

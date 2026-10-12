@@ -5,7 +5,7 @@ import type { Database } from "../../../../../system/server/src/database/client"
 import type { AppConfig } from "../../../../../system/server/src/config/env";
 import { roles } from "../../../../../system/server/src/database/schema/system";
 import { AppError } from "../../../../../system/server/src/errors";
-import { hashPassword } from "../../../../../system/server/src/modules/auth/password";
+import { hashValidatedPassword } from "../../../../../system/server/src/modules/auth/password";
 import {
   writeAudit,
   type Transaction,
@@ -62,6 +62,7 @@ export async function registerUserManagement(
   app: FastifyInstance,
   database: Database,
   config: AppConfig,
+  lifecycle: import("./lifecycle").UserLifecycle = {},
 ) {
   // 与系统角色变更共用锁，避免角色校验和分配之间发生并发删除。
   const transaction = <T>(fn: (tx: Transaction) => Promise<T>) =>
@@ -201,7 +202,7 @@ export async function registerUserManagement(
       handler: async (request) => {
         const passwordHash = edit
           ? undefined
-          : await hashPassword(request.body.password!);
+          : await hashValidatedPassword(request.body.password!);
         await transaction(async (tx) => {
           let id = request.params.id;
           let before: Record<string, unknown> | undefined;
@@ -291,7 +292,7 @@ export async function registerUserManagement(
       async (request) => {
         const passwordHash =
           action === "password"
-            ? await hashPassword(request.body.password!)
+            ? await hashValidatedPassword(request.body.password!)
             : undefined;
         await transaction(async (tx) => {
           const id = request.params.id;
@@ -325,6 +326,8 @@ export async function registerUserManagement(
               action === "status" ? { status: request.body.status } : undefined,
           });
         });
+        if (action !== "status" || request.body.status === "disabled")
+          await lifecycle.onUserSessionsRevoked?.(request.params.id);
         return { ok: true };
       },
     );

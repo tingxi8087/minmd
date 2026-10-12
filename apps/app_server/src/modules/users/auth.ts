@@ -7,6 +7,10 @@ import { AppError } from "../../../../../system/server/src/errors";
 import { hashToken } from "../../../../../system/server/src/modules/auth/password";
 import { csrfFor } from "../../../../../system/server/src/modules/auth/plugin";
 import {
+  loadMinmdConfig,
+  type MinmdAuthConfig,
+} from "../../../../../config/minmd";
+import {
   codesFor,
   type PermissionCatalog,
 } from "../../../../../system/server/src/modules/permissions/registry";
@@ -37,6 +41,7 @@ export async function installAppAuthentication(
   database: Database,
   config: AppConfig,
   catalog: PermissionCatalog,
+  business: MinmdAuthConfig = loadMinmdConfig(config),
 ) {
   app.decorateRequest("appIdentity", null);
   app.addHook("onReady", async () => {
@@ -99,7 +104,7 @@ export async function installAppAuthentication(
     ) {
       const supplied = request.headers["x-csrf-token"];
       if (
-        request.headers.origin !== config.PUBLIC_ORIGIN ||
+        !business.allowedOrigins.includes(request.headers.origin ?? "") ||
         typeof supplied !== "string" ||
         !/^[a-f0-9]{64}$/.test(supplied) ||
         !timingSafeEqual(

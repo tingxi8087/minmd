@@ -1,3 +1,4 @@
+import axios from "axios";
 import { useEffect, useRef, useState } from "react";
 import { App } from "antd";
 import {
@@ -17,20 +18,23 @@ import FileIcon from "@/components/FileIcon";
 import FileHeader from "@/components/FileHeader";
 import TooltipButton from "@/components/TooltipButton";
 import FileDialogs, { type FileAction } from "@/components/FileDialogs";
-import { type Entry, useWorkspace } from "@/store/workspace";
-import {
-  getPresentation,
-  deletePresentation,
-  savePresentation,
-  validatePresentation,
-} from "@/utils/presentationFiles";
+import { type Entry } from "@/store/workspace";
+import { validatePresentation } from "@/utils/presentationFiles";
+import { assetsApi, type PresentationContent } from "@/api/assets";
+import { errorMessage } from "@/http";
 import { useNavigate } from "react-router-dom";
 import styles from "./index.module.less";
 
 export default function Presentation({ file }: { file: Entry }) {
   const navigate = useNavigate();
   const { message } = App.useApp();
-  const patch = useWorkspace((s) => s.patch);
+  const [content, setContent] = useState<PresentationContent | null>(null);
+  const [contentLoading, setContentLoading] = useState(true);
+  const [contentError, setContentError] = useState("");
+  const [reload, setReload] = useState(0);
+  const uploadController = useRef<AbortController | null>(null);
+  const operation = useRef(0);
+  const downloadController = useRef<AbortController | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const thumbnails = useRef<HTMLDivElement>(null);
@@ -41,10 +45,37 @@ export default function Presentation({ file }: { file: Entry }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [action, setAction] = useState<FileAction | null>(null);
-  const count = file.presentation?.slides || 0;
-  const key = file.presentation?.key;
+  const count = content?.projection.slides || 0;
+  const key = content?.projection.assetId;
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    setContent(null);
+    setContentLoading(true);
+    setContentError("");
+    setUploading(false);
+    void assetsApi
+      .presentation(file.id, controller.signal)
+      .then((result) => {
+        if (active) setContent(result);
+      })
+      .catch((error: unknown) => {
+        if (active) setContentError(errorMessage(error));
+      })
+      .finally(() => {
+        if (active) setContentLoading(false);
+      });
+    return () => {
+      active = false;
+      controller.abort();
+      operation.current++;
+      uploadController.current?.abort();
+      downloadController.current?.abort();
+    };
+  }, [file.id, reload]);
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
@@ -53,12 +84,14 @@ export default function Presentation({ file }: { file: Entry }) {
     setPage(0);
     setZoom(100);
     setError("");
-    if (!key) return;
+    if (!key) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const load = async () => {
       try {
-        const binary = await getPresentation(key);
-        if (!binary) throw new Error("本机原文件不存在，请重新上传");
+        const binary = await assetsApi.download(key, controller.signal);
         const { PptxViewer, RECOMMENDED_ZIP_LIMITS } =
           await import("@aiden0z/pptx-renderer");
         if (cancelled) return;
@@ -131,41 +164,66 @@ export default function Presentation({ file }: { file: Entry }) {
     }
   };
   const upload = async (binary?: File) => {
-    if (!binary || uploading) return;
+    if (!binary || uploading || !content) return;
+    setPendingFile(binary);
     setUploading(true);
+    const currentOperation = ++operation.current;
+    const controller = new AbortController();
+    uploadController.current = controller;
     try {
-      const slides = await validatePresentation(binary);
-      const storageKey = crypto.randomUUID();
-      await savePresentation(storageKey, binary);
-      patch(file.id, {
-        presentation: {
-          key: storageKey,
-          name: binary.name,
-          size: binary.size,
-          slides,
-        },
-      });
-      message.success("幻灯片已保存到本机浏览器");
-      if (key) void deletePresentation(key).catch(() => {});
-    } catch (e) {
-      message.error(e instanceof Error ? e.message : "上传失败");
-    } finally {
-      setUploading(false);
+      await validatePresentation(binary);
+      if (controller.signal.aborted) return;
+      const asset = await assetsApi.upload(
+        file.space,
+        binary,
+        controller.signal,
+      );
+      const saved = await assetsApi.bindPresentation(
+        file.id,
+        asset.id,
+        content,
+        controller.signal,
+      );
+      if (currentOperation !== operation.current || controller.signal.aborted)
+        return;
+      setContent(saved);
+      setContentError("");
+      setPendingFile(null);
+      message.success("幻灯片已保存到服务器");
       if (input.current) input.current.value = "";
+    } catch (error) {
+      if (
+        currentOperation === operation.current &&
+        !controller.signal.aborted
+      ) {
+        message.error(errorMessage(error));
+        if (axios.isAxiosError(error) && error.response?.status === 409)
+          setContentError(
+            "幻灯片已被替换，请重新读取后再上传。选择的文件仍保留，可再次上传。",
+          );
+      }
+    } finally {
+      if (currentOperation === operation.current) setUploading(false);
     }
   };
   const download = async () => {
+    if (!key) return;
+    downloadController.current?.abort();
+    const controller = new AbortController();
+    downloadController.current = controller;
+    const currentOperation = operation.current;
     try {
-      const binary = key && (await getPresentation(key));
-      if (!binary) throw new Error("本机原文件不存在");
+      const binary = await assetsApi.download(key, controller.signal);
+      if (currentOperation !== operation.current) return;
       const url = URL.createObjectURL(binary);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = file.presentation!.name;
+      anchor.download = content?.projection.name || `${file.name}.pptx`;
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (e) {
-      message.error(e instanceof Error ? e.message : "下载失败");
+    } catch (error) {
+      if (currentOperation === operation.current)
+        message.error(errorMessage(error));
     }
   };
   return (
@@ -198,7 +256,7 @@ export default function Presentation({ file }: { file: Entry }) {
           <TooltipButton
             className="icon-button"
             aria-label={key ? "替换 PPTX 文件" : "上传 PPTX 文件"}
-            disabled={uploading}
+            disabled={uploading || contentLoading || !content}
             onClick={() => input.current?.click()}
           >
             <Upload size={16} />
@@ -227,6 +285,36 @@ export default function Presentation({ file }: { file: Entry }) {
         hidden
         onChange={(e) => void upload(e.target.files?.[0])}
       />
+      {pendingFile && !uploading && (
+        <div role="alert">
+          {pendingFile.name} 尚未保存，原文件已保留。
+          <button
+            className="secondary-button"
+            disabled={contentLoading || !content}
+            onClick={() => void upload(pendingFile)}
+          >
+            重新上传
+          </button>
+          <button
+            className="secondary-button"
+            onClick={() => setPendingFile(null)}
+          >
+            取消
+          </button>
+        </div>
+      )}
+      {contentLoading && <p role="status">正在读取幻灯片…</p>}
+      {contentError && (
+        <div role="alert">
+          {contentError}
+          <button
+            className="secondary-button"
+            onClick={() => setReload(reload + 1)}
+          >
+            重试
+          </button>
+        </div>
+      )}
       {key ? (
         <>
           <div className={styles.workspace}>
@@ -334,14 +422,14 @@ export default function Presentation({ file }: { file: Entry }) {
             </TooltipButton>
           </footer>
         </>
-      ) : (
+      ) : contentLoading || contentError ? null : (
         <div className={styles.empty}>
           <FileIcon kind="slide" />
           <h2>上传幻灯片，开始预览</h2>
-          <p>支持 .pptx · 最多 50 MB · 文件保存在本机浏览器</p>
+          <p>支持 .pptx · 最多 50 MB</p>
           <button
             className="primary-button"
-            disabled={uploading}
+            disabled={uploading || contentLoading || !content}
             onClick={() => input.current?.click()}
           >
             <Upload size={16} />

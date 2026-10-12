@@ -1,0 +1,67 @@
+.public-share {
+  min-height: 100vh;
+  background: var(--surface);
+  color: var(--text);
+  > header {
+    height: 50px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+    strong {
+      font-size: 21px;
+    }
+    > span:first-of-type {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+  .share-document {
+    padding: 20px 32px;
+    max-width: 1280px;
+    margin: 0 auto;
+    > h1 {
+      margin: 0 0 14px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    [class*="preview"] {
+      max-height: none;
+      overflow: visible;
+      border: none;
+    }
+  }
+  .share-message {
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .share-unlock {
+    max-width: 360px;
+    margin: 15vh auto 20px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    h2 {
+      font-size: 20px;
+      margin: 0;
+    }
+  }
+  .share-slide {
+    position: relative;
+    overflow: hidden;
+    height: calc(100vh - 110px);
+    margin: 12px 24px;
+  }
+  .share-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+  }
+}

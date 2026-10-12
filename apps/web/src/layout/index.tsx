@@ -19,15 +19,38 @@ import {
   PanelLeftOpen,
   X,
 } from "lucide-react";
-import { spaces, useWorkspace } from "@/store/workspace";
+import { useWorkspace } from "@/store/workspace";
+import { useAuth } from "@/store/auth";
+import { spaceApi } from "@/api/spaces";
+import { errorMessage } from "@/http";
 import TooltipButton from "@/components/TooltipButton";
 import BrandIcon from "@/components/BrandIcon";
 import { useLayout, SIDEBAR_MIN, SIDEBAR_MAX } from "@/store/layout";
 import WorkspaceTree from "./components/WorkspaceTree";
 import styles from "./index.module.less";
+import { memberReturnPath } from "@/utils/memberReturn";
 export default function Layout() {
-  const { space, setSpace, theme, setTheme, loggedIn, setLoggedIn } =
+  const { space, spaces, setSpace, theme, setTheme, loadSpaces } =
     useWorkspace();
+  const { user, status, bootstrap, logout } = useAuth();
+  const [spaceName, setSpaceName] = useState("");
+  const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
+  const [creatingSpace, setCreatingSpace] = useState(false);
+  useEffect(() => {
+    if (status === "idle") void bootstrap();
+  }, [status, bootstrap]);
+  const returnSpace = useRef(space);
+  if (space) returnSpace.current = space;
+  useEffect(() => {
+    if (status === "anonymous")
+      navigate("/login", {
+        replace: true,
+        state: {
+          returnTo: memberReturnPath(`${location.pathname}${location.search}`),
+          returnSpace: returnSpace.current,
+        },
+      });
+  }, [status]);
   const { sidebarWidth, sidebarCollapsed, setSidebarWidth, toggleSidebar } =
     useLayout();
   const [narrow, setNarrow] = useState(
@@ -66,7 +89,7 @@ export default function Layout() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  const current = spaces.find((s) => s.id === space)!;
+  const current = spaces.find((s) => s.id === space);
   const favoriteCount = useWorkspace(
     (s) =>
       s.files.filter((f) => f.space === space && f.favorite && !f.deleted)
@@ -84,17 +107,10 @@ export default function Layout() {
     { to: "/favorites", icon: Star, label: "我的收藏" },
     { to: "/shared", icon: ArrowUpRight, label: "公开分享" },
   ];
-  if (!loggedIn) {
-    return (
-      <div className={styles.loggedOut}>
-        <BrandIcon size={32} />
-        <h2>登录后，回到你的空间</h2>
-        <button className="primary-button" onClick={() => navigate("/login")}>
-          进入演示登录
-        </button>
-      </div>
-    );
+  if (status !== "authenticated") {
+    return <div className={styles.loggedOut}>正在连接空间…</div>;
   }
+
   return (
     <div
       className={`${styles.shell} ${sidebarCollapsed ? styles.collapsed : ""} ${resizing ? styles.resizing : ""}`}
@@ -120,25 +136,29 @@ export default function Layout() {
           trigger={["click"]}
           menu={{
             selectedKeys: [space],
-            items: spaces.map((s) => ({
-              key: s.id,
-              label: (
-                <span>
-                  {s.name}
-                  <small className={styles.spaceOption}>{s.caption}</small>
-                </span>
-              ),
-            })),
+            items: [
+              ...spaces.map((s) => ({ key: s.id, label: s.name })),
+              { type: "divider" as const },
+              { key: "create-space", label: "新建空间" },
+            ],
             onClick: ({ key }) => {
-              setSpace(key);
+              if (key === "create-space") {
+                setCreateSpaceOpen(true);
+                return;
+              }
+              void setSpace(key).catch((error: unknown) =>
+                message.error(errorMessage(error)),
+              );
               navigate("/files");
             },
           }}
         >
           <button className={styles.spaceSelect}>
-            <span className={styles.spaceAvatar}>{current.initials}</span>
+            <span className={styles.spaceAvatar}>
+              {current?.name.slice(0, 1) ?? "+"}
+            </span>
             <span>
-              <strong>{current.name}</strong>
+              <strong>{current?.name ?? "创建空间"}</strong>
             </span>
             <ChevronsUpDown size={14} />
           </button>
@@ -261,7 +281,7 @@ export default function Layout() {
                 <PanelLeftOpen size={18} />
               )}
             </TooltipButton>
-            {!isDocument && <strong>{current.name}</strong>}
+            {!isDocument && <strong>{current?.name ?? "创建空间"}</strong>}
           </div>
           {isDocument && (
             <div id="document-header" className={styles.documentHost} />
@@ -279,7 +299,11 @@ export default function Layout() {
               placement="bottomRight"
               menu={{
                 items: [
-                  { key: "account", label: "Tingxi", disabled: true },
+                  {
+                    key: "account",
+                    label: user?.nickname || user?.account,
+                    disabled: true,
+                  },
                   { type: "divider" },
                   {
                     key: "theme",
@@ -293,17 +317,20 @@ export default function Layout() {
                   },
                   {
                     key: "logout",
-                    label: "退出演示账号",
+                    label: "退出账号",
                     icon: <LogOut size={15} />,
                   },
                 ],
-                onClick: ({ key }) => {
+                onClick: async ({ key }) => {
                   if (key === "theme")
                     setTheme(theme === "light" ? "dark" : "light");
                   else {
-                    setLoggedIn(false);
-                    message.info("已退出演示账号");
-                    navigate("/login");
+                    try {
+                      await logout();
+                      navigate("/login", { replace: true });
+                    } catch (error) {
+                      message.error(errorMessage(error));
+                    }
                   }
                 },
               }}
@@ -313,14 +340,63 @@ export default function Layout() {
                 aria-label="账号菜单"
               >
                 <span className={styles.avatar} aria-hidden="true">
-                  T
+                  {(user?.nickname || user?.account || "")
+                    .slice(0, 1)
+                    .toUpperCase()}
                 </span>
               </TooltipButton>
             </Dropdown>
           </div>
         </header>
-        <Outlet />
+        {current ? (
+          <Outlet />
+        ) : (
+          <div className={styles.loggedOut}>
+            <h2>创建你的第一个空间</h2>
+            <button
+              className="primary-button"
+              onClick={() => setCreateSpaceOpen(true)}
+            >
+              新建空间
+            </button>
+          </div>
+        )}
       </div>
+      <Modal
+        title="新建空间"
+        open={createSpaceOpen}
+        onCancel={() => setCreateSpaceOpen(false)}
+        confirmLoading={creatingSpace}
+        okText="创建"
+        cancelText="取消"
+        onOk={async () => {
+          if (!spaceName.trim()) {
+            message.warning("请输入空间名称");
+            return;
+          }
+          setCreatingSpace(true);
+          try {
+            const created = await spaceApi.create(spaceName.trim());
+            await loadSpaces();
+            await setSpace(created.id);
+            setSpaceName("");
+            setCreateSpaceOpen(false);
+            navigate("/files");
+          } catch (error) {
+            message.error(errorMessage(error));
+          } finally {
+            setCreatingSpace(false);
+          }
+        }}
+      >
+        <Input
+          aria-label="空间名称"
+          value={spaceName}
+          onChange={(event) => setSpaceName(event.target.value)}
+          maxLength={80}
+          placeholder="空间名称"
+        />
+      </Modal>
       <Modal
         title="搜索空间"
         open={searchOpen}

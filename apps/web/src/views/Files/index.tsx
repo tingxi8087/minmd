@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import axios from "axios";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { App, Dropdown, Select } from "antd";
 import {
@@ -26,18 +27,79 @@ import {
 } from "lucide-react";
 import { useContextMenu } from "@/components/ContextMenu";
 import FileIcon from "@/components/FileIcon";
-import FileDialogs, { FileAction } from "@/components/FileDialogs";
+import FileDialogs, { type FileAction } from "@/components/FileDialogs";
 import {
-  Entry,
-  FileKind,
+  type Entry,
+  type FileKind,
   kindNames,
-  spaces,
   useWorkspace,
 } from "@/store/workspace";
+import { errorMessage } from "@/http";
+import { useAuth } from "@/store/auth";
+import { documentApi } from "@/api/documents";
 import styles from "./index.module.less";
-import { saveSpreadsheet } from "@/utils/spreadsheetStorage";
+import { loadCreatorNames, creatorName } from "./creators";
+import { sheetApi } from "@/api/sheets";
+import { saveImportedContent, type PendingImport } from "./importFlow";
+const DemoImport = lazy(() => import("@/components/DemoImport"));
 export default function Files() {
-  const { files, space, patch, purge, add } = useWorkspace();
+  const {
+    files,
+    space,
+    spaces,
+    patch,
+    purge,
+    add,
+    filesLoading,
+    filesError,
+    loadFiles,
+  } = useWorkspace();
+  const user = useAuth((state) => state.user);
+  const creatorScope = `${user?.id ?? ""}/${space}`;
+  const [creators, setCreators] = useState<{
+    scope: string;
+    names: Record<string, string>;
+    loaded: boolean;
+    failed: boolean;
+  }>({ scope: "", names: {}, loaded: false, failed: false });
+  useEffect(() => {
+    const controller = new AbortController();
+    setCreators({
+      scope: creatorScope,
+      names: {},
+      loaded: false,
+      failed: false,
+    });
+    if (user && space)
+      void loadCreatorNames(space, controller.signal)
+        .then((names) => {
+          if (!controller.signal.aborted)
+            setCreators({
+              scope: creatorScope,
+              names,
+              loaded: true,
+              failed: false,
+            });
+        })
+        .catch(() => {
+          if (!controller.signal.aborted)
+            setCreators({
+              scope: creatorScope,
+              names: {},
+              loaded: true,
+              failed: true,
+            });
+        });
+    return () => controller.abort();
+  }, [creatorScope, space, user?.id]);
+  const creator = (id: string) =>
+    creatorName(
+      id,
+      creators.scope === creatorScope ? creators.names : {},
+      creators.scope === creatorScope && creators.loaded,
+      creators.scope === creatorScope && creators.failed,
+    );
+  const owner = spaces.find((item) => item.id === space)?.ownerId === user?.id;
   const navigate = useNavigate();
   const contextMenu = useContextMenu();
   const { pathname } = useLocation();
@@ -49,7 +111,9 @@ export default function Files() {
   const [action, setAction] = useState<FileAction | null>(null);
   const [sort, setSort] = useState<"updated" | "name">("updated");
   const upload = useRef<HTMLInputElement>(null);
+  const [failedImport, setFailedImport] = useState<PendingImport | null>(null);
   const [importing, setImporting] = useState(false);
+  const [demoImportOpen, setDemoImportOpen] = useState(false);
   const folderId = params.get("folder");
   const folder = files.find(
     (f) =>
@@ -119,20 +183,21 @@ export default function Files() {
     );
   };
   const remove = (file: Entry) => {
-    if (files.some((f) => f.parent === file.id)) {
-      message.info("请先移动或删除其下的文件");
-      return;
-    }
     modal.confirm({
       title: trash ? "永久删除这个文件？" : "移入回收站？",
-      content: `${file.name}${trash ? "将从本地演示数据中永久移除。" : "可以在回收站恢复。"}`,
+      content: `${file.name}${trash ? "及其子文件将被永久移除。" : "及其子文件可以在回收站恢复。"}`,
       okText: trash ? "永久删除" : "移入回收站",
       okButtonProps: { danger: true },
       cancelText: "取消",
-      onOk: () => {
-        if (trash) purge(file.id);
-        else patch(file.id, { deleted: true });
-        message.success(trash ? "已永久删除" : "已移入回收站");
+      onOk: async () => {
+        try {
+          if (trash) await purge(file.id);
+          else await patch(file.id, { deleted: true });
+          message.success(trash ? "已永久删除" : "已移入回收站");
+        } catch (error) {
+          message.error(errorMessage(error));
+          throw error;
+        }
       },
     });
   };
@@ -140,12 +205,16 @@ export default function Files() {
     trash
       ? [
           { key: "restore", label: "恢复文件", icon: <Undo2 size={15} /> },
-          {
-            key: "delete",
-            label: "永久删除",
-            danger: true,
-            icon: <Trash2 size={15} />,
-          },
+          ...(owner
+            ? [
+                {
+                  key: "delete",
+                  label: "永久删除",
+                  danger: true,
+                  icon: <Trash2 size={15} />,
+                },
+              ]
+            : []),
         ]
       : [
           {
@@ -177,19 +246,26 @@ export default function Files() {
             icon: <Trash2 size={15} />,
           },
         ];
-  const act = (key: string, file: Entry) => {
-    if (key === "open") open(file);
-    else if (key === "favorite") patch(file.id, { favorite: !file.favorite });
-    else if (key === "restore") {
-      patch(file.id, {
-        deleted: false,
-        parent: files.find((f) => f.id === file.parent && !f.deleted)
-          ? file.parent
-          : null,
-      });
-      message.success("文件已恢复");
-    } else if (key === "delete") remove(file);
-    else setAction({ type: key as "share" | "rename" | "move", file });
+  const act = async (key: string, file: Entry) => {
+    try {
+      if (key === "open") open(file);
+      else if (key === "favorite")
+        await patch(file.id, { favorite: !file.favorite });
+      else if (key === "restore") {
+        try {
+          await patch(file.id, { deleted: false });
+          message.success("文件已恢复");
+        } catch (error) {
+          if (axios.isAxiosError(error) && error.response?.status === 409) {
+            setAction({ type: "restore", file });
+            message.info("原位置无法恢复，请选择新位置");
+          } else throw error;
+        }
+      } else if (key === "delete") remove(file);
+      else setAction({ type: key as "share" | "rename" | "move", file });
+    } catch (error) {
+      message.error(errorMessage(error));
+    }
   };
   const newItems = (["doc", "sheet", "slide", "folder"] as FileKind[]).map(
     (kind) => ({
@@ -198,44 +274,157 @@ export default function Files() {
       icon: <FileIcon kind={kind} small />,
     }),
   );
-  const imported = async (file?: File) => {
-    if (!file) return;
-    if (/\.xlsx$/i.test(file.name)) {
-      setImporting(true);
-      let created: string | undefined;
-      try {
-        const { importXlsx } = await import("@/views/Spreadsheet/exchange");
-        const name = file.name.replace(/\.xlsx$/i, "");
-        const data = await importXlsx(file, crypto.randomUUID(), name);
-        created = add(name, "sheet", parent);
-        await saveSpreadsheet(created, data);
-        patch(created, { spreadsheet: { savedAt: new Date().toISOString() } });
-        navigate(`/preview/${created}`);
-        message.success("已导入 Excel，图表等高级对象暂不支持转换");
-      } catch (error) {
-        if (created) purge(created);
-        message.error(
-          error instanceof Error ? error.message : "Excel 导入失败",
-        );
-      } finally {
-        setImporting(false);
-      }
-      return;
-    }
-    if (!/\.(md|markdown)$/i.test(file.name)) {
+  const importController = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const abort = () => {
+      importController.current?.abort();
+      importController.current = null;
+      setImporting(false);
+      setFailedImport(null);
+    };
+    const offAuth = useAuth.subscribe((next, previous) => {
+      if (next.user !== previous.user) abort();
+    });
+    const offSpace = useWorkspace.subscribe((next, previous) => {
+      if (next.space !== previous.space) abort();
+    });
+    return () => {
+      importController.current?.abort();
+      offAuth();
+      offSpace();
+    };
+  }, []);
+  const imported = async (file?: File, retry?: PendingImport) => {
+    if (!file || importing) return;
+    const isSheet = /\.xlsx$/i.test(file.name);
+    if (!isSheet && !/\.(md|markdown)$/i.test(file.name)) {
       message.warning("支持导入 .md 和 .xlsx 文件");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      message.warning("演示文件请小于 2MB");
+    if (!isSheet && file.size > 2 * 1024 * 1024) {
+      message.warning("Markdown 文件请小于 2MB");
       return;
     }
-    const content = await file.text();
-    add(file.name.replace(/\.(md|markdown)$/i, ""), "doc", parent, content);
-    message.success("Markdown 已导入，可打开编辑");
+    const userId = useAuth.getState().user?.id;
+    if (!userId || !space) return;
+    const task = retry ?? { file, userId, spaceId: space };
+    const controller = new AbortController();
+    importController.current = controller;
+    const assertActive = () => {
+      if (
+        useAuth.getState().user?.id !== task.userId ||
+        useWorkspace.getState().space !== task.spaceId
+      )
+        controller.abort();
+      controller.signal.throwIfAborted();
+    };
+    const confirmReplace = () =>
+      new Promise<boolean>((resolve) => {
+        modal.confirm({
+          title: "导入目标已被修改",
+          content:
+            "重新导入将替换已创建文件的当前正文。原文件和历史版本仍保留，是否继续？",
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+    setImporting(true);
+    try {
+      assertActive();
+      const name = file.name.replace(/\.(xlsx|md|markdown)$/i, "");
+      let id: string;
+      if (isSheet) {
+        const { importXlsx } = await import("@/views/Spreadsheet/exchange");
+        assertActive();
+        const sheets = await importXlsx(file, crypto.randomUUID(), name);
+        assertActive();
+        id = await saveImportedContent(task, sheets, {
+          assertActive,
+          create: () => add(name, "sheet", parent),
+          content: (target) => sheetApi.content(target, controller.signal),
+          confirmReplace,
+          write: (target, projection, revision, epoch) =>
+            sheetApi.import(
+              target,
+              projection,
+              revision,
+              epoch,
+              controller.signal,
+            ),
+        });
+      } else {
+        const text = await file.text();
+        assertActive();
+        const { parseMarkdownDocument } =
+          await import("@/views/Document/utils/markdownImport");
+        assertActive();
+        id = await saveImportedContent(task, parseMarkdownDocument(text), {
+          assertActive,
+          create: () => add(name, "doc", parent),
+          content: (target) => documentApi.content(target, controller.signal),
+          confirmReplace,
+          write: (target, projection, revision, epoch) =>
+            documentApi.import(
+              target,
+              projection,
+              revision,
+              epoch,
+              controller.signal,
+            ),
+        });
+      }
+      assertActive();
+      setFailedImport(null);
+      navigate(isSheet ? `/preview/${id}` : `/document/${id}`);
+      message.success(
+        isSheet
+          ? "Excel 已保存到服务器，图表等高级对象暂不支持转换"
+          : "Markdown 已保存到服务器，可打开编辑",
+      );
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setFailedImport(task);
+        message.error(errorMessage(error));
+      }
+    } finally {
+      if (importController.current === controller) {
+        importController.current = null;
+        setImporting(false);
+      }
+    }
   };
   return (
     <main className={styles.page}>
+      {failedImport && (
+        <p role="alert">
+          {failedImport.file.name} 导入未完成，原文件已保留。
+          {failedImport.createdId
+            ? "已创建的目标文件也已保留，重试将继续保存到该文件。"
+            : ""}
+          <button
+            className="secondary-button"
+            disabled={importing}
+            onClick={() => void imported(failedImport.file, failedImport)}
+          >
+            重新导入
+          </button>
+          <button
+            className="secondary-button"
+            onClick={() => setFailedImport(null)}
+          >
+            取消
+          </button>
+        </p>
+      )}
+      {filesLoading && <p role="status">正在加载文件…</p>}
+      {filesError && (
+        <p role="alert">
+          {filesError}{" "}
+          <button className="secondary-button" onClick={() => void loadFiles()}>
+            重试
+          </button>
+        </p>
+      )}
       <section className={styles.intro}>
         <div>
           {folder && (
@@ -255,6 +444,12 @@ export default function Files() {
               >
                 <Upload size={15} />
                 {importing ? "正在导入…" : "导入"}
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() => setDemoImportOpen(true)}
+              >
+                导入旧演示
               </button>
               <Dropdown
                 trigger={["click"]}
@@ -425,8 +620,10 @@ export default function Files() {
                   <small>今天</small>
                 </span>
                 <span className={styles.owner}>
-                  <span className={styles.ownerAvatar}>T</span>
-                  {file.owner}
+                  <span className={styles.ownerAvatar}>
+                    {Array.from(creator(file.owner))[0]?.toUpperCase()}
+                  </span>
+                  {creator(file.owner)}
                 </span>
                 <div className={styles.rowActions}>
                   {!trash && file.kind !== "folder" && (
@@ -501,6 +698,11 @@ export default function Files() {
             navigate(`/preview/${id}`);
         }}
       />
+      {demoImportOpen && (
+        <Suspense fallback={<p role="status">正在读取演示导入工具…</p>}>
+          <DemoImport close={() => setDemoImportOpen(false)} />
+        </Suspense>
+      )}
     </main>
   );
 }

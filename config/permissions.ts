@@ -2,6 +2,24 @@ import type { PermissionGroup } from "../system/server/src/index";
 /** 权限唯一声明来源。直接用于展示与校验；已删除项的历史关联不再授权。 */
 export const adminPermissions = [
   {
+    code: "space",
+    name: "空间管理",
+    permissions: [
+      {
+        code: "space:read",
+        name: "查看空间",
+        description: "查看空间资料与成员，不授权读取私有正文",
+        write: false,
+      },
+      {
+        code: "space:update",
+        name: "管理空间",
+        description: "创建空间、编辑资料及成员归属",
+        write: true,
+      },
+    ],
+  },
+  {
     code: "api",
     name: "接口调试",
     permissions: [

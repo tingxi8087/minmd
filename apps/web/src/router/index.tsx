@@ -5,9 +5,18 @@ import Files from "@/views/Files";
 import Settings from "@/views/Settings";
 import Preview from "@/views/Preview";
 import Login from "@/views/Login";
+const Share = lazy(() => import("@/views/Share"));
 const Document = lazy(() => import("@/views/Document"));
 export const router = createHashRouter([
   { path: "/login", element: <Login /> },
+  {
+    path: "/share/:token",
+    element: (
+      <Suspense fallback={<div>正在打开分享…</div>}>
+        <Share />
+      </Suspense>
+    ),
+  },
   {
     path: "/",
     element: <Layout />,

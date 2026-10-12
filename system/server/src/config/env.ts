@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isIP } from "node:net";
 import { webCmsPath } from "./web-cms-path";
 
 const schema = z.object({
@@ -11,6 +12,37 @@ const schema = z.object({
     .transform((value) => (value === undefined ? undefined : value === "true")),
   HOST: z.string().min(1).default("127.0.0.1"),
   PORT: z.coerce.number().int().min(1).max(65535).default(9811),
+  HTTP_BODY_LIMIT_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1048576)
+    .max(67108864)
+    .default(16777216),
+  TRUST_PROXY_ADDRESSES: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    )
+    .pipe(
+      z.array(
+        z.string().refine((value) => {
+          const [address, prefix, extra] = value.split("/");
+          const family = isIP(address ?? "");
+          return (
+            family !== 0 &&
+            extra === undefined &&
+            (prefix === undefined ||
+              (/^\d+$/.test(prefix) &&
+                Number(prefix) >= 0 &&
+                Number(prefix) <= (family === 4 ? 32 : 128)))
+          );
+        }, "Explicit proxy IP or CIDR required"),
+      ),
+    ),
   DATABASE_URL: z
     .string()
     .url()

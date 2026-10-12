@@ -1,0 +1,173 @@
+[
+  {
+    "name": "@ant-design/icons-svg",
+    "version": "4.6.0",
+    "file": "@ant-design__icons-svg@4.6.0.txt",
+    "source": "https://raw.githubusercontent.com/ant-design/ant-design-icons/7f2516ac91226d2b41f93b35cb5197c8d94f7189/LICENSE",
+    "ref": "7f2516ac91226d2b41f93b35cb5197c8d94f7189"
+  },
+  {
+    "name": "@fortune-sheet/core",
+    "version": "1.0.4",
+    "file": "@fortune-sheet__core@1.0.4.txt",
+    "source": "https://raw.githubusercontent.com/ruilisi/fortune-sheet/94346608877db4747406707a177c4b8f3bacdbf9/LICENSE",
+    "ref": "94346608877db4747406707a177c4b8f3bacdbf9"
+  },
+  {
+    "name": "@fortune-sheet/react",
+    "version": "1.0.4",
+    "file": "@fortune-sheet__react@1.0.4.txt",
+    "source": "https://raw.githubusercontent.com/ruilisi/fortune-sheet/94346608877db4747406707a177c4b8f3bacdbf9/LICENSE",
+    "ref": "94346608877db4747406707a177c4b8f3bacdbf9"
+  },
+  {
+    "name": "@sphinxxxx/color-conversion",
+    "version": "2.2.2",
+    "file": "@sphinxxxx__color-conversion@2.2.2.txt",
+    "source": "npm:@sphinxxxx/color-conversion@2.2.2/package.json, dist/color-conversion.js",
+    "resolution": "原发布 package.json 已明确许可类型；补充该标准许可证授权/免责全文，作者与现有源码版权原样保留。不虚构缺失的版权年份，也不根据惯例推断许可。MIT/X11按MIT授权文本。"
+  },
+  {
+    "name": "@univerjs/protocol",
+    "version": "1.0.4",
+    "file": "@univerjs__protocol@1.0.4.txt",
+    "source": "https://raw.githubusercontent.com/dream-num/univer/v1.0.4/LICENSE",
+    "ref": "v1.0.4"
+  },
+  {
+    "name": "abstract-logging",
+    "version": "2.0.1",
+    "file": "abstract-logging@2.0.1.txt",
+    "source": "npm:abstract-logging@2.0.1/package.json",
+    "resolution": "原发布 package.json 已明确许可类型；补充该标准许可证授权/免责全文，作者与现有源码版权原样保留。不虚构缺失的版权年份，也不根据惯例推断许可。MIT/X11按MIT授权文本。"
+  },
+  {
+    "name": "agent-base",
+    "version": "6.0.2",
+    "file": "agent-base@6.0.2.txt",
+    "source": "npm:agent-base@6.0.2/README.md",
+    "ref": ""
+  },
+  {
+    "name": "binary",
+    "version": "0.3.0",
+    "file": "binary@0.3.0.txt",
+    "source": "npm:binary@0.3.0/package.json",
+    "resolution": "原发布 package.json 已明确许可类型；补充该标准许可证授权/免责全文，作者与现有源码版权原样保留。不虚构缺失的版权年份，也不根据惯例推断许可。MIT/X11按MIT授权文本。"
+  },
+  {
+    "name": "buffers",
+    "version": "0.1.1",
+    "file": "buffers@0.1.1.txt",
+    "source": "https://sources.debian.org/data/main/n/node-buffers/0.1.1-2/debian/copyright",
+    "resolution": "精确0.1.1 Debian源包的 Files:* 明确原代码 MIT 授权；该记录引用原作者声明 commit 1b745ee35d33eb166e15ef1866073a07c6d7de87，原 GitHub commit 当前404。保留原记录全文及授权链，不将 debian/* 的打包版权用于原代码。"
+  },
+  {
+    "name": "bun-types",
+    "version": "1.4.2",
+    "file": "bun-types@1.4.2.txt",
+    "source": "https://raw.githubusercontent.com/oven-sh/bun/744846f844374847c902b5e7fd59b4342a51ef99/LICENSE.md, npm:bun-types@1.4.2/package.json",
+    "ref": "744846f844374847c902b5e7fd59b4342a51ef99",
+    "resolution": "安装发布包及同gitHead上游均明确MIT；上游只含许可声明，另补标准MIT授权/免责全文，不虚构版权归属。"
+  },
+  {
+    "name": "chainsaw",
+    "version": "0.1.0",
+    "file": "chainsaw@0.1.0.txt",
+    "source": "npm:chainsaw@0.1.0/package.json",
+    "resolution": "原发布 package.json 已明确许可类型；补充该标准许可证授权/免责全文，作者与现有源码版权原样保留。不虚构缺失的版权年份，也不根据惯例推断许可。MIT/X11按MIT授权文本。"
+  },
+  {
+    "name": "drizzle-orm",
+    "version": "0.45.4",
+    "file": "drizzle-orm@0.45.4.txt",
+    "source": "https://raw.githubusercontent.com/drizzle-team/drizzle-orm/0.45.4/LICENSE",
+    "ref": "0.45.4"
+  },
+  {
+    "name": "fast-diff",
+    "version": "1.1.2",
+    "file": "fast-diff@1.1.2.txt",
+    "source": "https://raw.githubusercontent.com/jhchen/fast-diff/0e27223f8792083f5a49a193eb1ddbf26125fdb2/LICENSE, npm:fast-diff@1.1.2/diff.js",
+    "ref": "0e27223f8792083f5a49a193eb1ddbf26125fdb2",
+    "resolution": "原发布package.json明确许可；上游许可全文按实际获取提交固定保存。该提交非发布tag，发布版本自身的许可声明和原版权一起核实，不假定当前上游等于发布源码。"
+  },
+  {
+    "name": "https-proxy-agent",
+    "version": "5.0.1",
+    "file": "https-proxy-agent@5.0.1.txt",
+    "source": "npm:https-proxy-agent@5.0.1/README.md",
+    "ref": ""
+  },
+  {
+    "name": "is-reference",
+    "version": "3.0.3",
+    "file": "is-reference@3.0.3.txt",
+    "source": "npm:is-reference@3.0.3/package.json",
+    "resolution": "原发布 package.json 已明确许可类型；补充该标准许可证授权/免责全文，作者与现有源码版权原样保留。不虚构缺失的版权年份，也不根据惯例推断许可。MIT/X11按MIT授权文本。"
+  },
+  {
+    "name": "isarray",
+    "version": "1.0.0",
+    "file": "isarray@1.0.0.txt",
+    "source": "npm:isarray@1.0.0/README.md",
+    "ref": ""
+  },
+  {
+    "name": "locate-character",
+    "version": "3.0.0",
+    "file": "locate-character@3.0.0.txt",
+    "source": "npm:locate-character@3.0.0/package.json",
+    "resolution": "原发布 package.json 已明确许可类型；补充该标准许可证授权/免责全文，作者与现有源码版权原样保留。不虚构缺失的版权年份，也不根据惯例推断许可。MIT/X11按MIT授权文本。"
+  },
+  {
+    "name": "ot-json1",
+    "version": "1.0.2",
+    "file": "ot-json1@1.0.2.txt",
+    "source": "npm:ot-json1@1.0.2/README.md",
+    "ref": ""
+  },
+  {
+    "name": "ot-text-unicode",
+    "version": "4.0.0",
+    "file": "ot-text-unicode@4.0.0.txt",
+    "source": "npm:ot-text-unicode@4.0.0/README.md",
+    "ref": ""
+  },
+  {
+    "name": "pg-types",
+    "version": "2.2.0",
+    "file": "pg-types@2.2.0.txt",
+    "source": "npm:pg-types@2.2.0/README.md",
+    "ref": ""
+  },
+  {
+    "name": "pgpass",
+    "version": "1.0.5",
+    "file": "pgpass@1.0.5.txt",
+    "source": "npm:pgpass@1.0.5/README.md",
+    "ref": ""
+  },
+  {
+    "name": "saxes",
+    "version": "5.0.1",
+    "file": "saxes@5.0.1.txt",
+    "source": "https://raw.githubusercontent.com/lddubeau/saxes/v5.0.1/LICENSE",
+    "ref": "v5.0.1"
+  },
+  {
+    "name": "toggle-selection",
+    "version": "1.0.6",
+    "file": "toggle-selection@1.0.6.txt",
+    "source": "https://raw.githubusercontent.com/sudodoki/toggle-selection/888650b271ee4937e2baff6a43bee744635601e3/LICENSE",
+    "ref": "888650b271ee4937e2baff6a43bee744635601e3",
+    "resolution": "原发布package.json明确许可；上游许可全文按实际获取提交固定保存。该提交非发布tag，发布版本自身的许可声明和原版权一起核实，不假定当前上游等于发布源码。"
+  },
+  {
+    "name": "unicount",
+    "version": "1.1.0",
+    "file": "unicount@1.1.0.txt",
+    "source": "npm:unicount@1.1.0/README.md",
+    "ref": ""
+  }
+]

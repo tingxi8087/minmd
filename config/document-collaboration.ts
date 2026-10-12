@@ -2,6 +2,12 @@ import { z } from "zod";
 const schema = z.object({
   DOC_COLLAB_VERIFY_ENABLED: z.enum(["true", "false"]).default("false"),
   DOC_COLLAB_MAX_SESSIONS: z.coerce.number().int().min(1).max(100).default(10),
+  DOC_COLLAB_MESSAGES_PER_SECOND: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1000)
+    .default(100),
   DOC_COLLAB_VERIFY_DIR: z
     .string()
     .min(1)

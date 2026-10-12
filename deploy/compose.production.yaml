@@ -1,0 +1,110 @@
+name: ${COMPOSE_PROJECT_NAME:-minmd-prod}
+x-app-environment: &app-environment
+  APP_ENV: production
+  HOST: 0.0.0.0
+  PORT: "9811"
+  DOC_COLLAB_MESSAGES_PER_SECOND: ${DOC_COLLAB_MESSAGES_PER_SECOND:-100}
+  AI_EXECUTION_TIMEOUT_MS: ${AI_EXECUTION_TIMEOUT_MS:-15000}
+  HTTP_BODY_LIMIT_BYTES: ${HTTP_BODY_LIMIT_BYTES:-16777216}
+  DATABASE_URL: postgresql://minmd:${POSTGRES_PASSWORD:?请设置POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-minmd}
+  AUTH_TRANSPORT: cookie
+  AUTH_SESSION_HOURS: ${AUTH_SESSION_HOURS:-24}
+  PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?请设置实际HTTPS访问来源}
+  APP_PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?请设置实际HTTPS访问来源}
+  APP_DEV_ORIGINS: ""
+  APP_REGISTRATION_ENABLED: "false"
+  CORS_ORIGINS: ""
+  TRUST_PROXY_ADDRESSES: ${MINMD_PROXY_IP:-172.30.88.10}
+  API_DEBUG_ENABLED: "false"
+  ADMIN_ACCOUNT: ${ADMIN_ACCOUNT:-admin}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请设置首次管理员密码}
+  WEB_CMS_PATH: /admin
+  WEB_CMS_DIST: /app/dist/web-cms
+  STATIC_DIR: /app/runtime/public
+  STATIC_PATH: /public
+  ASSET_STORAGE_DIR: /var/lib/minmd/assets
+  ASSET_UNBOUND_GRACE_HOURS: ${ASSET_UNBOUND_GRACE_HOURS:-24}
+  DOC_COLLAB_VERIFY_ENABLED: "false"
+  SHEET_COLLAB_VERIFY_ENABLED: "false"
+  DOC_COLLAB_MAX_SESSIONS: ${DOC_COLLAB_MAX_SESSIONS:-10}
+  SHEET_COLLAB_MAX_SESSIONS: ${SHEET_COLLAB_MAX_SESSIONS:-10}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: minmd
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请设置POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-minmd}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    image: minmd-migrate:${MINMD_IMAGE_TAG:-local}
+    build: { context: .., dockerfile: deploy/Dockerfile, target: migrate }
+    profiles: [tools]
+    environment:
+      <<: *app-environment
+      WEB_CMS_DIST: /workspace/dist/web-cms
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+  app:
+    image: minmd-app:${MINMD_IMAGE_TAG:-local}
+    build: { context: .., dockerfile: deploy/Dockerfile, target: app }
+    environment: *app-environment
+    networks: [default, proxy]
+    volumes:
+      - asset_data:/var/lib/minmd/assets
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          CMD,
+          bun,
+          -e,
+          'const response=await fetch("http://127.0.0.1:9811/api/health");process.exit(response.ok?0:1)',
+        ]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 6
+    stop_grace_period: 30s
+    restart: unless-stopped
+  web:
+    image: minmd-web:${MINMD_IMAGE_TAG:-local}
+    build: { context: .., dockerfile: deploy/Dockerfile, target: web }
+    environment:
+      MINMD_PROXY_GATEWAY: ${MINMD_PROXY_GATEWAY:-172.30.88.1}
+    ports:
+      - "127.0.0.1:${WEB_BIND_PORT:-8080}:8080"
+    depends_on:
+      app: { condition: service_healthy }
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/nginx-health]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    networks:
+      proxy:
+        ipv4_address: ${MINMD_PROXY_IP:-172.30.88.10}
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+volumes:
+  postgres_data:
+  asset_data:
+
+networks:
+  proxy:
+    ipam:
+      config:
+        - subnet: ${MINMD_PROXY_SUBNET:-172.30.88.0/24}
+          gateway: ${MINMD_PROXY_GATEWAY:-172.30.88.1}

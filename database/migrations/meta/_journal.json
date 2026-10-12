@@ -22,6 +22,48 @@
       "when": 1789828377178,
       "tag": "0002_app_users",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791733731977,
+      "tag": "0003_brainy_microchip",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791734105796,
+      "tag": "0004_flowery_agent_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791734560299,
+      "tag": "0005_fearless_magma",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791735758007,
+      "tag": "0006_needy_spiral",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791735780972,
+      "tag": "0007_youthful_northstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791736542958,
+      "tag": "0008_classy_molten_man",
+      "breakpoints": true
     }
   ]
 }

@@ -1,9 +1,27 @@
 import type { Cell, Sheet } from "@fortune-sheet/core";
+import {
+  is_date as isDateFormat,
+  update as formatNumber,
+} from "@fortune-sheet/core";
 import type { IWorkbookData, ICellData, IStyleData } from "@univerjs/core";
 import {
   createWorkbook as legacyWorkbook,
   emptySheet,
 } from "./legacy/workbook";
+
+function formattedCell(cell: Cell): Cell {
+  const value = { ...cell, ct: cell.ct ? { ...cell.ct } : undefined };
+  value.m ??= value.v == null ? "" : String(value.v);
+  if (typeof value.v === "number" && value.ct?.fa) {
+    try {
+      value.m = String(formatNumber(value.ct.fa, value.v));
+      value.ct.t = isDateFormat(value.ct.fa, value.v) ? "d" : "n";
+    } catch {
+      value.m = String(value.v);
+    }
+  }
+  return value;
+}
 
 // 旧数据只在导入、导出与一次性本地迁移时转换，不再运行 Univer 编辑器。
 export function fromLegacy(book: IWorkbookData): Sheet[] {
@@ -50,7 +68,7 @@ export function fromLegacy(book: IWorkbookData): Sheet[] {
           un: s.ul?.s === 1 ? 1 : 0,
           cl: s.st?.s === 1 ? 1 : 0,
         };
-        celldata.push({ r: Number(r), c: Number(c), v: cell });
+        celldata.push({ r: Number(r), c: Number(c), v: formattedCell(cell) });
         if (s.bd)
           config.borderInfo!.push({
             rangeType: "cell",
@@ -262,12 +280,7 @@ export function prepareWorkbook(sheets: Sheet[]): Sheet[] {
       ],
       celldata: cells.map((cell) => ({
         ...cell,
-        v: cell.v
-          ? {
-              ...cell.v,
-              m: cell.v.m ?? (cell.v.v == null ? "" : String(cell.v.v)),
-            }
-          : null,
+        v: cell.v ? formattedCell(cell.v) : null,
       })),
     };
   });

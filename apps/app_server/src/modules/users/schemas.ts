@@ -7,9 +7,9 @@ export const account = Type.String({
   example: "demo_user",
 });
 export const password = Type.String({
-  minLength: 12,
+  minLength: 6,
   maxLength: 128,
-  description: "密码，12–128 位",
+  description: "密码，6–128 位",
 });
 export const profile = {
   nickname: Type.String({

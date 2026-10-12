@@ -40,6 +40,12 @@ source.addWorksheet("事项清单").addRows([
 const binary = await source.xlsx.writeBuffer();
 const file = new File([new Uint8Array(binary)], "budget.xlsx");
 const fortune = await importXlsx(file, "test", "预算");
+const date = fortune[0].celldata?.find(
+  (cell) => cell.r === 5 && cell.c === 1,
+)?.v;
+assert.equal(date?.v, 46305);
+assert.equal(date?.m, "2026-10-10");
+assert.deepEqual(date?.ct, { fa: "yyyy-mm-dd", t: "d" });
 const data = toLegacy(fortune, "test", "预算");
 assert.equal(data.sheetOrder.length, 2);
 assert.equal(
@@ -99,3 +105,18 @@ const restored = prepareWorkbook([
 assert.equal(restored[0].data, undefined);
 assert.equal(restored[0].celldata?.[0].v?.m, "3");
 assert.equal(restored[0].celldata?.[0].v?.f, "=1+2");
+const restoredDate = prepareWorkbook([
+  {
+    id: "date",
+    name: "日期",
+    data: [
+      [
+        { v: 46305, m: "46305", ct: { fa: "yyyy-mm-dd", t: "n" } },
+        { v: 46306, f: "=A1+1", ct: { fa: "yyyy-mm-dd", t: "n" } },
+      ],
+    ],
+  },
+]);
+assert.equal(restoredDate[0].celldata?.[0].v?.m, "2026-10-10");
+assert.equal(restoredDate[0].celldata?.[0].v?.ct?.t, "d");
+assert.equal(restoredDate[0].celldata?.[1].v?.m, "2026-10-11");

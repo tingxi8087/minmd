@@ -1,4 +1,7 @@
 import type { JSONContent } from "@tiptap/core";
+import { filesApi, type RemoteFile } from "@/api/files";
+import { errorMessage } from "@/http";
+import { spaceApi, type Space } from "@/api/spaces";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { canMove, siblings } from "@/utils/fileTree";
@@ -7,6 +10,8 @@ import { deleteSpreadsheet } from "@/utils/spreadsheetStorage";
 export type FileKind = "doc" | "sheet" | "slide" | "folder";
 export type Entry = {
   id: string;
+  metadataRevision?: number;
+  deletedBatch?: string | null;
   name: string;
   kind: FileKind;
   space: string;
@@ -90,132 +95,247 @@ type DemoKey = {
   created: string;
 };
 type State = {
+  spaces: Space[];
+  loadSpaces: () => Promise<void>;
+  loadFiles: () => Promise<void>;
+  clearSession: () => void;
+  filesLoading: boolean;
+  filesError: string;
   theme: "light" | "dark";
   space: string;
   files: Entry[];
   keys: DemoKey[];
   loggedIn: boolean;
   setTheme: (theme: State["theme"]) => void;
-  setSpace: (space: string) => void;
+  setSpace: (space: string) => Promise<void>;
   setLoggedIn: (value: boolean) => void;
   add: (
     name: string,
     kind: FileKind,
     parent: string | null,
     content?: string,
-  ) => string;
-  patch: (id: string, patch: Partial<Entry>) => void;
-  relocate: (id: string, parent: string | null, index?: number) => boolean;
-  purge: (id: string) => void;
+  ) => Promise<string>;
+  patch: (id: string, patch: Partial<Entry>) => Promise<void>;
+  relocate: (
+    id: string,
+    parent: string | null,
+    index?: number,
+  ) => Promise<boolean>;
+  purge: (id: string) => Promise<void>;
   addKey: (key: DemoKey) => void;
   removeKey: (id: string) => void;
   reset: () => void;
-  visit: (id: string) => void;
+  visit: (id: string) => Promise<void>;
 };
+let sessionGeneration = 0;
+let fileRequest = 0;
+export const fromRemoteFile = (file: RemoteFile): Entry => ({
+  id: file.id,
+  space: file.spaceId,
+  name: file.name,
+  kind: file.kind,
+  parent: file.parentId,
+  order: file.position,
+  owner: file.createdBy,
+  favorite: file.favorite ?? false,
+  public: file.visibility === "public",
+  deleted: file.deletedAt !== null,
+  deletedBatch: file.deletedBatch,
+  metadataRevision: file.metadataRevision,
+  updated: file.updatedAt,
+  accessed: file.accessedAt ?? undefined,
+});
 export const useWorkspace = create<State>()(
   persist(
     (set, get) => ({
       theme: "light",
-      space: "team",
-      files: initialFiles,
+      space: "",
+      spaces: [],
+      files: [],
       keys: [],
-      loggedIn: true,
-      setTheme: (theme) => set({ theme }),
-      setSpace: (space) => set({ space }),
-      setLoggedIn: (loggedIn) => set({ loggedIn }),
-      add: (name, kind, parent, content) => {
-        const id = crypto.randomUUID();
+      loggedIn: false,
+      filesLoading: false,
+      filesError: "",
+      clearSession: () => {
+        sessionGeneration++;
+        fileRequest++;
         set({
-          files: [
-            {
-              ...entry(id, name, kind),
-              parent,
-              content,
-              space: get().space,
-              order:
-                Math.max(
-                  -1,
-                  ...siblings(get().files, get().space, parent).map(
-                    (f) => f.order ?? get().files.indexOf(f),
-                  ),
-                ) + 1,
-              updated: new Date().toISOString(),
-            },
-            ...get().files,
-          ],
+          loggedIn: false,
+          spaces: [],
+          files: [],
+          keys: [],
+          space: "",
+          filesLoading: false,
+          filesError: "",
         });
-        return id;
       },
-      patch: (id, patch) =>
+      loadSpaces: async () => {
+        const generation = sessionGeneration;
+        const spaces = await spaceApi.list();
+        if (generation !== sessionGeneration) return;
+        const space = spaces.some((item) => item.id === get().space)
+          ? get().space
+          : (spaces[0]?.id ?? "");
+        const changed = space !== get().space;
         set({
-          files: get().files.map((file) =>
-            file.id === id
-              ? { ...file, ...patch, updated: new Date().toISOString() }
-              : file,
-          ),
-        }),
-      purge: (id) => {
-        const key = get().files.find((file) => file.id === id)?.presentation
-          ?.key;
-        set({ files: get().files.filter((file) => file.id !== id) });
-        if (key) void deletePresentation(key).catch(() => {});
-        void deleteSpreadsheet(id).catch(() => {});
+          spaces,
+          space,
+          loggedIn: true,
+          ...(changed ? { files: [] } : {}),
+        });
+        await get().loadFiles();
       },
-      relocate: (id, parent, index) => {
+      loadFiles: async () => {
+        const space = get().space;
+        if (!space) {
+          set({ files: [], filesLoading: false });
+          return;
+        }
+        const generation = sessionGeneration;
+        const currentRequest = ++fileRequest;
+        set({ filesLoading: true, filesError: "" });
+        try {
+          const [live, trash] = await Promise.all([
+            filesApi.tree(space),
+            filesApi.trash(space),
+          ]);
+          if (
+            generation !== sessionGeneration ||
+            currentRequest !== fileRequest ||
+            space !== get().space
+          )
+            return;
+          const previous = new Map(get().files.map((file) => [file.id, file]));
+          set({
+            files: [...live, ...trash].map((remote) => ({
+              ...previous.get(remote.id),
+              ...fromRemoteFile(remote),
+            })),
+            filesLoading: false,
+          });
+        } catch (error) {
+          if (
+            generation === sessionGeneration &&
+            currentRequest === fileRequest &&
+            space === get().space
+          )
+            set({
+              files: [],
+              filesLoading: false,
+              filesError: errorMessage(error),
+            });
+        }
+      },
+      setTheme: (theme) => set({ theme }),
+      setSpace: async (space) => {
+        if (!get().spaces.some((item) => item.id === space))
+          throw new Error("无权访问此空间");
+        fileRequest++;
+        set({ space, files: [], filesError: "" });
+        await get().loadFiles();
+      },
+      setLoggedIn: (loggedIn) => set({ loggedIn }),
+      add: async (name, kind, parent, content) => {
+        const space = get().space;
+        if (!space) throw new Error("请先选择空间");
+        const generation = sessionGeneration;
+        const remote = await filesApi.create(space, {
+          name,
+          kind,
+          parentId: parent,
+        });
+        if (space === get().space && generation === sessionGeneration)
+          set({
+            files: [{ ...fromRemoteFile(remote), content }, ...get().files],
+          });
+        return remote.id;
+      },
+      patch: async (id, patch) => {
+        const file = get().files.find((item) => item.id === id);
+        if (!file || file.space !== get().space)
+          throw new Error("文件不存在或空间已切换");
+        const space = file.space;
+        const generation = sessionGeneration;
+        if (patch.name !== undefined)
+          await filesApi.rename(
+            space,
+            id,
+            patch.name,
+            file.metadataRevision ?? 0,
+          );
+        if (patch.favorite !== undefined)
+          await filesApi.favorite(space, id, patch.favorite);
+        if (patch.deleted === true) await filesApi.remove(space, id);
+        if (patch.deleted === false)
+          await filesApi.restore(space, id, patch.parent);
+        if (
+          patch.public !== undefined ||
+          patch.password !== undefined ||
+          patch.expires !== undefined
+        )
+          throw new Error("分享接口正在接入");
+        if (generation !== sessionGeneration || space !== get().space) return;
+        set({
+          files: get().files.map((item) =>
+            item.id === id
+              ? { ...item, ...patch, updated: new Date().toISOString() }
+              : item,
+          ),
+        });
+        if (patch.name !== undefined || patch.deleted !== undefined)
+          await get().loadFiles();
+      },
+      relocate: async (id, parent, index) => {
         const files = get().files;
         if (!canMove(files, id, parent)) return false;
-        const file = files.find((f) => f.id === id)!;
+        const file = files.find((item) => item.id === id);
+        if (!file) return false;
         const destination = siblings(files, file.space, parent).filter(
-          (f) => f.id !== id,
+          (item) => item.id !== id,
         );
-        destination.splice(
-          Math.max(
-            0,
-            Math.min(index ?? destination.length, destination.length),
-          ),
-          0,
-          file,
+        const beforeId =
+          index === undefined ? undefined : destination[Math.max(0, index)]?.id;
+        await filesApi.move(
+          file.space,
+          id,
+          parent,
+          beforeId,
+          file.metadataRevision ?? 0,
         );
-        const orders = new Map(destination.map((f, i) => [f.id, i]));
-        set({
-          files: files.map((f) =>
-            f.id === id
-              ? {
-                  ...f,
-                  parent,
-                  order: orders.get(id),
-                  updated: new Date().toISOString(),
-                }
-              : orders.has(f.id)
-                ? { ...f, order: orders.get(f.id) }
-                : f,
-          ),
-        });
+        await get().loadFiles();
         return true;
+      },
+      purge: async (id) => {
+        const file = get().files.find((item) => item.id === id);
+        if (!file) throw new Error("文件不存在");
+        await filesApi.purge(file.space, id);
+        if (file.presentation) await deletePresentation(file.presentation.key);
+        await deleteSpreadsheet(id);
+        await get().loadFiles();
       },
       addKey: (key) => set({ keys: [key, ...get().keys] }),
       removeKey: (id) =>
         set({ keys: get().keys.filter((key) => key.id !== id) }),
-      visit: (id) =>
-        set({
-          files: get().files.map((file) =>
-            file.id === id
-              ? { ...file, accessed: new Date().toISOString() }
-              : file,
-          ),
-        }),
+      visit: async (id) => {
+        const file = get().files.find((item) => item.id === id);
+        if (!file) return;
+        await filesApi.visit(file.space, id);
+        if (file.space === get().space)
+          set({
+            files: get().files.map((item) =>
+              item.id === id
+                ? { ...item, accessed: new Date().toISOString() }
+                : item,
+            ),
+          });
+      },
       reset: () => {
-        const sheets = get()
-          .files.filter((file) => file.kind === "sheet")
-          .map((file) => file.id);
-        const keys = get().files.flatMap((file) =>
-          file.presentation ? [file.presentation.key] : [],
-        );
-        set({ files: initialFiles, keys: [], space: "team" });
-        keys.forEach((key) => void deletePresentation(key).catch(() => {}));
-        sheets.forEach((id) => void deleteSpreadsheet(id).catch(() => {}));
+        throw new Error("真实工作区不支持重置演示数据");
       },
     }),
-    { name: "minmd-static-demo-v1" },
+    {
+      name: "minmd-preferences-v2",
+      partialize: (state) => ({ theme: state.theme, space: state.space }),
+    },
   ),
 );

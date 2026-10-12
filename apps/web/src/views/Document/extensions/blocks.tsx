@@ -136,7 +136,6 @@ function ReferenceView({ node }: NodeViewProps) {
         href={`#/document/${encodeURIComponent(node.attrs.id)}`}
         onClick={(e) => {
           if (!target) e.preventDefault();
-          else useWorkspace.getState().setSpace(target.space);
         }}
         aria-label={target ? `打开文档 ${target.name}` : "引用文档已删除"}
       >

@@ -1,3 +1,4 @@
+import Spaces from "@/views/Spaces";
 import AppUsers from "@/views/AppUsers";
 import Database from "@/views/Database";
 import ApiDebug from "@/views/ApiDebug";
@@ -88,6 +89,13 @@ const Router: MasRouter = [
         ],
       },
     ],
+  },
+  {
+    path: "/spaces",
+    label: "空间管理",
+    access: "space:read",
+    icon: <AppstoreOutlined aria-hidden />,
+    element: <Spaces />,
   },
   {
     path: "/app-users",

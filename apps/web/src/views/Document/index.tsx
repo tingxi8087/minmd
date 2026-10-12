@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useBlocker } from "react-router-dom";
 import { App, Input, Modal } from "antd";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { TextSelection } from "@tiptap/pm/state";
@@ -12,14 +12,20 @@ import {
   BackgroundColor,
 } from "@tiptap/extension-text-style";
 import { hasCustomTextStyle } from "./utils/markdownExport";
-import { yUndoPluginKey } from "y-prosemirror";
+import { shouldRecordDraft } from "./collaborationState";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import {
-  useDocumentVerification,
+  useDocumentCollaboration,
   type DocumentSession,
-  type VerificationView,
-} from "./verification";
+  type CollaborationView,
+} from "./collaboration";
+import { documentApi } from "@/api/documents";
+import { useAuth } from "@/store/auth";
+import { errorMessage } from "@/http";
+import { assetsApi } from "@/api/assets";
+import { BlockId } from "./extensions/blockId";
+import VersionHistory from "./components/VersionHistory";
 import type { JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -31,6 +37,7 @@ import { Markdown } from "@tiptap/markdown";
 import {
   ArrowLeft,
   Users,
+  History,
   PencilLine,
   FolderInput,
   Undo2,
@@ -60,8 +67,8 @@ import {
   ArrowLeftToLine,
   ArrowRightToLine,
 } from "lucide-react";
-import { Entry, useWorkspace } from "@/store/workspace";
-import FileDialogs, { FileAction } from "@/components/FileDialogs";
+import { type Entry, useWorkspace } from "@/store/workspace";
+import FileDialogs, { type FileAction } from "@/components/FileDialogs";
 import { useContextMenu, type ContextItem } from "@/components/ContextMenu";
 import TooltipButton from "@/components/TooltipButton";
 import InsertPicker, { type InsertKind } from "./components/InsertPicker";
@@ -74,7 +81,6 @@ import { exportDocument, hasCustomBlocks } from "./utils/markdownExport";
 import { SelectableCodeBlock } from "./components/CodeBlock";
 import Formatting from "./components/Formatting";
 import { useSlashMenu } from "./components/useSlashMenu";
-import { samples } from "./content";
 import styles from "./index.module.less";
 const shouldShowFormatting: NonNullable<
   React.ComponentProps<typeof BubbleMenu>["shouldShow"]
@@ -115,24 +121,23 @@ export default function Document() {
   return <DocumentMode key={file.id} file={file} />;
 }
 function DocumentMode({ file }: { file: Entry }) {
-  const verification = useDocumentVerification(file);
-  if (verification.session && !verification.visible)
+  const collaboration = useDocumentCollaboration(file);
+  if (!collaboration.session?.loaded)
     return (
       <div className={styles.verification} role="status">
-        {verification.view.notice}
-        <button className="secondary-button" onClick={verification.stop}>
-          返回本地文档
+        {collaboration.view.notice || "正在加载文档…"}
+        <button className="secondary-button" onClick={collaboration.restart}>
+          重新连接
         </button>
       </div>
     );
   return (
     <DocumentEditor
-      key={verification.session ? "collaboration" : "local"}
+      key={`${file.id}/${collaboration.session.epoch}`}
       file={file}
-      session={verification.session}
-      verification={verification.view}
-      startVerification={verification.start}
-      stopVerification={verification.stop}
+      session={collaboration.session}
+      verification={collaboration.view}
+      collaboration={collaboration}
     />
   );
 }
@@ -140,14 +145,12 @@ function DocumentEditor({
   file,
   session,
   verification,
-  startVerification,
-  stopVerification,
+  collaboration,
 }: {
   file: Entry;
-  session: DocumentSession | null;
-  verification: VerificationView;
-  startVerification: (seed: JSONContent) => void;
-  stopVerification: () => void;
+  session: DocumentSession;
+  verification: CollaborationView;
+  collaboration: ReturnType<typeof useDocumentCollaboration>;
 }) {
   const navigate = useNavigate();
   const contextMenu = useContextMenu();
@@ -161,6 +164,8 @@ function DocumentEditor({
   );
   const [title, setTitle] = useState(file.name);
   const [status, setStatus] = useState<"saved" | "saving" | "failed">("saved");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [checkpointBusy, setCheckpointBusy] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [action, setAction] = useState<FileAction | null>(null);
   const [insertKind, setInsertKind] = useState<InsertKind | null>(null);
@@ -168,20 +173,63 @@ function DocumentEditor({
   const [link, setLink] = useState("");
   const [revision, setRevision] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout>>();
+  const editorInitialized = useRef(false);
+  const titleWrites = useRef<Promise<void>>(Promise.resolve());
   const imageInput = useRef<HTMLInputElement>(null);
   const markdownInput = useRef<HTMLInputElement>(null);
   const keyHandler = useRef<(e: KeyboardEvent) => boolean>(() => false);
   const save = (value: Partial<Entry>) => {
     setStatus("saving");
     clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      titleWrites.current = titleWrites.current
+        .catch(() => {})
+        .then(() => patch(file.id, value));
+      void titleWrites.current
+        .then(() => setStatus("saved"))
+        .catch((error: unknown) => {
+          setStatus("failed");
+          message.error(errorMessage(error));
+        });
+    }, 500);
+  };
+  const checkpoint = async () => {
+    if (checkpointBusy) return;
+    setCheckpointBusy(true);
     try {
-      patch(file.id, value);
-      timer.current = setTimeout(() => setStatus("saved"), 450);
-    } catch {
-      setStatus("failed");
-      message.error("本地保存失败，可能是浏览器存储空间不足。请导出备份。");
+      await collaboration.checkpoint();
+      message.success("已保存并创建版本");
+    } catch (error) {
+      message.error(errorMessage(error));
+    } finally {
+      setCheckpointBusy(false);
     }
   };
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void checkpoint();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [checkpointBusy, collaboration.checkpoint]);
+  const blocker = useBlocker(() =>
+    Boolean(useAuth.getState().user && session.pending),
+  );
+  useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    const dialog = modal.confirm({
+      title: "修改尚未确认保存",
+      content: "恢复草稿已保留在此浏览器。离开后可重新打开并检查草稿。",
+      okText: "离开",
+      cancelText: "继续编辑",
+      onOk: () => blocker.proceed(),
+      onCancel: () => blocker.reset(),
+    });
+    return () => dialog.destroy();
+  }, [blocker.state]);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -199,7 +247,10 @@ function DocumentEditor({
       TextStyle,
       Color,
       BackgroundColor,
-      HeadingCollapse,
+      BlockId,
+      HeadingCollapse.configure({
+        storageKey: `minmd-heading-fold/${session.scope.userId}/${file.id}`,
+      }),
       TableDeletePreview,
       FontSize,
       Callout,
@@ -212,25 +263,19 @@ function DocumentEditor({
             CollaborationCaret.configure({
               provider: session.provider,
               user: {
-                name: `编辑者 ${session.document.clientID.toString(16).slice(-4)}`,
+                name: session.userName,
                 color: "#168b78",
               },
             }),
           ]
         : []),
     ],
-    content: session
-      ? undefined
-      : file.document || file.content || samples[file.id] || "",
-    contentType: session || file.document ? "json" : "markdown",
-    editable: !session || verification.ready,
-    onCreate: ({ editor }) => {
-      if (session?.initialize && !session.seeded) {
-        session.seeded = true;
-        editor.commands.setContent(session.seed);
-        yUndoPluginKey.getState(editor.state)?.undoManager.clear();
-        session.provider.sendStateless("initialized");
-      }
+    content: undefined,
+    contentType: "json",
+    editable: verification.ready,
+    onCreate: () => {
+      editorInitialized.current = true;
+      session.provider.sendStateless("ready");
     },
     shouldRerenderOnTransaction: true,
     editorProps: {
@@ -242,15 +287,21 @@ function DocumentEditor({
       },
       handleKeyDown: (_view, event) => keyHandler.current(event),
     },
-    onUpdate: ({ editor }) => {
-      save({ document: editor.getJSON(), contentVersion: 1 });
-      setRevision((r) => r + 1);
+    onUpdate: ({ editor, transaction }) => {
+      if (!editorInitialized.current || !transaction.docChanged) return;
+      const local = shouldRecordDraft(transaction);
+      queueMicrotask(() => {
+        if (editor.isDestroyed) return;
+        if (local) collaboration.recordDraft(editor.getJSON());
+        setRevision((value) => value + 1);
+      });
     },
     onSelectionUpdate: () => setRevision((r) => r + 1),
   });
   useEffect(() => {
     editor?.setEditable(
       !session || (verification.ready && verification.connected),
+      false,
     );
   }, [editor, session, verification.ready, verification.connected]);
   const slash = useSlashMenu(
@@ -269,7 +320,9 @@ function DocumentEditor({
   );
   keyHandler.current = slash.onKeyDown;
   useEffect(() => {
-    visit(file.id);
+    void visit(file.id).catch((error: unknown) =>
+      message.error(errorMessage(error)),
+    );
     return () => clearTimeout(timer.current);
   }, [file.id, visit]);
   useEffect(() => {
@@ -329,44 +382,71 @@ function DocumentEditor({
       onOk: downloadMarkdown,
     });
   };
-  const importMarkdown = async (file?: File) => {
-    if (!file) return;
-    if (!/\.(md|markdown)$/i.test(file.name) || file.size > 2 * 1024 * 1024) {
+  const importMarkdown = async (importFile?: File) => {
+    if (!importFile) return;
+    if (
+      !/\.(md|markdown)$/i.test(importFile.name) ||
+      importFile.size > 2 * 1024 * 1024
+    ) {
       message.warning("请选择小于 2MB 的 Markdown 文件");
       return;
     }
-    const text = await file.text();
+    const text = await importFile.text();
     modal.confirm({
       title: "用导入内容替换正文？",
-      content: "标题保持不变。可使用撤销恢复替换前的正文。",
+      content:
+        "导入将替换正文并创建新版本，当前所有协作会话会重新打开。可在版本历史中恢复导入前的内容。",
       okText: "导入",
       cancelText: "取消",
-      onOk: () => {
-        editor.commands.setContent(text, { contentType: "markdown" });
-        message.success("Markdown 已转成可编辑正文");
+      onOk: async () => {
+        try {
+          const projection = editor.markdown!.parse(text);
+          const current = await documentApi.content(file.id);
+          await documentApi.import(
+            file.id,
+            projection,
+            current.revision,
+            current.epoch,
+          );
+          collaboration.restart();
+          message.success("Markdown 已导入并创建版本");
+        } catch (error) {
+          message.error(errorMessage(error));
+          throw error;
+        }
       },
     });
   };
-  const insertImage = (file?: File) => {
-    if (!file) return;
+  const insertImage = async (imageFile?: File) => {
+    if (!imageFile) return;
+    if (!verification.ready || !verification.connected) {
+      message.warning("请先恢复文档连接");
+      return;
+    }
     if (
       !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(
-        file.type,
+        imageFile.type,
       ) ||
-      file.size > 1024 * 1024
+      imageFile.size > 1024 * 1024
     ) {
       message.warning("请选择小于 1MB 的 PNG、JPEG、WebP 或 GIF 图片");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () =>
-      editor
-        .chain()
-        .focus()
-        .setImage({ src: String(reader.result), alt: file.name })
-        .run();
-    reader.onerror = () => message.error("图片读取失败");
-    reader.readAsDataURL(file);
+    const epoch = session.epoch;
+    try {
+      const asset = await assetsApi.upload(file.space, imageFile);
+      if (!editor.isDestroyed && session.epoch === epoch)
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            type: "image",
+            attrs: { src: asset.url, alt: imageFile.name, assetId: asset.id },
+          })
+          .run();
+    } catch (error) {
+      message.error(errorMessage(error));
+    }
   };
   const openLink = () => {
     setLink(editor.getAttributes("link").href || "");
@@ -413,7 +493,11 @@ function DocumentEditor({
       key: "favorite",
       label: file.favorite ? "取消收藏" : "添加收藏",
       icon: <Star size={15} />,
-      run: () => patch(file.id, { favorite: !file.favorite }),
+      run: () => {
+        void patch(file.id, { favorite: !file.favorite }).catch(
+          (error: unknown) => message.error(errorMessage(error)),
+        );
+      },
     },
     {
       key: "share",
@@ -558,20 +642,17 @@ function DocumentEditor({
         </span>
       )}
       <div className={styles.headerActions}>
-        {import.meta.env.DEV && (
-          <button
-            className="secondary-button"
-            aria-label="文档开发协作验证"
-            onClick={() =>
-              session ? stopVerification() : startVerification(editor.getJSON())
-            }
-          >
-            <Users size={15} />
-            {session
-              ? `${verification.count}/${verification.limit}`
-              : "协作验证"}
-          </button>
-        )}
+        <span className={styles.documentStats} aria-label="协作会话数量">
+          <Users size={14} />
+          {verification.count}/{verification.limit}
+        </span>
+        <TooltipButton
+          className="icon-button"
+          aria-label="版本历史"
+          onClick={() => setHistoryOpen(true)}
+        >
+          <History size={17} />
+        </TooltipButton>
         <span className={styles.documentStats}>{count} 字</span>
         <span className={styles.visibility}>
           {file.public ? <Globe2 size={13} /> : <LockKeyhole size={13} />}
@@ -581,7 +662,11 @@ function DocumentEditor({
           className="icon-button"
           aria-label="收藏文档"
           aria-pressed={file.favorite}
-          onClick={() => patch(file.id, { favorite: !file.favorite })}
+          onClick={() => {
+            void patch(file.id, { favorite: !file.favorite }).catch(
+              (error: unknown) => message.error(errorMessage(error)),
+            );
+          }}
         >
           <Star size={16} fill={file.favorite ? "currentColor" : "none"} />
         </TooltipButton>
@@ -624,20 +709,62 @@ function DocumentEditor({
       {session && (
         <div className={styles.verification} role="status">
           {verification.notice ||
-            `开发协作验证 · 演示身份 · ${verification.saved ? "已保存到服务器" : "正在同步 / 保存…"}`}
+            `${verification.saved ? "已保存到服务器" : verification.synced ? "已同步，正在持久化…" : "正在同步…"}`}
           {!verification.connected && (
             <button
               className="secondary-button"
-              onClick={() =>
-                void session.provider.configuration.websocketProvider.connect()
-              }
+              onClick={() => collaboration.restart()}
             >
               重新连接
             </button>
           )}
         </div>
       )}
-      <div className={styles.toolbar}>
+      {collaboration.drafts.length > 0 && (
+        <div className={styles.verification} role="status">
+          检测到未确认的恢复草稿（历史 epoch {collaboration.drafts[0].epoch}）
+          <button
+            className="secondary-button"
+            onClick={() => {
+              const draft = collaboration.drafts[0];
+              const url = URL.createObjectURL(
+                new Blob([JSON.stringify(draft.projection, null, 2)], {
+                  type: "application/json",
+                }),
+              );
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = `${file.name}-恢复草稿.json`;
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            导出草稿
+          </button>
+          <button
+            className="secondary-button"
+            onClick={() => {
+              void collaboration.dismissDraft(collaboration.drafts[0]);
+            }}
+          >
+            忽略
+          </button>
+        </div>
+      )}
+      <VersionHistory
+        file={file}
+        open={historyOpen}
+        close={() => setHistoryOpen(false)}
+        onRestore={collaboration.restart}
+        checkpoint={checkpoint}
+        checkpointBusy={checkpointBusy}
+      />
+      <div
+        className={styles.toolbar}
+        ref={(element) => {
+          if (element) element.inert = !verification.ready;
+        }}
+      >
         <Formatting editor={editor} onLink={openLink} />
         <TooltipButton
           className={styles.insertImage}
@@ -704,8 +831,7 @@ function DocumentEditor({
             className={styles.title}
             aria-label="文档标题"
             value={title}
-            readOnly={Boolean(session)}
-            maxLength={100}
+            maxLength={200}
             placeholder="未命名文档"
             onKeyDown={(e) => {
               if (
@@ -722,7 +848,20 @@ function DocumentEditor({
               save({ name: e.target.value.trim() || "未命名文档" });
             }}
             onBlur={() => {
-              if (!title.trim()) setTitle("未命名文档");
+              const name = title.trim() || "未命名文档";
+              setTitle(name);
+              if (name !== file.name) {
+                clearTimeout(timer.current);
+                setStatus("saving");
+                void (titleWrites.current = titleWrites.current
+                  .catch(() => {})
+                  .then(() => patch(file.id, { name })))
+                  .then(() => setStatus("saved"))
+                  .catch((error: unknown) => {
+                    setStatus("failed");
+                    message.error(errorMessage(error));
+                  });
+              }
             }}
           />
           <EditorContent
@@ -868,7 +1007,7 @@ function DocumentEditor({
         accept="image/png,image/jpeg,image/webp,image/gif"
         ref={imageInput}
         onChange={(e) => {
-          insertImage(e.target.files?.[0]);
+          void insertImage(e.target.files?.[0]);
           e.target.value = "";
         }}
       />

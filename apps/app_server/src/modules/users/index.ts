@@ -7,6 +7,7 @@ import type { PermissionCatalog } from "../../../../../system/server/src/modules
 import { AppError } from "../../../../../system/server/src/errors";
 import {
   hashPassword,
+  hashValidatedPassword,
   hashToken,
   newToken,
 } from "../../../../../system/server/src/modules/auth/password";
@@ -15,14 +16,21 @@ import { appUsers, appUserSessions } from "../../database/schema/users";
 import { account, password, profile, userSchema, ok, empty } from "./schemas";
 import { appSessionCookie, installAppAuthentication } from "./auth";
 import { registerUserManagement, readUser } from "./management";
+import {
+  loadMinmdConfig,
+  type MinmdAuthConfig,
+} from "../../../../../config/minmd";
+import type { UserLifecycle } from "./lifecycle";
 export async function registerUsers(
   app: FastifyInstance,
   database: Database,
   config: AppConfig,
   catalog: PermissionCatalog,
+  business: MinmdAuthConfig = loadMinmdConfig(config),
+  lifecycle: UserLifecycle = {},
 ) {
-  await installAppAuthentication(app, database, config, catalog);
-  await registerUserManagement(app, database, config);
+  await installAppAuthentication(app, database, config, catalog, business);
+  await registerUserManagement(app, database, config, lifecycle);
   const dummyHash = await hashPassword(newToken());
   const secure = { auth: true, authScope: "app" as const };
   app.post<{ Body: { account: string; password: string; nickname?: string } }>(
@@ -42,10 +50,16 @@ export async function registerUsers(
       },
     },
     async (request) => {
+      if (!business.registrationEnabled)
+        throw new AppError(
+          "REGISTRATION_DISABLED",
+          "公开注册未开启，请联系管理员创建账号",
+          403,
+        );
       await database.db.insert(appUsers).values({
         account: request.body.account.toLowerCase(),
         nickname: request.body.nickname?.trim() ?? "",
-        passwordHash: await hashPassword(request.body.password),
+        passwordHash: await hashValidatedPassword(request.body.password),
       });
       return { ok: true };
     },
@@ -53,6 +67,7 @@ export async function registerUsers(
   app.post<{ Body: { account: string; password: string } }>(
     "/api/app/auth/login",
     {
+      bodyLimit: 1024 * 1024,
       config: { auth: false, rateLimit: { max: 10, timeWindow: "1 minute" } },
       schema: {
         tags: ["前台认证"],
@@ -213,7 +228,7 @@ export async function registerUsers(
       },
     },
     async (request) => {
-      const passwordHash = await hashPassword(request.body.password);
+      const passwordHash = await hashValidatedPassword(request.body.password);
       await database.db.transaction(async (tx) => {
         const [user] = await tx
           .select()
@@ -237,6 +252,7 @@ export async function registerUsers(
           .set({ revokedAt: new Date() })
           .where(eq(appUserSessions.userId, user.id));
       });
+      await lifecycle.onUserSessionsRevoked?.(request.appIdentity!.id);
       return { ok: true };
     },
   );
@@ -259,6 +275,7 @@ export async function registerUsers(
         .where(eq(appUserSessions.id, request.appIdentity!.sessionId));
       if (config.AUTH_TRANSPORT === "cookie")
         reply.clearCookie(appSessionCookie, { path: "/api/app" });
+      await lifecycle.onSessionRevoked?.(request.appIdentity!.sessionId);
       return { ok: true };
     },
   );
