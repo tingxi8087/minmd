@@ -217,7 +217,11 @@ export function useDocumentCollaboration(file: Entry) {
             current.pending = false;
             void removeDraft(current.scope).catch(() => {});
           }
-          update({ saved, revision: current.revision });
+          update({
+            saved,
+            revision: current.revision,
+            ...(saved ? { notice: "" } : {}),
+          });
         } else if (packet.type === "epoch-changed") restart();
         else if (packet.type === "error")
           update({

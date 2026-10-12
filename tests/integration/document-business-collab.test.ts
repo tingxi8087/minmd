@@ -346,6 +346,334 @@ interface Client {
       await Bun.sleep(30);
     }
   });
+  const settledPair = async () => {
+    const a = await connect(),
+      b = await connect(bToken);
+    await wait(
+      () =>
+        a.messages.some((m) => m.type === "ready") &&
+        b.messages.some((m) => m.type === "ready"),
+      "双方初始化完成",
+    );
+    const ta = text(a);
+    await wait(() => {
+      const paragraph = b.doc.getXmlFragment("default").get(0);
+      return (
+        paragraph instanceof Y.XmlElement &&
+        paragraph.get(0) instanceof Y.XmlText
+      );
+    });
+    const tb = text(b);
+    const checkpoint = await app.inject({
+      method: "POST",
+      url: `/api/app/files/${fileId}/checkpoint`,
+      headers: headers(),
+      payload: { snapshot: Array.from(Y.encodeSnapshot(Y.snapshot(a.doc))) },
+    });
+    expect(checkpoint.statusCode).toBe(200);
+    return { a, b, ta, tb, revision: checkpoint.json().revision as number };
+  };
+  const confirmed = (client: Client) =>
+    client.messages.some(
+      (message) =>
+        message.type === "saved" &&
+        Array.isArray(message.snapshot) &&
+        snapshotContains(
+          Y.snapshot(client.doc),
+          Y.decodeSnapshot(Uint8Array.from(message.snapshot as number[])),
+        ),
+    );
+  test("500ms防抖合并两人突发输入，即时广播先于持久ACK", async () => {
+    const { a, b, ta, tb, revision } = await settledPair();
+    try {
+      for (let i = 0; i < 3; i++) {
+        ta.insert(ta.length, "甲");
+        tb.insert(tb.length, "乙");
+      }
+      await wait(
+        () =>
+          ta.toString() === tb.toString() &&
+          ta.toString().includes("甲") &&
+          ta.toString().includes("乙"),
+        "即时协作广播",
+      );
+      await Bun.sleep(200);
+      const [pending] = await db.db
+        .select()
+        .from(fileContents)
+        .where(eq(fileContents.fileId, fileId));
+      expect(pending!.revision).toBe(revision);
+      expect(confirmed(a)).toBe(false);
+      expect(confirmed(b)).toBe(false);
+      await wait(() => confirmed(a) && confirmed(b), "合并批次持久确认");
+      const [saved] = await db.db
+        .select()
+        .from(fileContents)
+        .where(eq(fileContents.fileId, fileId));
+      expect(saved!.revision).toBe(revision + 1);
+      expect(JSON.stringify(saved!.projection)).toContain("甲");
+      expect(JSON.stringify(saved!.projection)).toContain("乙");
+    } finally {
+      stop(a);
+      stop(b);
+    }
+  });
+  test("持续双端输入也在2秒截止触发保存，最后一批确认覆盖完整内容", async () => {
+    const { a, b, ta, tb, revision } = await settledPair();
+    let firstSaved = 0;
+    const start = Date.now();
+    const observe = ({ payload }: { payload: string }) => {
+      const message = JSON.parse(payload) as {
+        type: string;
+        revision?: number;
+      };
+      if (
+        !firstSaved &&
+        message.type === "saved" &&
+        (message.revision ?? 0) > revision
+      )
+        firstSaved = Date.now();
+    };
+    a.provider.on("stateless", observe);
+    try {
+      let index = 0;
+      while (Date.now() - start < 2800) {
+        const item = index++ % 2 ? tb : ta;
+        item.insert(item.length, "续");
+        await Bun.sleep(120);
+      }
+      expect(firstSaved - start).toBeGreaterThanOrEqual(1400);
+      expect(firstSaved - start).toBeLessThan(2500);
+      await wait(
+        () => ta.toString() === tb.toString() && confirmed(a) && confirmed(b),
+        "连续输入最终确认",
+      );
+      const [saved] = await db.db
+        .select()
+        .from(fileContents)
+        .where(eq(fileContents.fileId, fileId));
+      expect(saved!.revision).toBeGreaterThan(revision);
+      expect(saved!.revision - revision).toBeLessThanOrEqual(3);
+      const copy = new Y.Doc();
+      try {
+        Y.applyUpdate(copy, saved!.documentState!);
+        expect(Y.equalSnapshots(Y.snapshot(copy), Y.snapshot(a.doc))).toBe(
+          true,
+        );
+      } finally {
+        copy.destroy();
+      }
+    } finally {
+      a.provider.off("stateless", observe);
+      stop(a);
+      stop(b);
+    }
+  }, 10000);
+  test("防抖期间手动保存立即提交双方更新并创建可回读版本", async () => {
+    const { a, b, ta, tb, revision } = await settledPair();
+    try {
+      ta.insert(ta.length, "手动甲");
+      tb.insert(tb.length, "手动乙");
+      await wait(
+        () =>
+          ta.toString() === tb.toString() && ta.toString().includes("手动乙"),
+      );
+      const start = Date.now();
+      const checkpoint = await app.inject({
+        method: "POST",
+        url: `/api/app/files/${fileId}/checkpoint`,
+        headers: headers(),
+        payload: {
+          snapshot: Array.from(Y.encodeSnapshot(Y.snapshot(a.doc))),
+          manual: true,
+          note: "防抖期间手动保存",
+        },
+      });
+      expect(checkpoint.statusCode).toBe(200);
+      expect(Date.now() - start).toBeLessThan(450);
+      expect(checkpoint.json().revision).toBe(revision + 1);
+      const preview = await app.inject({
+        url: `/api/app/files/${fileId}/versions/${checkpoint.json().versionId}`,
+        headers: headers(),
+      });
+      expect(preview.statusCode).toBe(200);
+      expect(JSON.stringify(preview.json())).toContain("手动甲");
+      expect(JSON.stringify(preview.json())).toContain("手动乙");
+      await wait(() => confirmed(a) && confirmed(b), "手动保存广播持久确认");
+    } finally {
+      stop(a);
+      stop(b);
+    }
+  });
+  test("写入期间的新输入不被旧ACK冒充确认，随后独立落库", async () => {
+    const { a, b, ta, tb, revision } = await settledPair();
+    const blocker = await db.pool.connect();
+    let locked = false;
+    try {
+      await blocker.query("BEGIN");
+      locked = true;
+      await blocker.query(
+        "SELECT file_id FROM file_contents WHERE file_id = $1 FOR UPDATE",
+        [fileId],
+      );
+      const at = a.messages.length;
+      ta.insert(ta.length, "前批");
+      await wait(() => tb.toString().includes("前批"));
+      await Bun.sleep(650);
+      tb.insert(tb.length, "后批");
+      await wait(
+        () => ta.toString() === tb.toString() && ta.toString().includes("后批"),
+      );
+      expect(confirmed(a)).toBe(false);
+      await blocker.query("COMMIT");
+      locked = false;
+      await wait(
+        () =>
+          a.messages
+            .slice(at)
+            .some((m) => m.type === "saved" && Number(m.revision) > revision),
+        "第一批保存确认",
+      );
+      const first = a.messages
+        .slice(at)
+        .find((m) => m.type === "saved" && Number(m.revision) > revision)!;
+      expect(
+        snapshotContains(
+          Y.snapshot(a.doc),
+          Y.decodeSnapshot(Uint8Array.from(first.snapshot as number[])),
+        ),
+      ).toBe(false);
+      await wait(() => confirmed(a) && confirmed(b), "第二批独立确认");
+      const [saved] = await db.db
+        .select()
+        .from(fileContents)
+        .where(eq(fileContents.fileId, fileId));
+      expect(saved!.revision).toBe(revision + 2);
+      expect(JSON.stringify(saved!.projection)).toContain("后批");
+    } finally {
+      if (locked) await blocker.query("ROLLBACK");
+      blocker.release();
+      stop(a);
+      stop(b);
+    }
+  });
+  test("防抖期间导入先落库，拒绝过期基线且旧计时器不会覆盖新世代", async () => {
+    const { a, b, ta, tb, revision } = await settledPair();
+    try {
+      ta.insert(ta.length, "切换前待保存");
+      await wait(() => tb.toString().includes("切换前待保存"));
+      const [initial] = await db.db
+        .select()
+        .from(fileContents)
+        .where(eq(fileContents.fileId, fileId));
+      const projection = {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "切换后的正文" }],
+          },
+        ],
+      };
+      const stale = await app.inject({
+        method: "POST",
+        url: `/api/app/files/${fileId}/content-import`,
+        headers: headers(),
+        payload: {
+          expectedRevision: revision,
+          expectedEpoch: initial!.epoch,
+          projection,
+        },
+      });
+      expect(stale.statusCode).toBe(409);
+      const [flushed] = await db.db
+        .select()
+        .from(fileContents)
+        .where(eq(fileContents.fileId, fileId));
+      expect(JSON.stringify(flushed!.projection)).toContain("切换前待保存");
+      expect(flushed!.revision).toBe(revision + 1);
+      const imported = await app.inject({
+        method: "POST",
+        url: `/api/app/files/${fileId}/content-import`,
+        headers: headers(),
+        payload: {
+          expectedRevision: flushed!.revision,
+          expectedEpoch: flushed!.epoch,
+          projection,
+        },
+      });
+      expect(imported.statusCode).toBe(200);
+      await wait(
+        () => a.closed === 4009 && b.closed === 4009,
+        "世代切换关闭旧会话",
+      );
+      await Bun.sleep(700);
+      const [current] = await db.db
+        .select()
+        .from(fileContents)
+        .where(eq(fileContents.fileId, fileId));
+      expect(current!.epoch).toBe(flushed!.epoch + 1);
+      expect(JSON.stringify(current!.projection)).toContain("切换后的正文");
+      expect(JSON.stringify(current!.projection)).not.toContain("切换前待保存");
+      const fresh = await connect();
+      try {
+        expect(fresh.doc.getXmlFragment("default").toJSON()).toContain(
+          "切换后的正文",
+        );
+      } finally {
+        stop(fresh);
+      }
+    } finally {
+      stop(a);
+      stop(b);
+    }
+  });
+  test("未提交批次贡献者被撤权时不越权落库，负责人能从权威状态重新进入", async () => {
+    const { a, b, ta, tb, revision } = await settledPair();
+    try {
+      ta.insert(ta.length, "权限撤销甲");
+      tb.insert(tb.length, "权限撤销乙");
+      await wait(
+        () =>
+          ta.toString() === tb.toString() &&
+          ta.toString().includes("权限撤销乙"),
+      );
+      const removed = await app.inject({
+        method: "DELETE",
+        url: `/api/app/spaces/${spaceId}/members/${bid}`,
+        headers: headers(),
+      });
+      expect(removed.statusCode).toBe(200);
+      await wait(
+        () => b.closed === 4003 && a.closed === 4009,
+        "失效批次隔离并保留客户端未确认状态",
+      );
+      const [saved] = await db.db
+        .select()
+        .from(fileContents)
+        .where(eq(fileContents.fileId, fileId));
+      expect(saved!.revision).toBe(revision);
+      expect(JSON.stringify(saved!.projection)).not.toContain("权限撤销乙");
+      const fresh = await connect();
+      try {
+        expect(fresh.doc.getXmlFragment("default").toJSON()).not.toContain(
+          "权限撤销甲",
+        );
+      } finally {
+        stop(fresh);
+      }
+    } finally {
+      stop(a);
+      stop(b);
+      const restored = await app.inject({
+        method: "POST",
+        url: `/api/app/spaces/${spaceId}/members`,
+        headers: headers(),
+        payload: { userId: bid },
+      });
+      expect(restored.statusCode).toBe(200);
+    }
+  });
   test("数据库拒绝提交时不发持久ACK，重试成功后才提高修订", async () => {
     const a = await connect();
     const ta = text(a);
@@ -396,6 +724,7 @@ interface Client {
       );
       await db.pool.query(`DROP FUNCTION IF EXISTS ${trigger}()`);
     }
+    await wait(() => confirmed(a), "数据库恢复后自动重试，不需再次输入");
     const saved = await app.inject({
       method: "POST",
       url: `/api/app/files/${fileId}/checkpoint`,
@@ -1000,7 +1329,26 @@ interface Client {
     stop(fresh);
   });
   test("服务重启从PG权威状态恢复，退出登录立即撤销房间", async () => {
+    const shutdownWriter = await connect();
+    const shutdownPeer = await connect();
+    const pendingText = text(shutdownWriter);
+    pendingText.insert(pendingText.length, "停服前待确认");
+    await wait(
+      () =>
+        shutdownPeer.doc
+          .getXmlFragment("default")
+          .toJSON()
+          .includes("停服前待确认"),
+      "停服前更新已到达服务端",
+    );
     await app.close();
+    const [flushed] = await db.db
+      .select()
+      .from(fileContents)
+      .where(eq(fileContents.fileId, fileId));
+    expect(JSON.stringify(flushed!.projection)).toContain("停服前待确认");
+    stop(shutdownWriter);
+    stop(shutdownPeer);
     app = await buildApp(
       loadConfig({
         DATABASE_URL: url!,

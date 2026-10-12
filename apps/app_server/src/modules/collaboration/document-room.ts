@@ -90,6 +90,13 @@ export interface Replacement {
   source: "import" | "restore" | "ai";
   note?: string;
 }
+interface PendingDocumentSave {
+  update: Uint8Array;
+  contexts: Map<string, Context>;
+  deadline: ReturnType<typeof setTimeout>;
+}
+const saveDebounceMs = 500;
+const saveMaxWaitMs = 2000;
 export class DocumentRooms {
   readonly server: Hocuspocus<Context>;
   private tickets = new Map<string, Ticket>();
@@ -100,6 +107,9 @@ export class DocumentRooms {
   private epochs = new Map<string, number>();
   private queues = new Map<string, Promise<Checkpoint>>();
   private paused = new Set<string>();
+  private pendingSaves = new Map<string, PendingDocumentSave>();
+  private closing = false;
+  private activeSaves = new Map<string, Set<PendingDocumentSave>>();
   private contexts = new Map<string, Context>();
   private historyTimer: ReturnType<typeof setInterval>;
   readonly maxSessions = documentCollaborationConfig().DOC_COLLAB_MAX_SESSIONS;
@@ -111,8 +121,8 @@ export class DocumentRooms {
   ) {
     this.server = new Hocuspocus<Context>({
       quiet: true,
-      debounce: 100,
-      maxDebounce: 500,
+      debounce: saveDebounceMs,
+      maxDebounce: saveMaxWaitMs,
       onAuthenticate: async ({ token, documentName, context, socketId }) => {
         const ticket = this.tickets.get(hashToken(token));
         if (
@@ -224,7 +234,6 @@ export class DocumentRooms {
         }
       },
       onChange: async ({
-        document,
         documentName,
         update,
         context,
@@ -233,22 +242,20 @@ export class DocumentRooms {
         // AI 的候选状态、历史和请求账本已经在同一事务提交，广播不再重复保存。
         if (transactionOrigin === committedAiOrigin) return;
         if (context?.userId) this.contexts.set(documentName, context);
-        const state = Buffer.from(Y.encodeStateAsUpdate(document));
-        const snapshot = Array.from(Y.encodeSnapshot(Y.snapshot(document)));
-        try {
-          const result = await this.enqueue(documentName, () =>
-            this.persist(documentName, state, Buffer.from(update), context),
-          );
-          document.broadcastStateless(
-            JSON.stringify({ type: "saved", ...result, snapshot }),
-          );
-        } catch {
-          document.broadcastStateless(
-            JSON.stringify({
-              type: "error",
-              message: "服务器保存失败，请保留页面和本地草稿",
-            }),
-          );
+        const pending = this.pendingSaves.get(documentName);
+        if (pending) {
+          pending.update = Y.mergeUpdates([pending.update, update]);
+          if (context?.userId) pending.contexts.set(context.sessionId, context);
+        } else {
+          // 原库的 maxDebounce 仅在下一次更新时检查；独立截止计时保证持续输入也在两秒内开始落库。
+          const deadline = this.saveDeadline(documentName);
+          this.pendingSaves.set(documentName, {
+            update: update.slice(),
+            contexts: new Map(
+              context?.userId ? [[context.sessionId, context]] : [],
+            ),
+            deadline,
+          });
         }
       },
       onStoreDocument: async ({ documentName }) => {
@@ -327,6 +334,19 @@ export class DocumentRooms {
     if (Buffer.byteLength(JSON.stringify(projection)) > 8 * 1024 * 1024)
       throw new AppError("CONTENT_TOO_LARGE", "文档超过8MB限制", 413);
     normalizeDocument(projection);
+  }
+  private saveDeadline(fileId: string) {
+    const deadline = setTimeout(() => {
+      // 提前执行原库的保存钩子，同时重置它的防抖窗口，避免截止保存后又立即重复提交下一批。
+      const scheduled = this.server.debouncer.executeNow(
+        `onStoreDocument-${fileId}`,
+      );
+      void Promise.resolve(scheduled ?? this.persistBarrier(fileId)).catch(
+        () => {},
+      );
+    }, saveMaxWaitMs);
+    deadline.unref();
+    return deadline;
   }
   private members(fileId: string) {
     const count = [...this.sockets.values()].filter(
@@ -491,6 +511,7 @@ export class DocumentRooms {
     state: Buffer,
     update: Buffer,
     context?: Context,
+    contributors: Context[] = [],
   ): Promise<Checkpoint> {
     return this.database.db.transaction(async (tx) => {
       const [file] = await tx
@@ -514,8 +535,14 @@ export class DocumentRooms {
           epoch: current.epoch,
           savedAt: current.updatedAt.toISOString(),
         };
-      if (context?.userId) {
-        await requireFileAccess(tx, context.userId, fileId, {
+      const identities = new Map(
+        contributors.map((identity) => [identity.sessionId, identity]),
+      );
+      if (context?.userId) identities.set(context.sessionId, context);
+      for (const identity of identities.values()) {
+        if (identity.epoch !== current.epoch)
+          throw new AppError("EPOCH_CONFLICT", "文档版本已切换", 409);
+        await requireFileAccess(tx, identity.userId, fileId, {
           permission: "edit",
         });
         const [session] = await tx
@@ -530,8 +557,8 @@ export class DocumentRooms {
           )
           .where(
             and(
-              eq(appUserSessions.id, context.sessionId),
-              eq(appUserSessions.userId, context.userId),
+              eq(appUserSessions.id, identity.sessionId),
+              eq(appUserSessions.userId, identity.userId),
               isNull(appUserSessions.revokedAt),
               gt(appUserSessions.expiresAt, new Date()),
             ),
@@ -643,9 +670,87 @@ export class DocumentRooms {
     if (document) {
       const state = Buffer.from(Y.encodeStateAsUpdate(document));
       const storedSnapshot = Y.snapshot(document);
-      const result = await this.enqueue(fileId, () =>
-        this.persist(fileId, state, state, this.contexts.get(fileId)),
-      );
+      const pending = this.pendingSaves.get(fileId);
+      if (pending) {
+        clearTimeout(pending.deadline);
+        this.pendingSaves.delete(fileId);
+      }
+      const active =
+        this.activeSaves.get(fileId) ?? new Set<PendingDocumentSave>();
+      if (pending) {
+        active.add(pending);
+        this.activeSaves.set(fileId, active);
+      }
+      const contributors = [...active].flatMap((batch) => [
+        ...batch.contexts.values(),
+      ]);
+      const context = this.contexts.get(fileId);
+      let result: Checkpoint;
+      try {
+        result = await this.enqueue(fileId, () =>
+          this.persist(
+            fileId,
+            state,
+            Buffer.from(pending?.update ?? state),
+            context,
+            contributors,
+          ),
+        );
+        // ACK 对应捕获时的快照；写入过程中出现的新更新由下一批保存，不冒充已落库。
+        document.broadcastStateless(
+          JSON.stringify({
+            type: "saved",
+            ...result,
+            snapshot: Array.from(Y.encodeSnapshot(storedSnapshot)),
+          }),
+        );
+      } catch (error) {
+        document.broadcastStateless(
+          JSON.stringify({
+            type: "error",
+            message: "服务器保存失败，请保留页面和本地草稿",
+          }),
+        );
+        const terminal =
+          error instanceof AppError &&
+          [401, 403, 404, 409].includes(error.statusCode);
+        if (terminal && this.server.documents.get(fileId) === document) {
+          // 权限或世代失效不能靠重试恢复；隔离未提交的共享状态，客户端保留草稿后从权威内容重连。
+          const newer = this.pendingSaves.get(fileId);
+          if (newer) clearTimeout(newer.deadline);
+          this.pendingSaves.delete(fileId);
+          for (const socket of this.sockets.values()) {
+            if (socket.context.fileId === fileId)
+              socket.close(
+                4009,
+                "保存权限或版本已变化，请保留本地草稿后重新加载",
+              );
+          }
+          this.server.documents.delete(fileId);
+          this.contexts.delete(fileId);
+          document.destroy();
+        }
+        if (
+          pending &&
+          !terminal &&
+          this.server.documents.get(fileId) === document
+        ) {
+          const newer = this.pendingSaves.get(fileId);
+          if (newer) {
+            newer.update = Y.mergeUpdates([pending.update, newer.update]);
+            for (const [id, identity] of pending.contexts)
+              if (!newer.contexts.has(id)) newer.contexts.set(id, identity);
+          } else if (!this.closing) {
+            pending.deadline = this.saveDeadline(fileId);
+            this.pendingSaves.set(fileId, pending);
+          }
+        }
+        throw error;
+      } finally {
+        if (pending) active.delete(pending);
+        if (!active.size && this.activeSaves.get(fileId) === active)
+          this.activeSaves.delete(fileId);
+      }
       if (
         snapshot &&
         !snapshotContains(
@@ -1012,11 +1117,17 @@ export class DocumentRooms {
     });
   }
   async close() {
+    this.closing = true;
     clearInterval(this.historyTimer);
-    this.server.closeConnections();
-    for (const id of this.server.documents.keys())
-      await this.persistBarrier(id);
-    await Promise.allSettled(this.queues.values());
+    try {
+      for (const id of this.server.documents.keys())
+        await this.persistBarrier(id);
+    } finally {
+      for (const pending of this.pendingSaves.values())
+        clearTimeout(pending.deadline);
+      this.server.closeConnections();
+      await Promise.allSettled(this.queues.values());
+    }
   }
 }
 export async function registerDocumentRooms(
