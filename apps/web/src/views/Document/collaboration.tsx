@@ -1,4 +1,5 @@
 import axios from "axios";
+import { collaborationUrl } from "@/utils/collaborationUrl";
 import { snapshotConfirmed } from "./collaborationState";
 import { useEffect, useRef, useState } from "react";
 import type { JSONContent } from "@tiptap/core";
@@ -53,12 +54,6 @@ const initial: CollaborationView = {
   revision: 0,
   epoch: 0,
 };
-export function collaborationUrl(path: string) {
-  const base = import.meta.env.DEV
-    ? import.meta.env.MINMD_SHEET_VERIFY_WS
-    : window.location.origin.replace(/^http/, "ws");
-  return new URL(path, base).toString();
-}
 export function useDocumentCollaboration(file: Entry) {
   const user = useAuth((state) => state.user);
   const [session, setSession] = useState<DocumentSession | null>(null);

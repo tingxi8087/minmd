@@ -1,3 +1,4 @@
+import { collaborationUrl } from "@/utils/collaborationUrl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import type { Op, Sheet } from "@fortune-sheet/core";
@@ -28,12 +29,6 @@ type Snapshot = {
   operationId?: string;
 };
 type Presence = { userId: string; editSessionId: string };
-function wsUrl(path: string) {
-  const origin = import.meta.env.DEV
-    ? import.meta.env.MINMD_SHEET_VERIFY_WS
-    : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}`;
-  return `${origin}${path}`;
-}
 function sparseSnapshot(sheets: Sheet[]) {
   return prepareWorkbook(sheets);
 }
@@ -344,7 +339,7 @@ export function useSheetCollaboration(
         const ticket = await sheetApi.ticket(fileId, editSession.current);
         if (cancelled) return;
         setMembers((current) => ({ ...current, limit: ticket.maxSessions }));
-        const ws = new WebSocket(wsUrl(ticket.url));
+        const ws = new WebSocket(collaborationUrl(ticket.url));
         socket.current = ws;
         ws.onopen = () =>
           ws.send(
