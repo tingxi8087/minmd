@@ -1,5 +1,5 @@
 MinMD 第三方版权及许可证全文
-bun.lock SHA-256: 2a6623854930ed7bf1223dab1375245c1fd396d0fd76bb359e1eda4f263066f0
+bun.lock SHA-256: 098cda67550a33a7b398c527f5a80e069f6e1d0e36ff562c57568e25ab915c3d
 范围：所有工作区生产依赖及其已安装的传递、可选和同伴依赖；可能保守包含构建期依赖。项目自有工作区由根LICENSE覆盖。
 许可声明及版权全文来自已安装发布包；少数发布包未附全文时，使用docs/licenses/package-overrides/sources.json中逐版本核实并保留的证据。依赖升级需重新生成，不能沿用旧版本通知。
 双许可证组件采用许可表达式中的宽松分支：JSZip选择MIT；相关许可原文仍完整保留。
@@ -1523,6 +1523,37 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ================================================================================
+@fastify/http-proxy@11.6.4
+声明许可: MIT
+作者声明: "Matteo Collina <hello@matteocollina.com>"
+仓库声明: {"type":"git","url":"git+https://github.com/fastify/fastify-http-proxy.git"}
+
+原文来源: npm:@fastify/http-proxy@11.6.4/LICENSE
+MIT License
+
+Copyright (c) 2018-present Matteo Collina
+Copyright (c) 2018-present The Fastify team <https://github.com/fastify/fastify#team>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+================================================================================
 @fastify/merge-json-schemas@0.2.2
 声明许可: MIT
 作者声明: "Ivan Tymoshenko <ivan@tymoshenko.me>"
@@ -1625,6 +1656,37 @@ SOFTWARE.
 MIT License
 
 Copyright (c) 2018-present The Fastify team <https://github.com/fastify/fastify#team>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+================================================================================
+@fastify/reply-from@12.7.1
+声明许可: MIT
+作者声明: "Matteo Collina <hello@matteocollina.com>"
+仓库声明: {"type":"git","url":"git+https://github.com/fastify/fastify-reply-from.git"}
+
+原文来源: npm:@fastify/reply-from@12.7.1/LICENSE
+MIT License
+
+Copyright (c) 2017-present Matteo Collina
+Copyright (c) 2017-present The Fastify team <https://github.com/fastify/fastify#team>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -11679,6 +11741,36 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+================================================================================
+fast-content-type-parse@4.0.1
+声明许可: MIT
+作者声明: "Aras Abbasi <aras.abbasi@gmail.com>"
+仓库声明: {"type":"git","url":"git+https://github.com/fastify/fast-content-type-parse.git"}
+
+原文来源: npm:fast-content-type-parse@4.0.1/LICENSE
+MIT License
+
+Copyright (c) 2023-present The Fastify team <https://github.com/fastify/fastify#team>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 
 ================================================================================
@@ -27886,6 +27978,36 @@ unbox-primitive@1.1.0
 MIT License
 
 Copyright (c) 2019 Jordan Harband
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+================================================================================
+undici@7.30.0
+声明许可: MIT
+作者声明: 见以下原始版权文本
+仓库声明: {"type":"git","url":"git+https://github.com/nodejs/undici.git"}
+
+原文来源: npm:undici@7.30.0/LICENSE
+MIT License
+
+Copyright (c) Matteo Collina and Undici contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

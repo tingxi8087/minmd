@@ -32,6 +32,10 @@ runtimeTest(
         WEB_CMS_PORT: String(ports[2]),
         API_PROXY_TARGET: `http://127.0.0.1:${ports[0]}`,
         LOG_LEVEL: "silent",
+        WEB_DEV_PROXY: "true",
+        WEB_CMS_PATH: "/admin",
+        PUBLIC_ORIGIN: `http://127.0.0.1:${ports[0]}`,
+        APP_PUBLIC_ORIGIN: `http://127.0.0.1:${ports[0]}`,
       },
       stdout: "inherit",
       stderr: "inherit",
@@ -54,6 +58,19 @@ runtimeTest(
         }
         expect(ready).toBe(true);
       }
+      for (const path of [
+        "/",
+        "/admin/",
+        "/src/main.tsx",
+        "/admin/src/main.tsx",
+      ]) {
+        const response = await fetch(`http://127.0.0.1:${ports[0]}${path}`);
+        expect(response.status).toBe(200);
+        expect(await response.text()).not.toBe("");
+      }
+      expect(
+        (await fetch(`http://127.0.0.1:${ports[0]}/api/not-registered`)).status,
+      ).toBe(404);
       child.kill("SIGTERM");
       await Promise.race([
         child.exited,

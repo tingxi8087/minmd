@@ -27,6 +27,7 @@ export default defineConfig(({ mode }) => {
       host: "127.0.0.1",
       port: readDevPort(process.env.WEB_PORT ?? env.WEB_PORT, 5173),
       strictPort: true,
+      hmr: false,
       proxy: {
         "/mcp": {
           target:

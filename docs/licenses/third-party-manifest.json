@@ -1,5 +1,5 @@
 {
-  "lockHash": "2a6623854930ed7bf1223dab1375245c1fd396d0fd76bb359e1eda4f263066f0",
+  "lockHash": "098cda67550a33a7b398c527f5a80e069f6e1d0e36ff562c57568e25ab915c3d",
   "packages": [
     {
       "name": "@aiden0z/pptx-renderer",
@@ -532,6 +532,20 @@
       ]
     },
     {
+      "name": "@fastify/http-proxy",
+      "version": "11.6.4",
+      "license": "MIT",
+      "sources": [
+        "npm:@fastify/http-proxy@11.6.4/LICENSE"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ],
+      "hashes": [
+        "cf7df77004ebdb5299b23619e6f0b2cf26f3a65e003a04556e36a19b3d523824"
+      ]
+    },
+    {
       "name": "@fastify/merge-json-schemas",
       "version": "0.2.2",
       "license": "MIT",
@@ -585,6 +599,20 @@
       ],
       "hashes": [
         "d24d2e5bdc50e739dcc8c73f547e54fce61388ea77bb57cf836e0c6ece46f8e8"
+      ]
+    },
+    {
+      "name": "@fastify/reply-from",
+      "version": "12.7.1",
+      "license": "MIT",
+      "sources": [
+        "npm:@fastify/reply-from@12.7.1/LICENSE"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ],
+      "hashes": [
+        "bbea695db1e706e0ca6abd27fbe8afd0d0a0b0ef37503f1842d0e507b7e20294"
       ]
     },
     {
@@ -3842,6 +3870,20 @@
       ],
       "hashes": [
         "97af7428f93afbab9bf79cd09254da1357161794f4255eb1b4599f04dd2d2e7c"
+      ]
+    },
+    {
+      "name": "fast-content-type-parse",
+      "version": "4.0.1",
+      "license": "MIT",
+      "sources": [
+        "npm:fast-content-type-parse@4.0.1/LICENSE"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ],
+      "hashes": [
+        "8550e7875f553e746be4b2ab732c1574bae2c5bb01cbdbd7423665fcf1c10076"
       ]
     },
     {
@@ -9294,6 +9336,20 @@
       ],
       "hashes": [
         "cfc3f455254c0af0655cc3ff46a41ed644b67599f6043346169d285bf2b3cf3b"
+      ]
+    },
+    {
+      "name": "undici",
+      "version": "7.30.0",
+      "license": "MIT",
+      "sources": [
+        "npm:undici@7.30.0/LICENSE"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ],
+      "hashes": [
+        "a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27"
       ]
     },
     {

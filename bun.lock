@@ -8,6 +8,7 @@
         "@fastify/cookie": "^11.1.2",
         "@fastify/cors": "^11.3.0",
         "@fastify/helmet": "^13.1.1",
+        "@fastify/http-proxy": "^11.6.4",
         "@fastify/multipart": "9",
         "@fastify/rate-limit": "^11.2.0",
         "@fastify/static": "^8.3.0",
@@ -362,6 +363,8 @@
 
     "@fastify/helmet": ["@fastify/helmet@13.1.2", "https://registry.npmmirror.com/@fastify/helmet/-/helmet-13.1.2.tgz", { "dependencies": { "fastify-plugin": "^6.0.0", "helmet": "^8.0.0" } }, "sha512-fXTultrEFW9bczr3jcffZD7NLlsTYa8eCCzVFsJvLIVO7SUiY/VWp18qCJbf2N9AXIEzIC11NYlNB3BlzBEZeg=="],
 
+    "@fastify/http-proxy": ["@fastify/http-proxy@11.6.4", "https://registry.npmmirror.com/@fastify/http-proxy/-/http-proxy-11.6.4.tgz", { "dependencies": { "@fastify/reply-from": "^12.6.2", "fast-querystring": "^1.1.2", "fastify-plugin": "^6.0.0", "ws": "^8.18.3" } }, "sha512-JPsbLX9D5X5yES1A6M2yx1i2PGf8eNyKT48j+6pgLIwxfRYpj1MEzR1CwASRvqdZOWhcPmdsZiIKehSgioW6ww=="],
+
     "@fastify/merge-json-schemas": ["@fastify/merge-json-schemas@0.2.2", "https://registry.npmmirror.com/@fastify/merge-json-schemas/-/merge-json-schemas-0.2.2.tgz", { "dependencies": { "dequal": "^2.0.3" } }, "sha512-d/gx9sRbUCVgGRGzma46wLcwiY8noTqO2Nmjg/vbTARxHRE5bdh5PIL8s97Lt1X7ScRWRW52eVYxwIoPwIdVUA=="],
 
     "@fastify/multipart": ["@fastify/multipart@9.4.0", "https://registry.npmmirror.com/@fastify/multipart/-/multipart-9.4.0.tgz", { "dependencies": { "@fastify/busboy": "^3.0.0", "@fastify/deepmerge": "^3.0.0", "@fastify/error": "^4.0.0", "fastify-plugin": "^5.0.0", "secure-json-parse": "^4.0.0" } }, "sha512-Z404bzZeLSXTBmp/trCBuoVFX28pM7rhv849Q5TsbTFZHuk1lc4QjQITTPK92DKVpXmNtJXeHSSc7GYvqFpxAQ=="],
@@ -370,13 +373,15 @@
 
     "@fastify/rate-limit": ["@fastify/rate-limit@11.2.1", "https://registry.npmmirror.com/@fastify/rate-limit/-/rate-limit-11.2.1.tgz", { "dependencies": { "@lukeed/ms": "^2.0.2", "fastify-plugin": "^6.0.0", "ip-address": "^10.2.0", "toad-cache": "^3.7.0" } }, "sha512-uTQjii3tJUnb6ZyEMcunuvKE3FDKNZEaPpxdyWADDgthHnUV1swdvwuiZfi3DDDgxm1iBrhOkQ/w0yDBQ8qJtA=="],
 
+    "@fastify/reply-from": ["@fastify/reply-from@12.7.1", "https://registry.npmmirror.com/@fastify/reply-from/-/reply-from-12.7.1.tgz", { "dependencies": { "@fastify/error": "^4.0.0", "end-of-stream": "^1.4.4", "fast-content-type-parse": "^4.0.0", "fast-querystring": "^1.1.2", "fastify-plugin": "^6.0.0", "toad-cache": "^3.7.0", "undici": "^7.0.0" } }, "sha512-F26CIcy6PKqyhsTwQI7p5UwH5vrv2yz7BOqAnkHTmNVSU9J+vmRh8CNfOk/ZD8AjcKbiyRkNl6Lb3AuJdxIADQ=="],
+
     "@fastify/send": ["@fastify/send@4.1.2", "https://registry.npmmirror.com/@fastify/send/-/send-4.1.2.tgz", { "dependencies": { "@lukeed/ms": "^2.0.2", "escape-html": "~1.0.3", "fast-decode-uri-component": "^1.0.1", "http-errors": "^2.0.0", "mime": "^3" } }, "sha512-PitRBXg/N4IrE5ToLuP7lITI5Mz8MmP13dv2aMtMNfaGfc5W5hNOwHqcsdQdqu0Lwm5cpDiYLkiOsZTgmhyt2Q=="],
 
     "@fastify/static": ["@fastify/static@8.3.0", "https://registry.npmmirror.com/@fastify/static/-/static-8.3.0.tgz", { "dependencies": { "@fastify/accept-negotiator": "^2.0.0", "@fastify/send": "^4.0.0", "content-disposition": "^0.5.4", "fastify-plugin": "^5.0.0", "fastq": "^1.17.1", "glob": "^11.0.0" } }, "sha512-yKxviR5PH1OKNnisIzZKmgZSus0r2OZb8qCSbqmw34aolT4g3UlzYfeBRym+HJ1J471CR8e2ldNub4PubD1coA=="],
 
     "@fastify/swagger": ["@fastify/swagger@9.9.2", "https://registry.npmmirror.com/@fastify/swagger/-/swagger-9.9.2.tgz", { "dependencies": { "fastify-plugin": "^6.0.0", "json-schema-resolver": "^3.0.0", "openapi-types": "^12.1.3", "rfdc": "^1.3.1", "yaml": "^2.4.2" } }, "sha512-ayxItVgf/1axBvw33lqsA5ns02YMpT1r59G/HCJraRNWWBzvLgN+oiCBPhuzTiN67TvctlCYkG0+40WLKYuusQ=="],
 
-    "@fastify/websocket": ["@fastify/websocket@11.3.4", "https://registry.npmjs.org/@fastify/websocket/-/websocket-11.3.4.tgz", { "dependencies": { "duplexify": "^4.1.3", "fastify-plugin": "^6.0.0", "ws": "^8.16.0" } }, "sha512-firnJtEOv6pfdoXIzFDMbd+omgWwFNfLtdM8JejNFr/9lT/9DHkEhjTShuRFeE4phqrevD2B3JRW0v6uyzWhHQ=="],
+    "@fastify/websocket": ["@fastify/websocket@11.3.4", "", { "dependencies": { "duplexify": "^4.1.3", "fastify-plugin": "^6.0.0", "ws": "^8.16.0" } }, "sha512-firnJtEOv6pfdoXIzFDMbd+omgWwFNfLtdM8JejNFr/9lT/9DHkEhjTShuRFeE4phqrevD2B3JRW0v6uyzWhHQ=="],
 
     "@floating-ui/core": ["@floating-ui/core@1.8.0", "https://registry.npmmirror.com/@floating-ui/core/-/core-1.8.0.tgz", { "dependencies": { "@floating-ui/utils": "^0.2.12" } }, "sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ=="],
 
@@ -1059,6 +1064,8 @@
     "expect-type": ["expect-type@1.4.0", "https://registry.npmmirror.com/expect-type/-/expect-type-1.4.0.tgz", {}, "sha512-KfYbmpRm0VbLjEvVa9yGwCi9GI34xvi7A/HXYWQO65CSD2u3MczUJSuwXKFIxlGsgBQizV9q5J9NHj4VG0n+pA=="],
 
     "extend": ["extend@3.0.2", "https://registry.npmmirror.com/extend/-/extend-3.0.2.tgz", {}, "sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g=="],
+
+    "fast-content-type-parse": ["fast-content-type-parse@4.0.1", "https://registry.npmmirror.com/fast-content-type-parse/-/fast-content-type-parse-4.0.1.tgz", {}, "sha512-AAu9Ey/t6KDFqqeCfbwdlASlv7rQBG57gXYf2YU+MXJx1OIJn2q3BEJKmtnZaeGm1y5AYxLzRMmq9VWWXrfRcA=="],
 
     "fast-csv": ["fast-csv@4.3.6", "https://registry.npmmirror.com/fast-csv/-/fast-csv-4.3.6.tgz", { "dependencies": { "@fast-csv/format": "4.3.5", "@fast-csv/parse": "4.3.6" } }, "sha512-2RNSpuwwsJGP0frGsOmTb9oUF+VkFSM4SyLTDgwf2ciHWTarN0lQTC+F2f/t5J9QjW+c65VFIAAu85GsvMIusw=="],
 
@@ -2024,6 +2031,8 @@
 
     "unbox-primitive": ["unbox-primitive@1.1.0", "https://registry.npmmirror.com/unbox-primitive/-/unbox-primitive-1.1.0.tgz", { "dependencies": { "call-bound": "^1.0.3", "has-bigints": "^1.0.2", "has-symbols": "^1.1.0", "which-boxed-primitive": "^1.1.1" } }, "sha512-nWJ91DjeOkej/TA8pXQ3myruKpKEYgqvpw9lz4OPHj/NWFNluYrjbz9j01CJ8yKQd2g4jFoOkINCTW2I5LEEyw=="],
 
+    "undici": ["undici@7.30.0", "https://registry.npmmirror.com/undici/-/undici-7.30.0.tgz", {}, "sha512-dkrQXeHSaoamnItlYbmzG0wFYrM0ZwDxCIg0A7aKjTyyhh9svRzCNFEzV+Vm05/yehjCzjDZ31KXfGEjYSztDQ=="],
+
     "undici-types": ["undici-types@6.21.0", "https://registry.npmmirror.com/undici-types/-/undici-types-6.21.0.tgz", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 
     "unicount": ["unicount@1.1.0", "https://registry.npmmirror.com/unicount/-/unicount-1.1.0.tgz", {}, "sha512-RlwWt1ywVW4WErPGAVHw/rIuJ2+MxvTME0siJ6lk9zBhpDfExDbspe6SRlWT3qU6AucNjotPl9qAJRVjP7guCQ=="],
@@ -2158,7 +2167,11 @@
 
     "@fastify/helmet/fastify-plugin": ["fastify-plugin@6.0.1", "https://registry.npmmirror.com/fastify-plugin/-/fastify-plugin-6.0.1.tgz", {}, "sha512-4wW4RxSmvPXLrh5mgQEiu43qU3bw44N2ss4FTkTkQIbprUhE+/s43QX0j/ttcztdWK7PEkHqVthdc5GdEGDvjA=="],
 
+    "@fastify/http-proxy/fastify-plugin": ["fastify-plugin@6.0.1", "https://registry.npmmirror.com/fastify-plugin/-/fastify-plugin-6.0.1.tgz", {}, "sha512-4wW4RxSmvPXLrh5mgQEiu43qU3bw44N2ss4FTkTkQIbprUhE+/s43QX0j/ttcztdWK7PEkHqVthdc5GdEGDvjA=="],
+
     "@fastify/rate-limit/fastify-plugin": ["fastify-plugin@6.0.1", "https://registry.npmmirror.com/fastify-plugin/-/fastify-plugin-6.0.1.tgz", {}, "sha512-4wW4RxSmvPXLrh5mgQEiu43qU3bw44N2ss4FTkTkQIbprUhE+/s43QX0j/ttcztdWK7PEkHqVthdc5GdEGDvjA=="],
+
+    "@fastify/reply-from/fastify-plugin": ["fastify-plugin@6.0.1", "https://registry.npmmirror.com/fastify-plugin/-/fastify-plugin-6.0.1.tgz", {}, "sha512-4wW4RxSmvPXLrh5mgQEiu43qU3bw44N2ss4FTkTkQIbprUhE+/s43QX0j/ttcztdWK7PEkHqVthdc5GdEGDvjA=="],
 
     "@fastify/send/mime": ["mime@3.0.0", "https://registry.npmmirror.com/mime/-/mime-3.0.0.tgz", { "bin": { "mime": "cli.js" } }, "sha512-jSCU7/VB1loIWBZe14aEYHU/+1UMEHoaO7qxCOVJOw9GgH72VAWppxNcjU+x9a2k3GSIBXNKxXQFqRvvZ7vr3A=="],
 

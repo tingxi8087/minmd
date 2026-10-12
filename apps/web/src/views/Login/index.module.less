@@ -1,59 +1,730 @@
 .page {
-  min-height: 100vh;
+  --pointer-x: 0px;
+  --pointer-y: 0px;
+  min-height: 100svh;
   display: grid;
   place-items: center;
-  background: var(--sidebar);
-  padding: 24px;
+  padding: 32px;
+  background: var(--login-bg);
+  position: relative;
 }
-.card {
-  width: 390px;
-  max-width: 100%;
-  padding: 24px;
+.themeButton {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
   border: 1px solid var(--border);
   background: var(--surface);
-  border-radius: var(--radius-lg);
-  > svg {
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 5;
+  transition:
+    background var(--motion),
+    color var(--motion);
+  &:hover {
+    background: var(--hover);
     color: var(--accent);
   }
-  .brand {
-    font: 700 24px var(--font-brand);
-    margin: 12px 0 16px;
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
   }
-  h1 {
-    font-size: 22px;
-    font-weight: 500;
-  }
-  > p {
-    color: var(--text-secondary);
-    font-size: 12px;
-    margin-top: 10px;
-  }
-  form {
-    margin-top: 16px;
-    > button {
-      width: 100%;
-      margin-top: 16px;
+}
+.shell {
+  transition:
+    opacity var(--login-leave-duration) ease,
+    transform var(--login-leave-duration) ease;
+  width: min(1120px, 100%);
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  align-items: center;
+  gap: 32px;
+}
+.scene {
+  border-radius: var(--login-scene-radius);
+  padding: 44px 34px 24px;
+  min-width: 0;
+  background-color: var(--login-stage);
+  background-image: radial-gradient(var(--login-grid) 0.8px, transparent 0.8px);
+  background-size: 22px 22px;
+  overflow: hidden;
+  h2 {
+    margin: 0 0 8px 14px;
+    font-size: clamp(30px, 3.3vw, 44px);
+    font-weight: 650;
+    line-height: 1.35;
+    letter-spacing: -1.5px;
+    span {
+      color: var(--accent);
     }
   }
-  small {
-    display: block;
-    color: var(--text-muted);
-    font-size: 10px;
-    line-height: 1.9;
-    margin-top: 22px;
+}
+.illustration {
+  position: relative;
+  height: 400px;
+  isolation: isolate;
+}
+.orbit {
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  border: 1px dashed var(--login-orbit);
+  border-radius: 50%;
+  left: 15%;
+  top: 30px;
+}
+.sketch {
+  position: absolute;
+  width: 84px;
+  height: 62px;
+  right: 8px;
+  top: 4px;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.6;
+}
+.paperWrapper {
+  position: absolute;
+  animation: arrive var(--login-enter-duration) both;
+  &:hover {
+    z-index: 4;
   }
 }
-.skip {
-  background: none;
-  border: 0;
-  color: var(--accent);
-  font-size: 12px;
-  margin-top: 15px;
-  padding: 0;
+.paper {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--login-paper-shadow);
+  background: var(--surface);
+  padding: 20px;
+  transform: translate(var(--pointer-x), var(--pointer-y))
+    rotate(var(--paper-angle));
+  transition:
+    transform 350ms ease,
+    box-shadow 350ms ease;
+  .paperWrapper:hover & {
+    transform: translate(var(--pointer-x), calc(var(--pointer-y) - 6px))
+      rotate(0deg);
+  }
 }
-
-.loginNotice {
-  color: var(--text-secondary);
+.paperLabel {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-size: 12px;
+  font-weight: 550;
+  line-height: 20px;
+  margin-bottom: 20px;
+  > span {
+    margin-left: auto;
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+  > svg {
+    flex-shrink: 0;
+  }
+}
+.documentWrapper {
+  --paper-angle: -7deg;
+  left: 5%;
+  top: 32px;
+  width: 58%;
+  z-index: 2;
+}
+.documentPaper {
+  .paperLabel {
+    color: var(--doc);
+  }
+  h3 {
+    font-size: 19px;
+    line-height: 1.5;
+    font-weight: 650;
+    margin: 0 0 8px;
+  }
+  p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+}
+.inkLines {
+  display: grid;
+  gap: 7px;
+  margin: 19px 0;
+  i {
+    display: block;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+  }
+  i:nth-child(2) {
+    width: 83%;
+  }
+  i:nth-child(3) {
+    width: 63%;
+  }
+}
+.task {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 10px;
+  > span {
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+}
+.tick {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.liveTick {
+  animation: tick 9s ease infinite;
+  color: var(--accent);
+  svg {
+    animation: check 9s ease infinite;
+  }
+}
+.sheetWrapper {
+  --paper-angle: 9deg;
+  right: 0;
+  top: 90px;
+  width: 46%;
+  z-index: 1;
+  animation-delay: 110ms;
+}
+.sheetPaper {
+  padding: 16px;
+  .paperLabel {
+    color: var(--sheet);
+    margin-bottom: 12px;
+  }
+}
+.miniGrid {
+  display: grid;
+  grid-template-columns: 22px 1.3fr 1fr;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  font-size: 10px;
+  > * {
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    min-height: 29px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    font-weight: 400;
+  }
+  > span {
+    color: var(--text-muted);
+    background: var(--surface-soft);
+  }
+  > strong {
+    font-weight: 550;
+    background: var(--sheet-soft);
+  }
+  > b {
+    color: var(--text-secondary);
+  }
+}
+.activeCell {
+  animation: cell 9s ease infinite;
+}
+.slideWrapper {
+  --paper-angle: 5deg;
+  left: 31%;
+  top: 225px;
+  width: 60%;
+  z-index: 3;
+  animation-delay: 220ms;
+}
+.slidePaper {
+  background: var(--slide-soft);
+  border-color: var(--login-slide-border);
+  padding: 16px 20px;
+  .paperLabel {
+    color: var(--slide);
+    margin-bottom: 13px;
+  }
+}
+.slideBody {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  h3 {
+    position: relative;
+    height: 76px;
+    flex: 1;
+    margin: 0;
+    font-size: 27px;
+    font-weight: 650;
+    line-height: 1.3;
+    letter-spacing: -1px;
+  }
+  h3 > span {
+    position: absolute;
+    inset: 0;
+    animation: slideFirst 12s ease infinite;
+  }
+  h3 > span + span {
+    animation-name: slideSecond;
+  }
+  > svg {
+    color: var(--slide);
+    flex-shrink: 0;
+  }
+}
+.slideProgress {
+  display: flex;
+  gap: 4px;
   margin-top: 12px;
+  i {
+    height: 3px;
+    width: 16px;
+    border-radius: 2px;
+    background: var(--slide);
+    opacity: 0.3;
+    animation: progressFirst 12s ease infinite;
+  }
+  i + i {
+    animation-name: progressSecond;
+  }
+}
+.spark {
+  position: absolute;
+  top: 287px;
+  left: 8%;
+  color: var(--slide);
+  font-size: 40px;
+  font-family: serif;
+  transform: rotate(-12deg);
+}
+.card {
+  width: 340px;
+  max-width: 100%;
+  justify-self: center;
+  animation: formEnter 600ms 160ms both;
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font: 750 30px var(--font-brand);
+    letter-spacing: -1.3px;
+    margin-bottom: 36px;
+    > svg {
+      color: var(--accent);
+    }
+  }
+  h1 {
+    font-size: 26px;
+    font-weight: 650;
+    letter-spacing: -0.8px;
+    margin: 0 0 28px;
+    line-height: 1.4;
+  }
+}
+.form {
+  input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+    -webkit-text-fill-color: var(--text);
+    caret-color: var(--text);
+  }
+  :global(.field) {
+    margin-bottom: 18px;
+  }
+  label {
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 550;
+    margin-bottom: 7px;
+  }
+  :global(.ant-input),
+  :global(.ant-input-affix-wrapper) {
+    border-radius: 8px;
+    background: var(--surface);
+    border-color: var(--border);
+    font-size: 14px;
+  }
+  > :global(.field) > :global(.ant-input),
+  :global(.ant-input-affix-wrapper) {
+    height: 44px;
+    padding: 0 13px;
+  }
+  :global(.ant-input-affix-wrapper) :global(.ant-input) {
+    background: transparent;
+  }
+  > button {
+    width: 100%;
+    height: 44px;
+    margin-top: 5px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 550;
+    gap: 10px;
+    transition:
+      background 180ms ease,
+      box-shadow 180ms ease;
+    &:hover {
+      box-shadow: var(--login-accent-shadow);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+    > svg {
+      transition: transform 180ms ease;
+    }
+    &:hover > svg {
+      transform: translateX(3px);
+    }
+  }
+}
+.loginNotice {
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-top: 14px;
+}
+.loader {
+  animation: spin 1s linear infinite;
+}
+.entering {
+  .shell {
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+  }
+  .paper {
+    transform: translate(0, 0) rotate(0deg) scale(0.96);
+  }
+}
+.page:has(.form:focus-within),
+.busy {
+  .liveTick,
+  .liveTick svg,
+  .activeCell,
+  .slideBody h3 > span,
+  .slideProgress i {
+    animation-play-state: paused;
+  }
+  .slideBody h3 > span {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .slideBody h3 > span + span {
+    opacity: 0;
+  }
+  .slideProgress i {
+    animation: none;
+    opacity: 1;
+  }
+  .slideProgress i + i {
+    opacity: 0.3;
+  }
+}
+@keyframes arrive {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+@keyframes formEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes tick {
+  0%,
+  25%,
+  95%,
+  100% {
+    background: var(--surface);
+  }
+  40%,
+  85% {
+    background: var(--accent-soft);
+  }
+}
+@keyframes check {
+  0%,
+  25%,
+  95%,
+  100% {
+    opacity: 0;
+  }
+  40%,
+  85% {
+    opacity: 1;
+  }
+}
+@keyframes cell {
+  0%,
+  40%,
+  95%,
+  100% {
+    background: var(--surface);
+  }
+  55%,
+  85% {
+    background: var(--sheet-soft);
+    color: var(--sheet);
+  }
+}
+@keyframes slideFirst {
+  0%,
+  42%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  50%,
+  92% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@keyframes slideSecond {
+  0%,
+  42%,
+  100% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  50%,
+  92% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes progressFirst {
+  0%,
+  42%,
+  100% {
+    opacity: 1;
+  }
+  50%,
+  92% {
+    opacity: 0.3;
+  }
+}
+@keyframes progressSecond {
+  0%,
+  42%,
+  100% {
+    opacity: 0.3;
+  }
+  50%,
+  92% {
+    opacity: 1;
+  }
+}
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+@media (max-width: 960px) and (min-width: 761px) {
+  .page {
+    padding: 24px;
+  }
+  .shell {
+    gap: 20px;
+  }
+  .scene {
+    padding: 34px 18px 20px;
+  }
+  .illustration {
+    height: 360px;
+  }
+  .paper {
+    padding: 14px;
+  }
+  .documentPaper h3 {
+    font-size: 16px;
+  }
+  .slideBody h3 {
+    font-size: 23px;
+  }
+  .card {
+    width: 300px;
+  }
+}
+@media (max-width: 760px) {
+  .page {
+    padding: 64px 20px 32px;
+    align-items: start;
+  }
+  .themeButton {
+    top: 16px;
+    right: 20px;
+  }
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    max-width: 440px;
+  }
+  .scene {
+    padding: 22px 20px 12px;
+    border-radius: 20px;
+  }
+  .scene h2 {
+    font-size: 28px;
+    margin: 0;
+  }
+  .illustration {
+    height: 248px;
+    max-width: 360px;
+    margin: 0 auto;
+  }
+  .paper {
+    padding: 12px;
+    border-radius: 8px;
+  }
+  .paperLabel {
+    font-size: 10px;
+    gap: 5px;
+    margin-bottom: 10px;
+    > svg {
+      width: 13px;
+      height: 13px;
+    }
+    > span {
+      font-size: 9px;
+    }
+  }
+  .documentWrapper {
+    top: 18px;
+  }
+  .documentPaper {
+    h3 {
+      font-size: 13px;
+    }
+    p {
+      font-size: 10px;
+    }
+  }
+  .inkLines {
+    margin: 10px 0;
+    gap: 5px;
+    i {
+      height: 2px;
+    }
+  }
+  .task {
+    font-size: 9px;
+    gap: 5px;
+    margin-top: 6px;
+    > span {
+      width: 12px;
+      height: 12px;
+    }
+  }
+  .sheetWrapper {
+    top: 38px;
+  }
+  .miniGrid {
+    font-size: 8px;
+    grid-template-columns: 14px 1.3fr 1fr;
+    > * {
+      min-height: 23px;
+    }
+  }
+  .slideWrapper {
+    top: 125px;
+  }
+  .slidePaper .paperLabel {
+    margin-bottom: 8px;
+  }
+  .slideBody {
+    h3 {
+      font-size: 19px;
+      height: 48px;
+    }
+    > svg {
+      width: 28px;
+      height: 28px;
+    }
+  }
+  .slideProgress {
+    margin-top: 8px;
+  }
+  .orbit {
+    width: 200px;
+    height: 200px;
+    left: 16%;
+    top: 18px;
+  }
+  .spark {
+    top: 179px;
+    font-size: 26px;
+  }
+  .sketch {
+    width: 48px;
+    height: 38px;
+  }
+  .card {
+    width: 340px;
+    padding: 0 6px;
+    .brand {
+      font-size: 25px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 23px;
+      margin-bottom: 20px;
+    }
+  }
+}
+@media (max-width: 360px) {
+  .slideBody {
+    h3 {
+      font-size: 15px;
+      height: 44px;
+    }
+    > svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page *,
+  .page *::before,
+  .page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .paper {
+    transform: rotate(var(--paper-angle)) !important;
+  }
+  .slideBody h3 > span + span {
+    display: none;
+  }
+  .liveTick svg {
+    opacity: 1;
+  }
 }

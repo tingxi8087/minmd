@@ -15,14 +15,14 @@ bun install --frozen-lockfile
 cp .env.example .env
 ```
 
-已有 `.env` 时不要覆盖；旧配置需将 `AUTH_TRANSPORT` 设为 `cookie`，并在启动前执行下面的迁移。填写数据库连接和首次管理员账号密码，数据库需预先创建；迁移只创建表结构。
+已有 `.env` 时不要覆盖；旧配置需将 `AUTH_TRANSPORT` 设为 `cookie`，并将 `PUBLIC_ORIGIN` 和 `APP_PUBLIC_ORIGIN` 统一设为后端访问来源（默认 `http://127.0.0.1:9811`），并在启动前执行下面的迁移。填写数据库连接和首次管理员账号密码，数据库需预先创建；迁移只创建表结构。
 
 ```sh
 bun run db:migrate
 bun run dev
 ```
 
-默认地址：前台 <http://127.0.0.1:5173/>，后台 <http://127.0.0.1:5174/>，后端 <http://127.0.0.1:9811>。`GET /api/health` 会实际检查数据库连接。端口由 `.env` 的 `WEB_PORT`、`WEB_CMS_PORT`、`PORT` 配置，后端变更时同步修改 `API_PROXY_TARGET`。
+统一开发入口：前台 <http://127.0.0.1:9811/>，后台 <http://127.0.0.1:9811/admin/>，接口也使用同一来源。后端仅在 `APP_ENV=development` 且 `WEB_DEV_PROXY=true` 时反代本机两个 Vite 服务；无需构建，关闭 HMR 后修改前端代码刷新页面即可。`GET /api/health` 会实际检查数据库连接。端口由 `.env` 的 `WEB_PORT`、`WEB_CMS_PORT`、`PORT` 配置，后端变更时同步修改 `API_PROXY_TARGET`。
 
 前后台使用独立 Cookie 身份和 CSRF 校验，配置模板默认 `AUTH_TRANSPORT=cookie`。前台注册默认关闭，可由后台创建前台账号；开发前台来源由 `APP_PUBLIC_ORIGIN` 和 `APP_DEV_ORIGINS` 配置。
 
@@ -64,7 +64,7 @@ apps/web/scripts/      原有前台行为检查脚本
 deploy/                开发 / 生产 Compose、Dockerfile、代理及备份恢复
 ```
 
-根目录维护唯一 `bun.lock`，各应用通过 Bun workspace 安装。前台接口代理为 `/api`；开发前后台使用不同端口。后台部署路径示例为 `/admin`，修改配置后需重启后端。正式 Cookie 模式需要 HTTPS 和匹配的访问来源。
+根目录维护唯一 `bun.lock`，各应用通过 Bun workspace 安装。前台接口使用 `/api`；开发前后台由后端统一反代，内部 Vite 端口不作为浏览器入口。后台部署路径示例为 `/admin`，修改配置后需重启后端。正式 Cookie 模式需要 HTTPS 和匹配的访问来源。
 
 验收命令示例：
 
@@ -78,7 +78,7 @@ TEST_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/minmd_test bun run t
 
 数据库测试必须使用独立 `_test` 库，不指向日常开发库或生产库。配置、运行日志、数据库文件、上传文件和验收截图均不提交 Git。`dist/.env.example` 仅为公开配置模板，不包含本机凭证。
 
-本机设置了全局 HTTP 代理时，验收命令需在前面加 `env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY`，确保本地健康检查直接连接。开发进程已对 Vite 的本地代理设置 `NO_PROXY`。
+本机设置了全局 HTTP 代理时，验收命令需在前面加 `env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY`，确保本地健康检查直接连接。开发进程已对后端和 Vite 的本地代理设置 `NO_PROXY`。
 
 ## 已有交互
 

@@ -6,6 +6,7 @@ import { assets } from "./database/schema/assets";
 import { AppError } from "../../../system/server/src/errors";
 import { registerDocumentVerification } from "./modules/document-verification";
 import { registerSheetVerification } from "./modules/sheet-verification";
+import { registerDevWeb } from "./modules/dev-web";
 import { registerUsers } from "./modules/users";
 import { registerSpaces } from "./modules/spaces";
 import { registerFiles, assertSpaceEmpty } from "./modules/files";
@@ -50,6 +51,7 @@ export function buildApp(
       },
     },
     register: async (app, { database, config }) => {
+      await registerDevWeb(app, config);
       let rooms: DocumentRooms | undefined;
       let sheetRooms: SheetRooms | undefined;
       await registerUsers(
