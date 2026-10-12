@@ -29,6 +29,7 @@ import { errorMessage } from "@/http";
 import { assetsApi } from "@/api/assets";
 import { BlockId } from "./extensions/blockId";
 import VersionHistory from "./components/VersionHistory";
+import DocumentDetails from "./components/DocumentDetails";
 import type { JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -177,6 +178,7 @@ function DocumentEditor({
   const [title, setTitle] = useState(file.name);
   const [status, setStatus] = useState<"saved" | "saving" | "failed">("saved");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [checkpointBusy, setCheckpointBusy] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [action, setAction] = useState<FileAction | null>(null);
@@ -507,22 +509,6 @@ function DocumentEditor({
       icon: <FolderInput size={15} />,
       run: () => setAction({ type: "move", file }),
     },
-    {
-      key: "favorite",
-      label: file.favorite ? "取消收藏" : "添加收藏",
-      icon: <Star size={15} />,
-      run: () => {
-        void patch(file.id, { favorite: !file.favorite }).catch(
-          (error: unknown) => message.error(errorMessage(error)),
-        );
-      },
-    },
-    {
-      key: "share",
-      label: "分享设置",
-      icon: <Share2 size={15} />,
-      run: () => setAction({ type: "share", file }),
-    },
     { key: "divider", type: "divider" },
     {
       key: "export",
@@ -540,18 +526,7 @@ function DocumentEditor({
       key: "details",
       label: "文档详情",
       icon: <Info size={15} />,
-      run: () =>
-        modal.info({
-          title: "文档详情",
-          content: (
-            <div>
-              <p>作者：{file.owner}</p>
-              <p>可见性：{file.public ? "公开" : "私有"}</p>
-              <p>字数：{count}</p>
-            </div>
-          ),
-          okText: "关闭",
-        }),
+      run: () => setDetailsOpen(true),
     },
   ];
   const editingItems = (): ContextItem[] => {
@@ -753,6 +728,13 @@ function DocumentEditor({
   );
   return (
     <main className={styles.page}>
+      {detailsOpen && (
+        <DocumentDetails
+          fileId={file.id}
+          count={count}
+          close={() => setDetailsOpen(false)}
+        />
+      )}
       {headerHost ? createPortal(documentHeader, headerHost) : documentHeader}
       {collaboration.drafts.length > 0 && (
         <div className={styles.verification} role="status">

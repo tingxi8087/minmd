@@ -233,6 +233,9 @@ export default function FileAccessGate({
   const localRevision = useWorkspace(
     (state) => state.files.find((file) => file.id === fileId)?.metadataRevision,
   );
+  const localFavorite = useWorkspace(
+    (state) => state.files.find((file) => file.id === fileId)?.favorite,
+  );
   const [access, setAccess] = useState<FileAccess | null>(null),
     [file, setFile] = useState<Entry | null>(null),
     [error, setError] = useState("");
@@ -307,5 +310,6 @@ export default function FileAccessGate({
         changed={changed}
       />
     );
-  return children(file);
+  // 收藏属于个人状态，不改变文件权限，也不需要重新加载协作会话。
+  return children({ ...file, favorite: localFavorite ?? file.favorite });
 }

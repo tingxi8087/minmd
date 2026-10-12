@@ -29,8 +29,13 @@ export const spaceApi = {
       if (items.length >= result.total || !result.items.length) return items;
     }
   },
-  create: async (name: string) =>
-    (await request.post<Space>("/app/spaces", { name })).data,
+  create: async (name: string, description?: string) =>
+    (
+      await request.post<Space>("/app/spaces", {
+        name,
+        ...(description ? { description } : {}),
+      })
+    ).data,
   update: async (
     id: string,
     data: Pick<Space, "name" | "description">,

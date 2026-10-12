@@ -19,6 +19,8 @@ export type RemoteFile = {
 };
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number };
 export const filesApi = {
+  get: async (id: string, signal?: AbortSignal) =>
+    (await request.get<RemoteFile>(`/app/files/${id}`, { signal })).data,
   tree: async (spaceId: string, signal?: AbortSignal) =>
     (
       await request.get<{ items: RemoteFile[] }>(

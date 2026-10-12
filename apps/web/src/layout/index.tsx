@@ -58,6 +58,7 @@ export default function Layout() {
     };
   }, [status, user?.id]);
   const [spaceName, setSpaceName] = useState("");
+  const [spaceDescription, setSpaceDescription] = useState("");
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
   const [creatingSpace, setCreatingSpace] = useState(false);
   useEffect(() => {
@@ -434,10 +435,14 @@ export default function Layout() {
           }
           setCreatingSpace(true);
           try {
-            const created = await spaceApi.create(spaceName.trim());
+            const created = await spaceApi.create(
+              spaceName.trim(),
+              spaceDescription.trim(),
+            );
             await loadSpaces();
             await setSpace(created.id);
             setSpaceName("");
+            setSpaceDescription("");
             setCreateSpaceOpen(false);
             navigate("/files");
           } catch (error) {
@@ -454,6 +459,22 @@ export default function Layout() {
           maxLength={80}
           placeholder="空间名称"
         />
+        <div style={{ marginTop: 16 }}>
+          <label
+            htmlFor="new-space-description"
+            style={{ display: "block", marginBottom: 8 }}
+          >
+            空间描述（选填）
+          </label>
+          <Input.TextArea
+            id="new-space-description"
+            value={spaceDescription}
+            onChange={(event) => setSpaceDescription(event.target.value)}
+            maxLength={2000}
+            rows={3}
+            placeholder="简单介绍这个空间，之后也可以在空间设置中修改"
+          />
+        </div>
       </Modal>
       <Modal
         title="搜索空间"
