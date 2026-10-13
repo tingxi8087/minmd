@@ -368,8 +368,8 @@ export default function Spreadsheet({ file }: { file: Entry }) {
         onChange={(event) => void imported(event.target.files?.[0])}
       />
       {(collaboration.notice ||
-        collaboration.hasRecovery ||
-        collaboration.state !== "saved") && (
+        (collaboration.hasRecovery && !collaboration.pendingCount) ||
+        ["error", "disconnected"].includes(collaboration.state)) && (
         <div className={styles.collaboration} role="status">
           <span>
             {collaboration.notice ||

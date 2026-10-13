@@ -436,7 +436,11 @@ export function useSheetCollaboration(
               api.current?.addPresences([
                 {
                   userId: packet.editSessionId,
-                  username: `编辑者 ${String(packet.userId).slice(0, 4)}`,
+                  username:
+                    typeof packet.displayName === "string" &&
+                    packet.displayName.trim()
+                      ? packet.displayName
+                      : "编辑者",
                   color: "#168b78",
                   selection: {
                     r: Number(selection.row),

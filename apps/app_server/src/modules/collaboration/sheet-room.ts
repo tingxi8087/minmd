@@ -47,6 +47,7 @@ interface Connection {
   fileId: string;
   socket: Socket;
   identity?: Identity;
+  displayName?: string;
   timeout: ReturnType<typeof setTimeout>;
   messages: number;
   window: number;
@@ -372,6 +373,7 @@ export class SheetRooms {
       .filter((entry) => entry.fileId === fileId && entry.identity)
       .map((entry) => ({
         userId: entry.identity!.userId,
+        displayName: entry.displayName,
         editSessionId: entry.identity!.editSessionId,
       }));
     this.broadcast(fileId, {
@@ -436,7 +438,18 @@ export class SheetRooms {
               ticket.userId,
               ticket,
             );
-            return { current, engine: this.candidate(current) };
+            const [user] = await tx
+              .select({
+                nickname: appUsers.nickname,
+                account: appUsers.account,
+              })
+              .from(appUsers)
+              .where(eq(appUsers.id, ticket.userId));
+            return {
+              current,
+              engine: this.candidate(current),
+              displayName: user?.nickname.trim() || user?.account || "编辑者",
+            };
           });
           if (!this.connections.has(id)) return;
           const duplicate = [...this.connections.values()].find(
@@ -465,6 +478,7 @@ export class SheetRooms {
             epoch: ticket.epoch,
             editSessionId: ticket.editSessionId,
           };
+          connection.displayName = result.displayName;
           clearTimeout(connection.timeout);
           this.rooms.set(connection.fileId, result.engine);
           this.send(connection, {
@@ -498,6 +512,7 @@ export class SheetRooms {
           this.broadcast(identity.fileId, {
             type: "presence",
             userId: identity.userId,
+            displayName: connection.displayName,
             editSessionId: identity.editSessionId,
             selection,
           });

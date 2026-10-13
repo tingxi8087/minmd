@@ -186,6 +186,7 @@ async function wait(check: () => boolean, label: string) {
             kind: "sheet",
             spaceId,
             createdBy: userId,
+            memberPermission: "edit" as const,
           })),
         )
         .returning({ id: files.id });
@@ -244,6 +245,60 @@ async function wait(check: () => boolean, label: string) {
       expect(latest(valid).type).toBe("snapshot");
       valid.socket.close();
       await wait(() => !!valid.closed, "释放兼容验证连接");
+    });
+    test("协作选区显示服务端昵称，空昵称回退账号且不接受客户端伪造名称", async () => {
+      await database.db
+        .update(appUsers)
+        .set({ nickname: "协作昵称" })
+        .where(eq(appUsers.id, userId));
+      const named = await connect();
+      named.socket.send(
+        JSON.stringify({
+          type: "presence",
+          username: "伪造名称",
+          selection: { sheetId: "s", row: 0, column: 0 },
+        }),
+      );
+      await wait(
+        () =>
+          b.packets.some(
+            (packet) =>
+              packet.type === "presence" &&
+              packet.editSessionId === named.editSessionId,
+          ),
+        "昵称选区",
+      );
+      expect(
+        b.packets.find(
+          (packet) =>
+            packet.type === "presence" &&
+            packet.editSessionId === named.editSessionId,
+        )?.displayName,
+      ).toBe("协作昵称");
+      b.socket.send(
+        JSON.stringify({
+          type: "presence",
+          selection: { sheetId: "s", row: 0, column: 1 },
+        }),
+      );
+      await wait(
+        () =>
+          named.packets.some(
+            (packet) =>
+              packet.type === "presence" &&
+              packet.editSessionId === b.editSessionId,
+          ),
+        "账号选区",
+      );
+      expect(
+        named.packets.find(
+          (packet) =>
+            packet.type === "presence" &&
+            packet.editSessionId === b.editSessionId,
+        )?.displayName,
+      ).toBe(`${prefix}_member`);
+      named.socket.close();
+      await wait(() => !!named.closed, "关闭昵称测试会话");
     });
     test("两个账号同格并发收敛，个人撤销不覆盖他人输入", async () => {
       const base = Number(latest(a).revision);

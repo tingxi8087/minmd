@@ -6,7 +6,6 @@ import {
   ArrowUpRight,
   ChevronsUpDown,
   Clock3,
-  FolderClosed,
   Home,
   LogOut,
   Moon,
@@ -30,12 +29,13 @@ import { errorMessage } from "@/http";
 import TooltipButton from "@/components/TooltipButton";
 import ThemeDialog from "@/components/ThemeDialog";
 import BrandIcon from "@/components/BrandIcon";
+import FileIcon from "@/components/FileIcon";
 import { useLayout, SIDEBAR_MIN, SIDEBAR_MAX } from "@/store/layout";
 import WorkspaceTree from "./components/WorkspaceTree";
 import styles from "./index.module.less";
 import { memberReturnPath } from "@/utils/memberReturn";
 export default function Layout() {
-  const { space, spaces, setSpace, theme, loadSpaces } = useWorkspace();
+  const { space, spaces, setSpace, theme, setTheme, loadSpaces } = useWorkspace();
   const { user, status, bootstrap, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   useEffect(() => {
@@ -333,10 +333,11 @@ export default function Layout() {
           <div className={styles.headerActions}>
             <button
               className={`icon-button ${styles.themeButton}`}
-              aria-label="主题设置"
-              onClick={() => setThemeDialogOpen(true)}
+              aria-label={theme === "dark" ? "切换白天主题" : "切换夜间主题"}
+              title={theme === "dark" ? "切换白天主题" : "切换夜间主题"}
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             >
-              {theme === "light" ? <Sun size={18} /> : <Moon size={18} />}
+              {theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
             </button>
             <Dropdown
               trigger={["click"]}
@@ -503,7 +504,7 @@ export default function Layout() {
                 setSearchOpen(false);
               }}
             >
-              <FolderClosed size={16} />
+              <FileIcon kind={f.kind} small />
               {f.name}
               <ArrowUpRight size={14} />
             </button>
