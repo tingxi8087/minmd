@@ -25,6 +25,11 @@ import {
   empty,
   type UserInput,
 } from "./schemas";
+import {
+  lockAccountCreation,
+  completeSetup,
+  createDefaultSpace,
+} from "./provisioning";
 /** 显式输出白名单，避免密码哈希泄漏到响应或审计。 */
 export async function readUser(db: Database["db"] | Transaction, id: string) {
   const [row] = await db
@@ -179,7 +184,7 @@ export async function registerUserManagement(
   for (const edit of [false, true]) {
     app.route<{
       Params: { id: string };
-      Body: UserInput & { password?: string };
+      Body: UserInput & { password?: string; createDefaultSpace?: boolean };
     }>({
       method: edit ? "PUT" : "POST",
       url: edit ? "/api/admin/app-users/:id" : "/api/admin/app-users",
@@ -191,10 +196,22 @@ export async function registerUserManagement(
         tags: ["前台用户管理"],
         summary: edit ? "编辑前台用户" : "创建前台用户",
         description:
-          "维护基础资料、额外资料和前台角色。状态与密码通过单独接口修改。",
+          "维护基础资料、额外资料和前台角色。新建账号可选择同时创建默认空间和引导文档，缺省不创建；状态与密码通过单独接口修改。",
         ...(edit ? { params } : {}),
         body: Type.Object(
-          { ...adminFields, ...(!edit ? { password } : {}) },
+          {
+            ...adminFields,
+            ...(!edit
+              ? {
+                  password,
+                  createDefaultSpace: Type.Optional(
+                    Type.Boolean({
+                      description: "是否创建默认空间及引导文档，缺省不创建",
+                    }),
+                  ),
+                }
+              : {}),
+          },
           { additionalProperties: false },
         ),
         response: ok,
@@ -224,11 +241,19 @@ export async function registerUserManagement(
           if (edit)
             await tx.update(appUsers).set(values).where(eq(appUsers.id, id));
           else {
+            await lockAccountCreation(tx);
             const [row] = await tx
               .insert(appUsers)
               .values({ ...values, passwordHash: passwordHash! })
               .returning({ id: appUsers.id });
             id = row!.id;
+            if (request.body.createDefaultSpace)
+              await createDefaultSpace(tx, {
+                id,
+                account: values.account,
+                nickname: values.nickname,
+              });
+            await completeSetup(tx);
           }
           await assignRoles(tx, id, request.body.roles);
           // 自定义 metadata 可能包含敏感资料，不写入审计副本。
@@ -237,6 +262,9 @@ export async function registerUserManagement(
             nickname: values.nickname,
             roles: request.body.roles,
             metadataUpdated: true,
+            ...(!edit
+              ? { createDefaultSpace: request.body.createDefaultSpace ?? false }
+              : {}),
           };
           await writeAudit(tx, request, config.APP_ENV, {
             action: edit ? "app-user.update" : "app-user.create",

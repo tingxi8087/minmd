@@ -18,6 +18,7 @@ import { errorMessage } from "@/http";
 import { useWorkspace } from "@/store/workspace";
 import { memberReturnState } from "@/utils/memberReturn";
 import styles from "./index.module.less";
+import { authApi } from "@/api/auth";
 export default function Login() {
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
@@ -69,6 +70,28 @@ export default function Login() {
   };
   const { login, status, bootstrap, error } = useAuth();
   const [busy, setBusy] = useState(false);
+  const [setupCheck, setSetupCheck] = useState<"loading" | "ready" | "failed">(
+    "loading",
+  );
+  const [checkAttempt, setCheckAttempt] = useState(0);
+  useEffect(() => {
+    if (status !== "anonymous") return;
+    let active = true;
+    setSetupCheck("loading");
+    void authApi
+      .setupStatus()
+      .then((result) => {
+        if (!active) return;
+        if (result.needsSetup) navigate("/setup", { replace: true });
+        else setSetupCheck("ready");
+      })
+      .catch(() => {
+        if (active) setSetupCheck("failed");
+      });
+    return () => {
+      active = false;
+    };
+  }, [status, checkAttempt, navigate]);
   useEffect(() => {
     if (status === "anonymous") setEntering(false);
     if (status === "idle") void bootstrap();
@@ -204,65 +227,85 @@ export default function Login() {
             <span>minmd</span>
           </div>
           <h1>打开你的空间</h1>
-          <form
-            className={styles.form}
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!account.trim() || !password) {
-                message.warning("请输入账号和密码");
-                return;
-              }
-              if (busy || entering || redirecting.current) return;
-              setBusy(true);
-              try {
-                await login(account, password);
-                await returnAfterLogin();
-              } catch (error) {
-                message.error(errorMessage(error));
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <div className="field">
-              <label htmlFor="account">账号</label>
-              <Input
-                id="account"
-                disabled={busy || entering}
-                value={account}
-                onChange={(e) => setAccount(e.target.value)}
-                placeholder="请输入账号"
-                autoComplete="username"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="password">密码</label>
-              <Input.Password
-                id="password"
-                disabled={busy || entering}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="请输入密码"
-                autoComplete="current-password"
-              />
-            </div>
-            <button
-              className="primary-button"
-              type="submit"
-              disabled={busy || entering}
-            >
-              {busy ? "登录中…" : entering ? "正在进入…" : "进入空间"}{" "}
-              {busy || entering ? (
-                <Loader2 className={styles.loader} size={18} />
+          {setupCheck !== "ready" ? (
+            <div role="status" className={styles.loginNotice}>
+              {setupCheck === "failed" ? (
+                <>
+                  <p>无法连接服务器，请重试。</p>
+                  <button
+                    className="secondary-button"
+                    onClick={() => setCheckAttempt((value) => value + 1)}
+                  >
+                    重新连接
+                  </button>
+                </>
               ) : (
-                <ArrowRight size={18} />
+                "正在准备你的空间…"
               )}
-            </button>
-          </form>
-          {error && (
-            <p role="alert" className={styles.loginNotice}>
-              {error}
-            </p>
+            </div>
+          ) : (
+            <>
+              <form
+                className={styles.form}
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!account.trim() || !password) {
+                    message.warning("请输入账号和密码");
+                    return;
+                  }
+                  if (busy || entering || redirecting.current) return;
+                  setBusy(true);
+                  try {
+                    await login(account, password);
+                    await returnAfterLogin();
+                  } catch (error) {
+                    message.error(errorMessage(error));
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <div className="field">
+                  <label htmlFor="account">账号</label>
+                  <Input
+                    id="account"
+                    disabled={busy || entering}
+                    value={account}
+                    onChange={(e) => setAccount(e.target.value)}
+                    placeholder="请输入账号"
+                    autoComplete="username"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="password">密码</label>
+                  <Input.Password
+                    id="password"
+                    disabled={busy || entering}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="请输入密码"
+                    autoComplete="current-password"
+                  />
+                </div>
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={busy || entering}
+                >
+                  {busy ? "登录中…" : entering ? "正在进入…" : "进入空间"}{" "}
+                  {busy || entering ? (
+                    <Loader2 className={styles.loader} size={18} />
+                  ) : (
+                    <ArrowRight size={18} />
+                  )}
+                </button>
+              </form>
+              {error && (
+                <p role="alert" className={styles.loginNotice}>
+                  {error}
+                </p>
+              )}
+            </>
           )}
         </section>
       </div>

@@ -62,6 +62,12 @@ request.defaults.adapter = async (config) => {
   }
   if (config.url === "/app/auth/login")
     response.data = { csrfToken: "login-csrf" };
+  if (config.url === "/app/auth/setup")
+    response.data = {
+      csrfToken: "setup-csrf",
+      spaceId: "real-space",
+      documentId: "welcome-document",
+    };
   if (config.url === "/app/auth/me")
     response.data = {
       user: {
@@ -138,6 +144,26 @@ assert.equal(
 await useAuth.getState().logout();
 assert.equal(useAuth.getState().user, null);
 assert.equal(calls.at(-1)?.csrf, "me-csrf");
+const setupResult = await useAuth.getState().initialize({
+  account: "test_user",
+  password: "123456",
+  spaceName: "真实空间",
+});
+assert.equal(setupResult.documentId, "welcome-document");
+assert.equal(
+  useAuth.getState().status,
+  "authenticated",
+  "初始化后正常读取登录身份",
+);
+assert.equal(useWorkspace.getState().space, "real-space", "初始化后选择新空间");
+assert.equal(
+  calls.findLast((call) => call.path === "/app/auth/setup")?.csrf,
+  undefined,
+  "初始化不依赖已有会话",
+);
+await request.post("/app/spaces", { name: "初始化后的写请求" });
+assert.equal(calls.at(-1)?.csrf, "me-csrf", "初始化后写请求使用正常会话CSRF");
+await useAuth.getState().logout();
 const preferences = JSON.parse(storage.get("minmd-preferences-v2") ?? "{}");
 assert.deepEqual(
   Object.keys(preferences.state).sort(),
@@ -145,5 +171,5 @@ assert.deepEqual(
   "身份、CSRF、私有文件不持久化",
 );
 console.log(
-  "前台认证流程验证通过：Cookie CSRF、真实空间、退出失败、当前401清缓存、旧401不清新会话、退出成功",
+  "前台认证流程验证通过：Cookie CSRF、首次初始化自动登录、真实空间、退出失败、当前401清缓存、旧401不清新会话、退出成功",
 );

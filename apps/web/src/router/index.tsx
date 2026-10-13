@@ -5,12 +5,14 @@ import Files from "@/views/Files";
 import Settings from "@/views/Settings";
 import Preview from "@/views/Preview";
 import Login from "@/views/Login";
+import Setup from "@/views/Setup";
 const SharedWithMe = lazy(() => import("@/views/SharedWithMe"));
 const Notifications = lazy(() => import("@/views/Notifications"));
 const Share = lazy(() => import("@/views/Share"));
 const Document = lazy(() => import("@/views/Document"));
 export const router = createHashRouter([
   { path: "/login", element: <Login /> },
+  { path: "/setup", element: <Setup /> },
   {
     path: "/share/:token",
     element: (

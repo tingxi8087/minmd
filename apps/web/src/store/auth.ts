@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import { authApi, type CurrentUser } from "@/api/auth";
+import {
+  authApi,
+  type CurrentUser,
+  type SetupInput,
+  type SetupResult,
+} from "@/api/auth";
 import { configureSession } from "@/http";
 import { useWorkspace } from "@/store/workspace";
 type AuthState = {
@@ -8,6 +13,7 @@ type AuthState = {
   error: string;
   bootstrap: () => Promise<void>;
   login: (account: string, password: string) => Promise<void>;
+  initialize: (input: SetupInput) => Promise<SetupResult>;
   logout: () => Promise<void>;
   clear: () => void;
 };
@@ -55,6 +61,17 @@ export const useAuth = create<AuthState>((set, get) => ({
     await get().bootstrap();
     if (get().status !== "authenticated")
       throw new Error(get().error || "无法读取当前账号");
+  },
+  initialize: async (input) => {
+    const result = await authApi.setup(input);
+    if (!result.csrfToken)
+      throw new Error("前台需要 Cookie 认证，请在服务端启用 Cookie 模式");
+    configureSession(result.csrfToken);
+    await get().bootstrap();
+    if (get().status !== "authenticated")
+      throw new Error(get().error || "账号已创建，请重新登录");
+    await useWorkspace.getState().setSpace(result.spaceId);
+    return result;
   },
   logout: async () => {
     await authApi.logout();

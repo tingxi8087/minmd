@@ -14,7 +14,7 @@ export interface AppUser {
 export type AppUserInput = Pick<
   AppUser,
   "account" | "nickname" | "avatar" | "metadata" | "roles"
-> & { password?: string };
+> & { password?: string; createDefaultSpace?: boolean };
 export const getAppUsers = (params: Record<string, unknown>) =>
   request.get<never, { items: AppUser[]; total: number; page: number }>(
     "/api/admin/app-users",

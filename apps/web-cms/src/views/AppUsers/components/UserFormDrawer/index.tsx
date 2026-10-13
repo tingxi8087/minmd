@@ -1,5 +1,14 @@
 import { forwardRef, useImperativeHandle, useState } from "react";
-import { Alert, Button, Drawer, Form, Input, Space, message } from "antd";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Drawer,
+  Form,
+  Input,
+  Space,
+  message,
+} from "antd";
 import { type AppUser, type AppUserInput } from "@/http/services/appUsers";
 import AvatarUpload from "../AvatarUpload";
 /** 保存资料、重置密码或取消。 */
@@ -44,6 +53,7 @@ const UserFormDrawer = forwardRef<UserFormRef, {}>(
             account: config.user?.account ?? "",
             nickname: config.user?.nickname ?? "",
             avatar: config.user?.avatar ?? "",
+            createDefaultSpace: config.user ? undefined : true,
           });
           setVisible(true);
         },
@@ -73,11 +83,15 @@ const UserFormDrawer = forwardRef<UserFormRef, {}>(
             password: values.password,
           });
         } else {
+          const { createDefaultSpace, ...profile } = values;
           await onEventFn({
             type: "save",
             id: user?.id,
             values: {
-              ...values,
+              ...profile,
+              ...(!user
+                ? { createDefaultSpace: createDefaultSpace ?? true }
+                : {}),
               metadata: user?.metadata ?? {},
               roles: user?.roles ?? [],
             },
@@ -182,6 +196,15 @@ const UserFormDrawer = forwardRef<UserFormRef, {}>(
               ]}
             >
               <Input.Password autoComplete="new-password" />
+            </Form.Item>
+          )}
+          {!user && mode === "edit" && (
+            <Form.Item
+              name="createDefaultSpace"
+              valuePropName="checked"
+              extra="自动创建「昵称的空间」，并放入一篇使用引导文档。"
+            >
+              <Checkbox>创建默认空间</Checkbox>
             </Form.Item>
           )}
         </Form>

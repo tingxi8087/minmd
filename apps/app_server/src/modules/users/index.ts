@@ -11,7 +11,6 @@ import {
   hashToken,
   newToken,
 } from "../../../../../system/server/src/modules/auth/password";
-import { csrfFor } from "../../../../../system/server/src/modules/auth/plugin";
 import { appUsers, appUserSessions } from "../../database/schema/users";
 import { account, password, profile, userSchema, ok, empty } from "./schemas";
 import { appSessionCookie, installAppAuthentication } from "./auth";
@@ -21,6 +20,9 @@ import {
   type MinmdAuthConfig,
 } from "../../../../../config/minmd";
 import type { UserLifecycle } from "./lifecycle";
+import { registerSetup } from "./setup";
+import { lockAccountCreation, completeSetup } from "./provisioning";
+import { sessionFields, respondSession } from "./session";
 export async function registerUsers(
   app: FastifyInstance,
   database: Database,
@@ -31,6 +33,7 @@ export async function registerUsers(
 ) {
   await installAppAuthentication(app, database, config, catalog, business);
   await registerUserManagement(app, database, config, lifecycle);
+  await registerSetup(app, database, config, business);
   const dummyHash = await hashPassword(newToken());
   const secure = { auth: true, authScope: "app" as const };
   app.post<{ Body: { account: string; password: string; nickname?: string } }>(
@@ -56,10 +59,15 @@ export async function registerUsers(
           "公开注册未开启，请联系管理员创建账号",
           403,
         );
-      await database.db.insert(appUsers).values({
-        account: request.body.account.toLowerCase(),
-        nickname: request.body.nickname?.trim() ?? "",
-        passwordHash: await hashValidatedPassword(request.body.password),
+      const passwordHash = await hashValidatedPassword(request.body.password);
+      await database.db.transaction(async (tx) => {
+        await lockAccountCreation(tx);
+        await tx.insert(appUsers).values({
+          account: request.body.account.toLowerCase(),
+          nickname: request.body.nickname?.trim() ?? "",
+          passwordHash,
+        });
+        await completeSetup(tx);
       });
       return { ok: true };
     },
@@ -86,13 +94,7 @@ export async function registerUsers(
           { additionalProperties: false },
         ),
         response: {
-          200: Type.Object({
-            token: Type.Optional(Type.String({ description: "Bearer 令牌" })),
-            csrfToken: Type.Optional(
-              Type.String({ description: "Cookie 写请求 CSRF 凭证" }),
-            ),
-            expiresAt: Type.String({ description: "会话过期时间" }),
-          }),
+          200: Type.Object(sessionFields),
         },
       },
     },
@@ -135,20 +137,7 @@ export async function registerUsers(
           .set({ lastLoginAt: new Date() })
           .where(eq(appUsers.id, current.id));
       });
-      if (config.AUTH_TRANSPORT === "cookie") {
-        reply.setCookie(appSessionCookie, token, {
-          httpOnly: true,
-          secure: config.APP_ENV === "production",
-          sameSite: "strict",
-          path: "/api/app",
-          expires: expiresAt,
-        });
-        return {
-          csrfToken: csrfFor(hashToken(token)),
-          expiresAt: expiresAt.toISOString(),
-        };
-      }
-      return { token, expiresAt: expiresAt.toISOString() };
+      return respondSession(reply, config, token, expiresAt);
     },
   );
   app.get(

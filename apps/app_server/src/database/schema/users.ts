@@ -9,10 +9,20 @@ import {
   primaryKey,
   index,
   check,
+  integer,
 } from "drizzle-orm/pg-core";
 import { roles } from "../../../../../system/server/src/database/schema/system";
 const time = (name: string) =>
   timestamp(name, { withTimezone: true, mode: "date" });
+/** 首次初始化完成标记；删除全部账号也不会重新开放匿名初始化。 */
+export const appInstallation = pgTable(
+  "app_installation",
+  {
+    id: integer("id").primaryKey().default(1),
+    initializedAt: time("initialized_at").notNull().defaultNow(),
+  },
+  (t) => [check("app_installation_singleton", sql`${t.id} = 1`)],
+);
 /** 前台账号；额外资料不能用作角色、状态等授权依据。 */
 export const appUsers = pgTable(
   "app_users",
