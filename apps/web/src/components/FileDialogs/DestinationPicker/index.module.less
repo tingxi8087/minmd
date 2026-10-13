@@ -1,0 +1,201 @@
+.picker {
+  padding-top: 12px;
+}
+.source {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: var(--hover);
+  padding: 12px;
+  border-radius: 9px;
+  margin-bottom: 16px;
+  > div {
+    flex: 1;
+    min-width: 0;
+  }
+  > span {
+    flex-shrink: 0;
+  }
+  strong {
+    display: block;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  p {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  small {
+    flex-shrink: 0;
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+}
+.browser {
+  height: 300px;
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.root {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  > span {
+    flex: 1;
+    font-size: 13px;
+  }
+  > small {
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+  &:hover {
+    background: var(--hover);
+  }
+}
+.selected {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+}
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px;
+  :global(.ant-tree) {
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+  }
+  :global(.ant-tree-node-content-wrapper) {
+    flex: 1;
+    min-width: 0;
+    padding: 0 9px;
+    border-radius: 6px;
+  }
+  :global(.ant-tree-switcher) {
+    height: 36px;
+    line-height: 36px;
+    display: grid;
+    place-items: center;
+  }
+  :global(.ant-tree-switcher_open) svg {
+    transform: rotate(90deg);
+  }
+  :global(.ant-tree-node-selected) {
+    background: var(--accent-soft) !important;
+    color: var(--accent);
+  }
+  :global(.ant-tree-node-content-wrapper:hover) {
+    background: var(--hover);
+  }
+}
+.rowTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  min-width: 0;
+  > svg {
+    flex-shrink: 0;
+    color: var(--folder);
+  }
+  &[data-kind="doc"] > svg {
+    color: var(--doc);
+  }
+  > small {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .check {
+    color: var(--accent);
+  }
+}
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.unavailable {
+  opacity: 0.55;
+}
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  button {
+    padding: 4px 10px 9px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+  }
+  button:hover {
+    background: var(--hover);
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+.path {
+  display: block;
+  margin-left: 25px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.empty {
+  padding: 40px 12px;
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.destination {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 14px 2px 2px;
+  font-size: 12px;
+  > span {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  > strong {
+    font-weight: 500;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width: 480px) {
+  .source > small {
+    display: none;
+  }
+  .browser {
+    height: 260px;
+  }
+}

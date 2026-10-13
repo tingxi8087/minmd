@@ -1,7 +1,7 @@
 import { filesApi } from "@/api/files";
 import { notifyFileAccessChanged } from "@/api/fileAccess";
 import { useEffect, useState, useRef } from "react";
-import { App, Input, Modal, Select, Upload } from "antd";
+import { App, Input, Modal, Upload } from "antd";
 import { validatePresentation } from "@/utils/presentationFiles";
 import { assetsApi } from "@/api/assets";
 import ShareDialog from "@/components/ShareDialog";
@@ -18,7 +18,8 @@ import {
   saveImportedContent,
   type PendingImport,
 } from "@/views/Files/importFlow";
-import { canMove, entryPath } from "@/utils/fileTree";
+import DestinationPicker from "./DestinationPicker";
+import { canMove } from "@/utils/fileTree";
 export type FileAction =
   | { type: "create"; kind: FileKind; parent: string | null }
   | { type: "rename" | "share" | "move" | "restore"; file: Entry };
@@ -31,7 +32,7 @@ export default function FileDialogs({
   close: () => void;
   onCreated?: (id: string) => void;
 }) {
-  const { add, patch, files, space, relocate } = useWorkspace();
+  const { add, patch, files, space, relocate, spaces } = useWorkspace();
   const { message, modal } = App.useApp();
   const user = useAuth((state) => state.user);
   const begin = useScopedTasks();
@@ -73,12 +74,27 @@ export default function FileDialogs({
       : action.type === "rename"
         ? "重命名"
         : action.type === "move"
-          ? "移动到…"
+          ? "移动文件"
           : action.type === "restore"
-            ? "恢复到…"
+            ? "恢复文件"
             : "分享设置";
+  const destinationFile =
+    action.type === "move" || action.type === "restore"
+      ? (files.find((item) => item.id === action.file.id) ?? action.file)
+      : null;
+  const destinationFiles =
+    action.type === "restore"
+      ? files.map((item) =>
+          item.id === action.file.id ? { ...item, deleted: false } : item,
+        )
+      : files;
+  const invalidDestination = destinationFile
+    ? !canMove(destinationFiles, destinationFile.id, parent)
+    : false;
+  const sameLocation =
+    action.type === "move" && parent === destinationFile?.parent;
   const save = async () => {
-    if (saving) return;
+    if (saving || invalidDestination || sameLocation) return;
     if (action.type === "create" && action.kind === "slide") {
       if (!presentation) {
         message.warning("请选择 .pptx 文件");
@@ -185,10 +201,18 @@ export default function FileDialogs({
   return (
     <Modal
       title={title}
+      width={destinationFile ? 560 : undefined}
       open
       onCancel={close}
       onOk={save}
-      okText="确定"
+      okText={
+        action.type === "move"
+          ? "移动到此处"
+          : action.type === "restore"
+            ? "恢复到此处"
+            : "确定"
+      }
+      okButtonProps={{ disabled: saving || invalidDestination || sameLocation }}
       cancelText="取消"
       confirmLoading={saving}
       closable={!saving}
@@ -235,33 +259,19 @@ export default function FileDialogs({
           />
         </div>
       ) : action.type === "move" || action.type === "restore" ? (
-        <div className="field">
-          <label>目标位置</label>
-          <Select
-            value={parent || "root"}
-            onChange={(v) => setParent(v === "root" ? null : v)}
-            options={[
-              { value: "root", label: "空间根目录" },
-              ...files
-                .filter(
-                  (f) =>
-                    f.space === space &&
-                    canMove(
-                      action.type === "restore"
-                        ? files.map((item) =>
-                            item.id === action.file.id
-                              ? { ...item, deleted: false }
-                              : item,
-                          )
-                        : files,
-                      action.file.id,
-                      f.id,
-                    ),
-                )
-                .map((f) => ({ value: f.id, label: entryPath(files, f) })),
-            ]}
-          />
-        </div>
+        <DestinationPicker
+          key={`${action.type}/${action.file.id}`}
+          file={destinationFile ?? action.file}
+          files={destinationFiles}
+          value={parent}
+          onChange={setParent}
+          spaceName={
+            spaces.find((item) => item.id === action.file.space)?.name ??
+            "当前空间"
+          }
+          restore={action.type === "restore"}
+          disabled={saving}
+        />
       ) : null}
     </Modal>
   );
