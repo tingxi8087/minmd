@@ -46,6 +46,9 @@
   gap: 4px;
   margin-left: auto;
 }
+.mobileMore {
+  display: none;
+}
 .workspace {
   display: flex;
   flex: 1;
@@ -163,7 +166,45 @@
   }
 }
 @media (max-width: 680px) {
+  .header {
+    gap: 4px;
+    strong {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+  .header .secondaryAction,
+  .fileIcon,
+  .shareLabel,
+  .controls .secondaryControl {
+    display: none;
+  }
+  .header .mobileMore {
+    display: inline-flex;
+  }
+  .header .shareButton {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+  }
+  .workspace {
+    position: relative;
+  }
+  .controls {
+    min-height: 36px;
+    gap: 10px;
+  }
   .thumbnails {
+    display: none;
+    &[data-visible] {
+      display: block;
+    }
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 4;
+    box-shadow: var(--shadow);
     width: 100px;
     padding: 8px 4px;
   }

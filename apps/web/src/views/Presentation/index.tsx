@@ -1,6 +1,6 @@
 import axios from "axios";
 import { useEffect, useRef, useState } from "react";
-import { App } from "antd";
+import { App, Dropdown } from "antd";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -12,6 +12,9 @@ import {
   Upload,
   ZoomIn,
   ZoomOut,
+  MoreHorizontal,
+  PanelLeft,
+  Palette,
 } from "lucide-react";
 import type { PptxViewer } from "@aiden0z/pptx-renderer";
 import FileIcon from "@/components/FileIcon";
@@ -24,6 +27,7 @@ import { assetsApi, type PresentationContent } from "@/api/assets";
 import { errorMessage } from "@/http";
 import { useNavigate } from "react-router-dom";
 import styles from "./index.module.less";
+import { useLayout } from "@/store/layout";
 
 export default function Presentation({ file }: { file: Entry }) {
   const navigate = useNavigate();
@@ -48,6 +52,7 @@ export default function Presentation({ file }: { file: Entry }) {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [action, setAction] = useState<FileAction | null>(null);
+  const [showThumbnails, setShowThumbnails] = useState(false);
   const count = content?.projection.slides || 0;
   const key = content?.projection.assetId;
   useEffect(() => {
@@ -111,7 +116,7 @@ export default function Presentation({ file }: { file: Entry }) {
           );
           if (target) {
             const handle = instance.renderThumbnailToContainer(index, target, {
-              width: target.clientWidth,
+              width: target.clientWidth || 80,
             });
             if (handle) handles.push(handle);
           }
@@ -232,7 +237,11 @@ export default function Presentation({ file }: { file: Entry }) {
       ref={root}
       className={styles.page}
       onKeyDown={(e) => {
-        if ((e.target as HTMLElement).closest("input,textarea,[role=dialog]"))
+        if (
+          (e.target as HTMLElement).closest(
+            "input,textarea,[role=dialog],[role=menu]",
+          )
+        )
           return;
         if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
           e.preventDefault();
@@ -250,12 +259,14 @@ export default function Presentation({ file }: { file: Entry }) {
         >
           <ArrowLeft size={17} />
         </TooltipButton>
-        <FileIcon kind="slide" small />
+        <span className={styles.fileIcon}>
+          <FileIcon kind="slide" small />
+        </span>
         <strong>{file.name}</strong>
         <span className={styles.readonly}>只读</span>
         <div className={styles.actions}>
           <TooltipButton
-            className="icon-button"
+            className={`icon-button ${styles.secondaryAction}`}
             aria-label={key ? "替换 PPTX 文件" : "上传 PPTX 文件"}
             disabled={uploading || contentLoading || !content}
             onClick={() => input.current?.click()}
@@ -263,7 +274,7 @@ export default function Presentation({ file }: { file: Entry }) {
             <Upload size={16} />
           </TooltipButton>
           <TooltipButton
-            className="icon-button"
+            className={`icon-button ${styles.secondaryAction}`}
             aria-label="下载原始 PPTX"
             disabled={!key}
             onClick={download}
@@ -271,12 +282,84 @@ export default function Presentation({ file }: { file: Entry }) {
             <Download size={16} />
           </TooltipButton>
           <button
-            className="secondary-button"
+            className={`secondary-button ${styles.shareButton}`}
+            aria-label="分享"
             onClick={() => setAction({ type: "share", file })}
           >
             <Share2 size={15} />
-            分享
+            <span className={styles.shareLabel}>分享</span>
           </button>
+          <Dropdown
+            trigger={["click"]}
+            getPopupContainer={() => root.current ?? document.body}
+            menu={{
+              items: [
+                {
+                  key: "upload",
+                  label: key ? "替换 PPTX 文件" : "上传 PPTX 文件",
+                  icon: <Upload size={15} />,
+                  disabled: uploading || contentLoading || !content,
+                },
+                {
+                  key: "download",
+                  label: "下载原始 PPTX",
+                  icon: <Download size={15} />,
+                  disabled: !key,
+                },
+                { type: "divider" },
+                {
+                  key: "thumbnails",
+                  label: showThumbnails ? "隐藏缩略图" : "显示缩略图",
+                  icon: <PanelLeft size={15} />,
+                  disabled: !key,
+                },
+                {
+                  key: "zoom-in",
+                  label: "放大幻灯片",
+                  icon: <ZoomIn size={15} />,
+                  disabled: !key || loading || !!error || zoom >= 200,
+                },
+                {
+                  key: "zoom-out",
+                  label: "缩小幻灯片",
+                  icon: <ZoomOut size={15} />,
+                  disabled: !key || loading || !!error || zoom <= 50,
+                },
+                {
+                  key: "zoom-fit",
+                  label: `适应画布（当前 ${zoom}%）`,
+                  disabled: !key || loading || !!error,
+                },
+                ...(!fullscreen
+                  ? [
+                      {
+                        key: "theme",
+                        label: "主题设置",
+                        icon: <Palette size={15} />,
+                      },
+                    ]
+                  : []),
+              ],
+              onClick: ({ key: action }) => {
+                if (action === "upload") input.current?.click();
+                else if (action === "download") void download();
+                else if (action === "thumbnails")
+                  setShowThumbnails((value) => !value);
+                else if (action === "zoom-in") void scale(zoom + 25);
+                else if (action === "zoom-out") void scale(zoom - 25);
+                else if (action === "zoom-fit") void scale(100);
+                else useLayout.getState().setThemeDialogOpen(true);
+              },
+            }}
+          >
+            <TooltipButton
+              className={`icon-button ${styles.mobileMore}`}
+              aria-label="幻灯片更多操作"
+              tooltip=""
+            >
+              <MoreHorizontal size={18} />
+            </TooltipButton>
+          </Dropdown>
         </div>
       </FileHeader>
       <input
@@ -322,6 +405,7 @@ export default function Presentation({ file }: { file: Entry }) {
             <aside
               ref={thumbnails}
               className={styles.thumbnails}
+              data-visible={showThumbnails || undefined}
               aria-label="幻灯片缩略图"
             >
               {Array.from({ length: count }, (_, i) => (
@@ -330,7 +414,11 @@ export default function Presentation({ file }: { file: Entry }) {
                   aria-label={`第 ${i + 1} 页`}
                   aria-current={page === i ? "page" : undefined}
                   disabled={loading || !!error}
-                  onClick={() => void go(i)}
+                  onClick={() => {
+                    void go(i);
+                    if (window.matchMedia("(max-width: 680px)").matches)
+                      setShowThumbnails(false);
+                  }}
                 >
                   <span data-slide={i} className={styles.thumbnail} />
                   <span>{i + 1}</span>
@@ -382,9 +470,9 @@ export default function Presentation({ file }: { file: Entry }) {
             >
               <ChevronRight size={17} />
             </TooltipButton>
-            <span className={styles.divider} />
+            <span className={`${styles.divider} ${styles.secondaryControl}`} />
             <TooltipButton
-              className="icon-button"
+              className={`icon-button ${styles.secondaryControl}`}
               aria-label="缩小幻灯片"
               disabled={loading || !!error || zoom <= 50}
               onClick={() => void scale(zoom - 25)}
@@ -392,21 +480,21 @@ export default function Presentation({ file }: { file: Entry }) {
               <ZoomOut size={16} />
             </TooltipButton>
             <TooltipButton
-              className={styles.zoom}
+              className={`${styles.zoom} ${styles.secondaryControl}`}
               aria-label="恢复适应画布"
               onClick={() => void scale(100)}
             >
               {zoom}%
             </TooltipButton>
             <TooltipButton
-              className="icon-button"
+              className={`icon-button ${styles.secondaryControl}`}
               aria-label="放大幻灯片"
               disabled={loading || !!error || zoom >= 200}
               onClick={() => void scale(zoom + 25)}
             >
               <ZoomIn size={16} />
             </TooltipButton>
-            <span className={styles.divider} />
+            <span className={`${styles.divider} ${styles.secondaryControl}`} />
             <TooltipButton
               className="icon-button"
               aria-label={fullscreen ? "退出全屏" : "全屏预览"}

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { App } from "antd";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { App, Dropdown } from "antd";
 import { useNavigate, useBlocker } from "react-router-dom";
 import { useAuth } from "@/store/auth";
 import {
@@ -14,6 +14,8 @@ import {
   Undo2,
   Redo2,
   History,
+  MoreHorizontal,
+  Palette,
 } from "lucide-react";
 import { Workbook, type WorkbookInstance } from "@fortune-sheet/react";
 import "@fortune-sheet/react/dist/index.css";
@@ -27,10 +29,9 @@ import { useSheetCollaboration } from "./useSheetCollaboration";
 import SheetHistory from "./SheetHistory";
 import { shouldWarnSheetLeave } from "./recovery";
 import styles from "./index.module.less";
+import { useLayout } from "@/store/layout";
 const tools: Record<string, string[]> = {
   开始: [
-    "server-undo",
-    "server-redo",
     "format-painter",
     "clear-format",
     "|",
@@ -69,10 +70,28 @@ const tools: Record<string, string[]> = {
   ],
   视图: ["freeze", "search", "screenshot"],
 };
+const mobileTools = Array.from(
+  new Set([
+    "bold",
+    "italic",
+    "underline",
+    "filter",
+    ...Object.values(tools).flat(),
+  ]),
+).filter((name) => !["|", "server-undo", "server-redo"].includes(name));
 export default function Spreadsheet({ file }: { file: Entry }) {
   const navigate = useNavigate(),
     { message, modal } = App.useApp();
   const theme = useWorkspace((state) => state.theme);
+  const [narrow, setNarrow] = useState(
+    () => window.matchMedia("(max-width: 680px)").matches,
+  );
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 680px)");
+    const update = () => setNarrow(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
   const api = useRef<WorkbookInstance>(null),
     input = useRef<HTMLInputElement>(null);
   const surface = useRef<HTMLDivElement>(null);
@@ -131,6 +150,23 @@ export default function Spreadsheet({ file }: { file: Entry }) {
     undoRef = useRef(collaboration.undo);
   saveRef.current = save;
   undoRef.current = collaboration.undo;
+  const customToolbarItems = useMemo(
+    () => [
+      {
+        key: "server-undo",
+        tooltip: "撤销本人的修改",
+        icon: <Undo2 size={16} />,
+        onClick: () => undoRef.current(),
+      },
+      {
+        key: "server-redo",
+        tooltip: "重做本人的修改",
+        icon: <Redo2 size={16} />,
+        onClick: () => undoRef.current(true),
+      },
+    ],
+    [],
+  );
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey)) return;
@@ -213,7 +249,9 @@ export default function Spreadsheet({ file }: { file: Entry }) {
         >
           <ArrowLeft size={17} />
         </TooltipButton>
-        <FileIcon kind="sheet" small />
+        <span className={styles.fileIcon}>
+          <FileIcon kind="sheet" small />
+        </span>
         <strong>{file.name}</strong>
         <div className={styles.actions}>
           <TooltipButton
@@ -247,35 +285,79 @@ export default function Spreadsheet({ file }: { file: Entry }) {
             {collaboration.members.count}/{collaboration.members.limit}
           </span>
           <TooltipButton
-            className="icon-button"
             aria-label="表格版本历史"
+            className={`icon-button ${styles.secondaryAction}`}
             onClick={() => setHistory(true)}
           >
             <History size={16} />
           </TooltipButton>
           <TooltipButton
-            className="icon-button"
             aria-label="导入 XLSX 到当前表格"
+            className={`icon-button ${styles.secondaryAction}`}
             disabled={busy || !collaboration.editable}
             onClick={() => input.current?.click()}
           >
             <Upload size={16} />
           </TooltipButton>
           <TooltipButton
-            className="icon-button"
             aria-label="导出 XLSX"
+            className={`icon-button ${styles.secondaryAction}`}
             disabled={!collaboration.data}
             onClick={() => void download()}
           >
             <Download size={16} />
           </TooltipButton>
           <button
-            className="secondary-button"
+            className={`secondary-button ${styles.shareButton}`}
+            aria-label="分享"
             onClick={() => setAction({ type: "share", file })}
           >
             <Share2 size={15} />
-            分享
+            <span className={styles.shareLabel}>分享</span>
           </button>
+          <Dropdown
+            trigger={["click"]}
+            menu={{
+              items: [
+                {
+                  key: "history",
+                  label: "版本历史",
+                  icon: <History size={15} />,
+                },
+                {
+                  key: "import",
+                  label: "导入 XLSX",
+                  icon: <Upload size={15} />,
+                  disabled: busy || !collaboration.editable,
+                },
+                {
+                  key: "export",
+                  label: "导出 XLSX",
+                  icon: <Download size={15} />,
+                  disabled: !collaboration.data,
+                },
+                {
+                  key: "theme",
+                  label: "主题设置",
+                  icon: <Palette size={15} />,
+                },
+              ],
+              onClick: ({ key }) => {
+                if (key === "history") setHistory(true);
+                else if (key === "import") input.current?.click();
+                else if (key === "export") void download();
+                else useLayout.getState().setThemeDialogOpen(true);
+              },
+            }}
+          >
+            <TooltipButton
+              className={`icon-button ${styles.mobileMore}`}
+              aria-label="表格更多操作"
+              tooltip=""
+            >
+              <MoreHorizontal size={18} />
+            </TooltipButton>
+          </Dropdown>
         </div>
       </FileHeader>
       <input
@@ -337,21 +419,8 @@ export default function Spreadsheet({ file }: { file: Entry }) {
             lang="zh"
             forceCalculation={false}
             allowEdit={collaboration.editable && !busy}
-            toolbarItems={tools[tab]}
-            customToolbarItems={[
-              {
-                key: "server-undo",
-                tooltip: "撤销本人的修改",
-                icon: <Undo2 size={16} />,
-                onClick: () => collaboration.undo(),
-              },
-              {
-                key: "server-redo",
-                tooltip: "重做本人的修改",
-                icon: <Redo2 size={16} />,
-                onClick: () => collaboration.undo(true),
-              },
-            ]}
+            toolbarItems={narrow ? mobileTools : tools[tab]}
+            customToolbarItems={customToolbarItems}
             onChange={collaboration.onChange}
             onOp={collaboration.onOp}
             hooks={{

@@ -38,6 +38,44 @@
   gap: 4px;
   margin-left: auto;
 }
+.mobileMore {
+  display: none;
+}
+@media (max-width: 680px) {
+  .header {
+    gap: 4px;
+    strong {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+  .header .secondaryAction,
+  .fileIcon,
+  .header .members,
+  .page .tabs,
+  .shareLabel {
+    display: none;
+  }
+  .header .mobileMore {
+    display: inline-flex;
+  }
+  .header .shareButton {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+  }
+  .editor :global(.fortune-toolbar) {
+    padding: 3px 6px;
+    min-height: 34px;
+  }
+  .editor :global(.fortune-toolbar-more-container) {
+    right: 8px;
+    margin-right: 0;
+    max-width: calc(100% - 16px);
+    background: var(--surface);
+    color: var(--text);
+  }
+}
 .tabs {
   display: flex;
   gap: 4px;

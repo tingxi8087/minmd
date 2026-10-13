@@ -47,6 +47,7 @@ import {
   LoaderCircle,
   CircleAlert,
   History,
+  Palette,
   FolderInput,
   Undo2,
   Redo2,
@@ -89,6 +90,7 @@ import { SelectableCodeBlock } from "./components/CodeBlock";
 import Formatting from "./components/Formatting";
 import { useSlashMenu } from "./components/useSlashMenu";
 import styles from "./index.module.less";
+import { useLayout } from "@/store/layout";
 const shouldShowFormatting: NonNullable<
   React.ComponentProps<typeof BubbleMenu>["shouldShow"]
 > = ({ editor, view, state, from, to, element }) => {
@@ -533,6 +535,38 @@ function DocumentEditor({
       run: () => setDetailsOpen(true),
     },
   ];
+  const toggleFavorite = () => {
+    void patch(file.id, { favorite: !file.favorite }).catch((error: unknown) =>
+      message.error(errorMessage(error)),
+    );
+  };
+  const headerItems = (): ContextItem[] =>
+    window.matchMedia("(max-width: 680px)").matches
+      ? [
+          {
+            key: "history",
+            label: "版本历史",
+            icon: <History size={15} />,
+            run: () => setHistoryOpen(true),
+          },
+          {
+            key: "favorite",
+            label: file.favorite ? "取消收藏" : "添加收藏",
+            icon: (
+              <Star size={15} fill={file.favorite ? "currentColor" : "none"} />
+            ),
+            run: toggleFavorite,
+          },
+          {
+            key: "theme",
+            label: "主题设置",
+            icon: <Palette size={15} />,
+            run: () => useLayout.getState().setThemeDialogOpen(true),
+          },
+          { key: "header-divider", type: "divider" },
+          ...documentItems(),
+        ]
+      : documentItems();
   const editingItems = (): ContextItem[] => {
     const { from, to, empty } = editor.state.selection;
     const copy = async (cut = false) => {
@@ -687,7 +721,7 @@ function DocumentEditor({
           {verification.count}/{verification.limit}
         </span>
         <TooltipButton
-          className="icon-button"
+          className={`icon-button ${styles.headerSecondary}`}
           aria-label="版本历史"
           onClick={() => setHistoryOpen(true)}
         >
@@ -699,30 +733,28 @@ function DocumentEditor({
           {file.public ? "公开" : "私有"}
         </span>
         <TooltipButton
-          className="icon-button"
+          className={`icon-button ${styles.headerSecondary}`}
           aria-label="收藏文档"
           aria-pressed={file.favorite}
-          onClick={() => {
-            void patch(file.id, { favorite: !file.favorite }).catch(
-              (error: unknown) => message.error(errorMessage(error)),
-            );
-          }}
+          onClick={toggleFavorite}
         >
           <Star size={16} fill={file.favorite ? "currentColor" : "none"} />
         </TooltipButton>
         <button
-          className="secondary-button"
+          className={`secondary-button ${styles.shareButton}`}
+          aria-label="分享"
           onClick={() => setAction({ type: "share", file })}
         >
           <Share2 size={14} />
-          分享
+          <span className={styles.shareLabel}>分享</span>
         </button>
         <TooltipButton
           className="icon-button"
           aria-label="文档更多操作"
+          tooltip={contextMenu.menu ? "" : undefined}
           onMouseDown={(e) => e.preventDefault()}
           onClick={(e) =>
-            contextMenu.openButton(e, documentItems(), "文档操作", true)
+            contextMenu.openButton(e, headerItems(), "文档操作", true)
           }
         >
           <MoreHorizontal size={18} />
@@ -785,65 +817,77 @@ function DocumentEditor({
           if (element) element.inert = !verification.ready;
         }}
       >
-        <Formatting editor={editor} onLink={openLink} />
-        <TooltipButton
-          className={styles.insertImage}
-          onClick={() => imageInput.current?.click()}
-          aria-label="插入图片"
-        >
-          <ImagePlus size={16} />
-        </TooltipButton>
-        <TooltipButton
-          className={styles.insertImage}
-          aria-label="插入表情"
-          onClick={() => setInsertKind("emoji")}
-        >
-          <Smile size={16} />
-        </TooltipButton>
-        {editor.isActive("table") && (
-          <div className={styles.tableControls}>
-            {[
-              {
-                name: "在上方插入行",
-                Icon: ArrowUpToLine,
-                run: () => editor.chain().focus().addRowBefore().run(),
-              },
-              {
-                name: "在下方插入行",
-                Icon: ArrowDownToLine,
-                run: () => editor.chain().focus().addRowAfter().run(),
-              },
-              {
-                name: "在左侧插入列",
-                Icon: ArrowLeftToLine,
-                run: () => editor.chain().focus().addColumnBefore().run(),
-              },
-              {
-                name: "在右侧插入列",
-                Icon: ArrowRightToLine,
-                run: () => editor.chain().focus().addColumnAfter().run(),
-              },
-            ].map(({ name, Icon, run }) => (
+        <Formatting
+          editor={editor}
+          onLink={openLink}
+          mobileToolbar
+          extra={
+            <>
               <TooltipButton
-                key={name}
                 className={styles.insertImage}
-                aria-label={name}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={run}
+                onClick={() => imageInput.current?.click()}
+                aria-label="插入图片"
               >
-                <Icon size={16} />
+                <ImagePlus size={16} />
+                <span className={styles.moreLabel}>图片</span>
               </TooltipButton>
-            ))}
-            <TooltipButton
-              className={`${styles.insertImage} ${styles.deleteTable}`}
-              aria-label="删除整个表格"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => editor.chain().focus().deleteTable().run()}
-            >
-              <Trash2 size={15} />
-            </TooltipButton>
-          </div>
-        )}
+              <TooltipButton
+                className={styles.insertImage}
+                aria-label="插入表情"
+                onClick={() => setInsertKind("emoji")}
+              >
+                <Smile size={16} />
+                <span className={styles.moreLabel}>表情</span>
+              </TooltipButton>
+              {editor.isActive("table") && (
+                <div className={styles.tableControls}>
+                  {[
+                    {
+                      name: "在上方插入行",
+                      Icon: ArrowUpToLine,
+                      run: () => editor.chain().focus().addRowBefore().run(),
+                    },
+                    {
+                      name: "在下方插入行",
+                      Icon: ArrowDownToLine,
+                      run: () => editor.chain().focus().addRowAfter().run(),
+                    },
+                    {
+                      name: "在左侧插入列",
+                      Icon: ArrowLeftToLine,
+                      run: () => editor.chain().focus().addColumnBefore().run(),
+                    },
+                    {
+                      name: "在右侧插入列",
+                      Icon: ArrowRightToLine,
+                      run: () => editor.chain().focus().addColumnAfter().run(),
+                    },
+                  ].map(({ name, Icon, run }) => (
+                    <TooltipButton
+                      key={name}
+                      className={styles.insertImage}
+                      aria-label={name}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={run}
+                    >
+                      <Icon size={16} />
+                      <span className={styles.moreLabel}>{name}</span>
+                    </TooltipButton>
+                  ))}
+                  <TooltipButton
+                    className={`${styles.insertImage} ${styles.deleteTable}`}
+                    aria-label="删除整个表格"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => editor.chain().focus().deleteTable().run()}
+                  >
+                    <Trash2 size={15} />
+                    <span className={styles.moreLabel}>删除表格</span>
+                  </TooltipButton>
+                </div>
+              )}
+            </>
+          }
+        />
       </div>
       <div className={styles.writingArea}>
         <article className={styles.paper}>

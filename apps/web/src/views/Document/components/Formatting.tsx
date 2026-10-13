@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/react";
-import { Dropdown } from "antd";
+import { useEffect, useState, type ReactNode } from "react";
+import { Dropdown, Popover } from "antd";
 import {
   Bold,
   Italic,
@@ -16,6 +17,7 @@ import {
   Undo2,
   Redo2,
   Link2,
+  MoreHorizontal,
 } from "lucide-react";
 import TextFormatting from "./TextFormatting";
 import TooltipButton from "@/components/TooltipButton";
@@ -24,11 +26,27 @@ export default function Formatting({
   editor,
   compact = false,
   onLink,
+  mobileToolbar = false,
+  secondaryOnly = false,
+  extra,
 }: {
   editor: Editor;
   compact?: boolean;
   onLink: () => void;
+  mobileToolbar?: boolean;
+  secondaryOnly?: boolean;
+  extra?: ReactNode;
 }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => {
+    if (!mobileToolbar) return;
+    const query = window.matchMedia("(max-width: 680px)");
+    const closeOnDesktop = () => {
+      if (!query.matches) setMoreOpen(false);
+    };
+    query.addEventListener("change", closeOnDesktop);
+    return () => query.removeEventListener("change", closeOnDesktop);
+  }, [mobileToolbar]);
   const marks = [
     {
       name: "粗体",
@@ -62,8 +80,10 @@ export default function Formatting({
     },
   ];
   return (
-    <div className={styles.formatting}>
-      {!compact && (
+    <div
+      className={`${styles.formatting} ${mobileToolbar ? styles.toolbarFormatting : ""}`}
+    >
+      {!compact && !secondaryOnly && (
         <>
           <TooltipButton
             aria-label="撤销"
@@ -114,29 +134,36 @@ export default function Formatting({
           <i />
         </>
       )}
-      <TextFormatting editor={editor} />
+      <div className={styles.secondaryFormatting}>
+        <TextFormatting editor={editor} />
+      </div>
       <i />
-      {marks.map(({ name, icon: Icon, active, run }) => (
-        <TooltipButton
-          key={name}
-          aria-label={name}
-          aria-pressed={editor.isActive(active)}
-          className={editor.isActive(active) ? styles.activeFormat : ""}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={run}
-        >
-          <Icon size={15} />
-        </TooltipButton>
-      ))}
+      {marks
+        .filter((_mark, index) => !secondaryOnly || index >= 3)
+        .map(({ name, icon: Icon, active, run }, index) => (
+          <TooltipButton
+            key={name}
+            aria-label={name}
+            aria-pressed={editor.isActive(active)}
+            className={`${editor.isActive(active) ? styles.activeFormat : ""} ${index >= 3 || secondaryOnly ? styles.secondaryFormatting : ""}`}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={run}
+          >
+            <Icon size={15} />
+            <span className={styles.moreLabel}>{name}</span>
+          </TooltipButton>
+        ))}
       <TooltipButton
+        className={styles.secondaryFormatting}
         aria-label="插入链接"
         onMouseDown={(e) => e.preventDefault()}
         onClick={onLink}
       >
         <Link2 size={15} />
+        <span className={styles.moreLabel}>链接</span>
       </TooltipButton>
       {!compact && (
-        <>
+        <div className={styles.secondaryFormatting}>
           <i />
           {[
             {
@@ -171,6 +198,7 @@ export default function Formatting({
               onClick={run}
             >
               <Icon size={16} />
+              <span className={styles.moreLabel}>{name}</span>
             </TooltipButton>
           ))}
           <i />
@@ -185,14 +213,60 @@ export default function Formatting({
             }
           >
             <Table2 size={16} />
+            <span className={styles.moreLabel}>插入表格</span>
           </TooltipButton>
           <TooltipButton
             aria-label="插入分割线"
             onClick={() => editor.chain().focus().setHorizontalRule().run()}
           >
             <Minus size={16} />
+            <span className={styles.moreLabel}>分割线</span>
           </TooltipButton>
-        </>
+        </div>
+      )}
+      {extra && <div className={styles.secondaryFormatting}>{extra}</div>}
+      {mobileToolbar && (
+        <Popover
+          trigger="click"
+          placement="bottomRight"
+          open={moreOpen}
+          onOpenChange={setMoreOpen}
+          content={
+            <section
+              className={styles.moreFormatting}
+              aria-label="更多编辑功能"
+            >
+              <div className={styles.moreHeading}>文字样式、段落与插入</div>
+              <Formatting
+                editor={editor}
+                onLink={() => {
+                  setMoreOpen(false);
+                  onLink();
+                }}
+                secondaryOnly
+                extra={
+                  extra && (
+                    <div
+                      className={styles.secondaryFormatting}
+                      onClick={() => setMoreOpen(false)}
+                    >
+                      {extra}
+                    </div>
+                  )
+                }
+              />
+            </section>
+          }
+        >
+          <TooltipButton
+            className={styles.editingMore}
+            aria-label="更多编辑功能"
+            tooltip={moreOpen ? "" : undefined}
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <MoreHorizontal size={17} />
+          </TooltipButton>
+        </Popover>
       )}
     </div>
   );

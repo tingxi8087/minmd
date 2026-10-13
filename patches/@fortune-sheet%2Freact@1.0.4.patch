@@ -1,0 +1,142 @@
+--- a/dist/index.esm.js
++++ b/dist/index.esm.js
+@@ -3976,8 +3976,11 @@
+       });
+     }
+     window.addEventListener("resize", resize);
++    var observer = new ResizeObserver(resize);
++    if (placeholderRef.current) observer.observe(placeholderRef.current);
+     return function () {
+       window.removeEventListener("resize", resize);
++      observer.disconnect();
+     };
+   }, [data, refs.canvas, setContext, settings.devicePixelRatio]);
+   useEffect(function () {
+@@ -5545,6 +5548,22 @@
+     _useState4 = _slicedToArray(_useState3, 2),
+     itemLocations = _useState4[0],
+     setItemLocations = _useState4[1];
++  var measuredToolbarItemsState = React.useState(null),
++    measuredToolbarItems = measuredToolbarItemsState[0],
++    setMeasuredToolbarItems = measuredToolbarItemsState[1];
++  var toolbarWidthState = React.useState(0),
++    toolbarWidth = toolbarWidthState[0],
++    setToolbarWidth = toolbarWidthState[1];
++  React.useLayoutEffect(function () {
++    var container = containerRef.current;
++    if (!container) return;
++    var observer = new ResizeObserver(function () {
++      setToolbarWidth(container.clientWidth);
++    });
++    observer.observe(container);
++    setToolbarWidth(container.clientWidth);
++    return function () { observer.disconnect(); };
++  }, []);
+   var _useDialog = useDialog(),
+     showDialog = _useDialog.showDialog,
+     hideDialog = _useDialog.hideDialog;
+@@ -5612,7 +5631,8 @@
+   }, []);
+   useEffect(function () {
+     setToolbarWrapIndex(-1);
+-  }, [settings.toolbarItems, settings.customToolbarItems]);
++    setMoreItems(null);
++  }, [settings.toolbarItems, settings.customToolbarItems, setMoreItems]);
+   useEffect(function () {
+     if (toolbarWrapIndex === -1) {
+       var container = containerRef.current;
+@@ -5627,10 +5647,11 @@
+         locations.push(itemRect.left - containerRect.left + itemRect.width);
+       }
+       setItemLocations(locations);
+-    }
+-  }, [toolbarWrapIndex, sheetWidth]);
++      setMeasuredToolbarItems(settings.toolbarItems);
++    }
++  }, [toolbarWrapIndex, sheetWidth, settings.toolbarItems]);
+   useEffect(function () {
+-    if (itemLocations.length === 0) return;
++    if (itemLocations.length === 0 || measuredToolbarItems !== settings.toolbarItems) return;
+     var container = containerRef.current;
+     if (!container) return;
+     var moreButtonWidth = 50;
+@@ -5644,7 +5665,7 @@
+         break;
+       }
+     }
+-  }, [itemLocations, setMoreItems, settings.toolbarItems.length, sheetWidth]);
++  }, [itemLocations, measuredToolbarItems, setMoreItems, settings.toolbarItems, sheetWidth, toolbarWidth]);
+   var getToolbarItem = useCallback(function (name, i) {
+     var _toolbarItemSelectedF;
+     var tooltip = toolbar[name];
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -3987,8 +3987,11 @@
+       });
+     }
+     window.addEventListener("resize", resize);
++    var observer = new ResizeObserver(resize);
++    if (placeholderRef.current) observer.observe(placeholderRef.current);
+     return function () {
+       window.removeEventListener("resize", resize);
++      observer.disconnect();
+     };
+   }, [data, refs.canvas, setContext, settings.devicePixelRatio]);
+   React.useEffect(function () {
+@@ -5556,6 +5559,22 @@
+     _useState4 = _slicedToArray(_useState3, 2),
+     itemLocations = _useState4[0],
+     setItemLocations = _useState4[1];
++  var measuredToolbarItemsState = React.useState(null),
++    measuredToolbarItems = measuredToolbarItemsState[0],
++    setMeasuredToolbarItems = measuredToolbarItemsState[1];
++  var toolbarWidthState = React.useState(0),
++    toolbarWidth = toolbarWidthState[0],
++    setToolbarWidth = toolbarWidthState[1];
++  React.useLayoutEffect(function () {
++    var container = containerRef.current;
++    if (!container) return;
++    var observer = new ResizeObserver(function () {
++      setToolbarWidth(container.clientWidth);
++    });
++    observer.observe(container);
++    setToolbarWidth(container.clientWidth);
++    return function () { observer.disconnect(); };
++  }, []);
+   var _useDialog = useDialog(),
+     showDialog = _useDialog.showDialog,
+     hideDialog = _useDialog.hideDialog;
+@@ -5623,7 +5642,8 @@
+   }, []);
+   React.useEffect(function () {
+     setToolbarWrapIndex(-1);
+-  }, [settings.toolbarItems, settings.customToolbarItems]);
++    setMoreItems(null);
++  }, [settings.toolbarItems, settings.customToolbarItems, setMoreItems]);
+   React.useEffect(function () {
+     if (toolbarWrapIndex === -1) {
+       var container = containerRef.current;
+@@ -5638,10 +5658,11 @@
+         locations.push(itemRect.left - containerRect.left + itemRect.width);
+       }
+       setItemLocations(locations);
+-    }
+-  }, [toolbarWrapIndex, sheetWidth]);
++      setMeasuredToolbarItems(settings.toolbarItems);
++    }
++  }, [toolbarWrapIndex, sheetWidth, settings.toolbarItems]);
+   React.useEffect(function () {
+-    if (itemLocations.length === 0) return;
++    if (itemLocations.length === 0 || measuredToolbarItems !== settings.toolbarItems) return;
+     var container = containerRef.current;
+     if (!container) return;
+     var moreButtonWidth = 50;
+@@ -5655,7 +5676,7 @@
+         break;
+       }
+     }
+-  }, [itemLocations, setMoreItems, settings.toolbarItems.length, sheetWidth]);
++  }, [itemLocations, measuredToolbarItems, setMoreItems, settings.toolbarItems, sheetWidth, toolbarWidth]);
+   var getToolbarItem = React.useCallback(function (name, i) {
+     var _toolbarItemSelectedF;
+     var tooltip = toolbar[name];

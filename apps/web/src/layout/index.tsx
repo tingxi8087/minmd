@@ -332,7 +332,7 @@ export default function Layout() {
           )}
           <div className={styles.headerActions}>
             <button
-              className="icon-button"
+              className={`icon-button ${styles.themeButton}`}
               aria-label="主题设置"
               onClick={() => setThemeDialogOpen(true)}
             >

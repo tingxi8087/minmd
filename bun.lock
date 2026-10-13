@@ -102,12 +102,12 @@
         "@types/react": "^18.3.18",
         "@types/react-dom": "^18.3.5",
         "@vitejs/plugin-react": "^4.3.4",
-        "jsdom": "^26.1.0",
+        "jsdom": "26.1.0",
         "less": "^4.2.1",
         "prettier": "^3.9.10",
         "typescript": "~5.7.2",
         "vite": "^6.0.7",
-        "vitest": "^3.2.7",
+        "vitest": "3.2.7",
       },
     },
     "apps/web-cms": {
@@ -171,6 +171,9 @@
         "zod": "^4.1.0",
       },
     },
+  },
+  "patchedDependencies": {
+    "@fortune-sheet/react@1.0.4": "patches/@fortune-sheet%2Freact@1.0.4.patch",
   },
   "packages": {
     "@aiden0z/pptx-renderer": ["@aiden0z/pptx-renderer@1.3.0", "https://registry.npmmirror.com/@aiden0z/pptx-renderer/-/pptx-renderer-1.3.0.tgz", { "dependencies": { "echarts": "^6.0.0", "jszip": "^3.10.1", "mtx-decompressor": "^1.4.2" }, "peerDependencies": { "pdfjs-dist": ">=5 <7" }, "optionalPeers": ["pdfjs-dist"] }, "sha512-VEXSn2vmdgTwWaw96bhsEyZiSxlrhF5O5dONI+dSBXmg1WH2XM9O1eyY2LFQ68J1SY+iZnE5BVgFGGX6iox9Og=="],
