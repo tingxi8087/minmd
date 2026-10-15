@@ -23,6 +23,8 @@ jobs:
           --health-interval 5s --health-timeout 3s --health-retries 20
     env:
       DATABASE_URL: postgresql://minmd:ci-minmd-test-only@127.0.0.1:5432/minmd_ci_test
+      # 仅用于隔离的 CI 数据库，不能依赖开发者本机 .env 中的加密配置。
+      AI_KEY_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
