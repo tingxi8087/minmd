@@ -243,9 +243,19 @@ runtimeTest(
         join(failDir, "Dockerfile"),
         `FROM ${migrateImage}\nCMD ["sh", "-c", "exit 23"]\n`,
       );
+      const migratePlatform = await must([
+        "docker",
+        "image",
+        "inspect",
+        migrateImage,
+        "--format",
+        "{{.Os}}/{{.Architecture}}",
+      ]);
       await must([
         "docker",
         "build",
+        "--platform",
+        migratePlatform,
         "-t",
         `${prefix}-migrate:v0.0.3`,
         failDir,
