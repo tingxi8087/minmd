@@ -8,7 +8,11 @@ COPY apps/app_server/package.json ./apps/app_server/package.json
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/web-cms/package.json ./apps/web-cms/package.json
 COPY patches ./patches
-RUN bun install --frozen-lockfile
+COPY deploy/scripts/check-image-dependencies.ts ./deploy/scripts/check-image-dependencies.ts
+# 平铺依赖，避免旧 Linux 内核上的软链接解析差异使 pg 的传递依赖丢失。
+# 保留软链接路径执行自检，构建阶段就拒绝依赖不完整的镜像。
+RUN bun install --frozen-lockfile --linker hoisted \
+    && bun --preserve-symlinks deploy/scripts/check-image-dependencies.ts
 FROM dependencies AS build
 # Vite 使用标准 Node 运行时并限制堆内存，避免 Bun fallback 构建大型编辑器时耗尽内存。
 # Node 只在构建阶段存在，后端及最终镜像仍使用 Bun。

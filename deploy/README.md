@@ -218,6 +218,8 @@ docker compose --env-file deploy/.env.production \
 
 ## 维护者发布
 
+Docker 构建显式使用 Bun 的 hoisted 依赖布局，并在构建阶段从根目录和系统工作区检查数据库依赖；检查保留软链接路径，避免打包产物依赖宿主内核的软链接解析行为。
+
 国内源在 GitHub 仓库配置变量 `TCR_NAMESPACE`，并配置 `TCR_USERNAME`、`TCR_PASSWORD` 两个 Actions Secrets；密码使用腾讯云镜像仓库登录密码，不提交源码。自动发布只需两个公有仓库：`minmd-app`、`minmd-migrate`。现有 `minmd-postgres`、`minmd-caddy` 公有副本保留用于备用，不随每次应用发布同步。
 
 `.github/workflows/china-images.yml` 跟随成功的 Release 工作流，也可手动指定已发布版本执行。它仅同步 app、migrate 两个镜像，先锁定来源清单摘要，再复制 linux/amd64 和 linux/arm64，使用 Docker v2 清单兼容个人版仓库；保留镜像内容，不重复构建应用。公开双架构检查通过后，测试并追加国内部署包、校验文件、`install-china.sh`、`release-china.env`，最后执行不登录镜像仓库的真实安装与首次账号初始化验收。官方源的既有附件保持原样。
