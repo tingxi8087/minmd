@@ -1,2 +1,0 @@
-ALTER TABLE "files" DROP CONSTRAINT "files_kind";--> statement-breakpoint
-ALTER TABLE "files" ADD CONSTRAINT "files_kind" CHECK ("files"."kind" in ('doc','sheet','slide','folder','pdf','video','image'));

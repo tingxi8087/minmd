@@ -22,6 +22,8 @@ bun run db:migrate
 bun run dev
 ```
 
+当前迁移基线为 `database/migrations/0000_initial.sql`，直接创建完整结构，`meta` 保存对应快照。基线沿用旧链最后一次迁移 `0013_safe_starfox` 的时间标记；已执行完旧链的数据库再次运行 `bun run db:migrate` 会跳过初始化，保留现有内容及迁移记录。尚未执行完旧链的数据库须先用原版本补齐旧迁移；新数据库直接运行当前迁移。后续结构变更继续生成增量迁移，不重复合并或更改基线时间。
+
 统一开发入口：前台 <http://127.0.0.1:9811/>，后台 <http://127.0.0.1:9811/admin/>，接口也使用同一来源。后端仅在 `APP_ENV=development` 且 `WEB_DEV_PROXY=true` 时反代本机两个 Vite 服务；无需构建，关闭 HMR 后修改前端代码刷新页面即可。`GET /api/health` 会实际检查数据库连接。端口由 `.env` 的 `WEB_PORT`、`WEB_CMS_PORT`、`PORT` 配置，后端变更时同步修改 `API_PROXY_TARGET`。
 
 前后台使用独立 Cookie 身份和 CSRF 校验，配置模板默认 `AUTH_TRANSPORT=cookie`。前台注册默认关闭，可由后台创建前台账号；开发前台来源由 `APP_PUBLIC_ORIGIN` 和 `APP_DEV_ORIGINS` 配置。
