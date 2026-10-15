@@ -1,0 +1,88 @@
+name: Published installation
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "已发布版本，例如 v0.1.0；latest 为最新稳定版"
+        required: true
+        default: latest
+  release:
+    types: [published]
+permissions:
+  contents: read
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RELEASE_VERSION: ${{ inputs.version || github.event.release.tag_name }}
+      RELEASE_REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: 从公开 Release 安装并验证首次初始化
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          ROOT=$(mktemp -d)
+          export ROOT
+          cleanup() {
+            if [ -f "$ROOT/minmd/.minmd/.env" ]; then
+              docker compose --env-file "$ROOT/minmd/.minmd/.env" \
+                -f "$ROOT/minmd/deploy/compose.production.yaml" \
+                -f "$ROOT/minmd/deploy/compose.direct.yaml" \
+                down -v --remove-orphans >/dev/null 2>&1 || true
+            fi
+            rm -rf "$ROOT"
+          }
+          trap cleanup EXIT
+          # 不登录 GHCR；凭证和安装输出仅留在临时目录，不上传为日志或附件。
+          export DOCKER_CONFIG="$ROOT/docker"
+          mkdir -p "$DOCKER_CONFIG"
+          printf '{}\n' > "$DOCKER_CONFIG/config.json"
+          VERSION=${RELEASE_VERSION:-latest}
+          if [ "$VERSION" = latest ]; then
+            ENTRY="https://github.com/$RELEASE_REPOSITORY/releases/latest/download/install.sh"
+          else
+            printf '%s\n' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$'
+            ENTRY="https://github.com/$RELEASE_REPOSITORY/releases/download/$VERSION/install.sh"
+          fi
+          if ! curl -q -fsSL --max-time 90 "$ENTRY" | sh -s -- \
+            --version "$VERSION" --install-dir "$ROOT/minmd" -- \
+            --mode direct --origin http://127.0.0.1:19811 \
+            --bind-host 127.0.0.1 --project minmd-published-smoke --yes \
+            > "$ROOT/install.log" 2>&1; then
+            echo '公开安装失败；安装器错误：'
+            grep '^错误：' "$ROOT/install.log" || true
+            exit 1
+          fi
+          python3 - <<'PY'
+          import http.cookiejar, json, secrets, urllib.request
+          origin = "http://127.0.0.1:19811"
+          jar = http.cookiejar.CookieJar()
+          client = urllib.request.build_opener(
+              urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(jar)
+          )
+          def call(path, body=None):
+              request = urllib.request.Request(
+                  origin + path,
+                  data=None if body is None else json.dumps(body).encode(),
+                  headers={"Origin": origin, "Content-Type": "application/json"},
+              )
+              with client.open(request, timeout=15) as response:
+                  return response.status, response.headers, response.read()
+          for path in ["/", "/admin/"]:
+              status, headers, body = call(path)
+              assert status == 200 and b"<!doctype html>" in body.lower(), path
+          assert json.loads(call("/api/app/auth/setup")[2])["needsSetup"] is True
+          status, headers, body = call("/api/app/auth/setup", {
+              "account": "release_smoke", "password": secrets.token_urlsafe(18),
+              "nickname": "发布验收", "spaceName": "发布验收空间",
+          })
+          result = json.loads(body)
+          assert status == 200 and result.get("spaceId") and result.get("documentId")
+          assert list(jar), "首次初始化未创建登录 Cookie"
+          assert json.loads(call("/api/app/auth/setup")[2])["needsSetup"] is False
+          print("公开安装、前后台页面、首次账号、默认空间及引导文档验收通过。")
+          PY
+          sh "$ROOT/minmd/minmd.sh" doctor > "$ROOT/doctor.log" 2>&1
+          echo '部署诊断通过。'
