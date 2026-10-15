@@ -1,3 +1,4 @@
+import { usePageTitle } from "@/components/PageTitles";
 import { assertUploadSize } from "@/utils/uploadLimits";
 import axios from "axios";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
@@ -122,6 +123,10 @@ export default function Files() {
       f.space === space &&
       f.kind === "folder" &&
       !f.deleted,
+  );
+  const currentSpaceName = spaces.find((item) => item.id === space)?.name;
+  usePageTitle(
+    folder ? [folder.name, currentSpaceName].filter(Boolean).join(" · ") : null,
   );
   const parent = folder?.id || null;
   const isHome = pathname === "/files" && !folder;

@@ -1,3 +1,4 @@
+import { usePageTitle } from "@/components/PageTitles";
 import MediaPreview, { type MediaKind } from "@/views/Media/MediaPreview";
 import { useAuth } from "@/store/auth";
 import {
@@ -32,6 +33,8 @@ export default function Share() {
   }, [status, bootstrap]);
   const login = () =>
     navigate("/login", { state: { returnTo: `/share/${token}` } });
+  const requestScope = `${token}/${status}/${user?.id ?? ""}`;
+  const [shareScope, setShareScope] = useState("");
   const [share, setShare] = useState<PublicShare | null>(null);
   const [loading, setLoading] = useState(true);
   const [locked, setLocked] = useState(false);
@@ -50,7 +53,10 @@ export default function Share() {
     void sharesApi
       .public(token, controller.signal, status === "authenticated")
       .then((result) => {
-        if (active) setShare(result);
+        if (active) {
+          setShare(result);
+          setShareScope(requestScope);
+        }
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -76,7 +82,18 @@ export default function Share() {
       active = false;
       controller.abort();
     };
-  }, [token, reload, status]);
+  }, [token, reload, status, user?.id]);
+  usePageTitle(
+    shareScope === requestScope && !loading && !error && share
+      ? share.file.name
+      : requiresLogin
+        ? "需要登录"
+        : locked
+          ? "需要访问密码"
+          : error
+            ? "无法打开分享"
+            : null,
+  );
   const document = useMemo(
     () =>
       share?.file.kind === "doc"

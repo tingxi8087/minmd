@@ -1,3 +1,4 @@
+import { usePageTitle } from "@/components/PageTitles";
 import FileHeader from "@/components/FileHeader";
 import FileIcon from "@/components/FileIcon";
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
@@ -280,6 +281,17 @@ export default function FileAccessGate({
     });
     return () => controller.abort();
   }, [userId, fileId, reload, localRevision]);
+  usePageTitle(
+    scope !== currentScope
+      ? null
+      : error
+        ? "无法打开文件"
+        : !access
+          ? null
+          : !access.permission
+            ? "无访问权限"
+            : file?.name,
+  );
   if (error && scope === currentScope)
     return (
       <div className={styles.empty} role="alert">

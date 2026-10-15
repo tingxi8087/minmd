@@ -1,3 +1,4 @@
+import PageTitles from "@/components/PageTitles";
 import { lazy, Suspense } from "react";
 import { createHashRouter, Navigate } from "react-router-dom";
 import Layout from "@/layout";
@@ -11,52 +12,61 @@ const Notifications = lazy(() => import("@/views/Notifications"));
 const Share = lazy(() => import("@/views/Share"));
 const Document = lazy(() => import("@/views/Document"));
 export const router = createHashRouter([
-  { path: "/login", element: <Login /> },
-  { path: "/setup", element: <Setup /> },
   {
-    path: "/share/:token",
-    element: (
-      <Suspense fallback={<div>正在打开分享…</div>}>
-        <Share />
-      </Suspense>
-    ),
-  },
-  {
-    path: "/",
-    element: <Layout />,
+    element: <PageTitles />,
     children: [
-      { index: true, element: <Navigate to="/files" replace /> },
-      ...["files", "recent", "favorites", "shared", "trash"].map((path) => ({
-        path,
-        element: <Files />,
-      })),
+      { path: "/login", element: <Login /> },
+      { path: "/setup", element: <Setup /> },
       {
-        path: "shared-with-me",
+        path: "/share/:token",
         element: (
-          <Suspense fallback={<div>正在加载…</div>}>
-            <SharedWithMe />
+          <Suspense fallback={<div>正在打开分享…</div>}>
+            <Share />
           </Suspense>
         ),
       },
       {
-        path: "notifications",
-        element: (
-          <Suspense fallback={<div>正在加载…</div>}>
-            <Notifications />
-          </Suspense>
-        ),
+        path: "/",
+        element: <Layout />,
+        children: [
+          { index: true, element: <Navigate to="/files" replace /> },
+          ...["files", "recent", "favorites", "shared", "trash"].map(
+            (path) => ({
+              path,
+              element: <Files />,
+            }),
+          ),
+          {
+            path: "shared-with-me",
+            element: (
+              <Suspense fallback={<div>正在加载…</div>}>
+                <SharedWithMe />
+              </Suspense>
+            ),
+          },
+          {
+            path: "notifications",
+            element: (
+              <Suspense fallback={<div>正在加载…</div>}>
+                <Notifications />
+              </Suspense>
+            ),
+          },
+          { path: "settings/:section", element: <Settings /> },
+          {
+            path: "document/:id",
+            element: (
+              <Suspense
+                fallback={<div style={{ padding: 40 }}>正在打开文档…</div>}
+              >
+                <Document />
+              </Suspense>
+            ),
+          },
+          { path: "preview/:id", element: <Preview /> },
+          { path: "*", element: <Navigate to="/files" replace /> },
+        ],
       },
-      { path: "settings/:section", element: <Settings /> },
-      {
-        path: "document/:id",
-        element: (
-          <Suspense fallback={<div style={{ padding: 40 }}>正在打开文档…</div>}>
-            <Document />
-          </Suspense>
-        ),
-      },
-      { path: "preview/:id", element: <Preview /> },
-      { path: "*", element: <Navigate to="/files" replace /> },
     ],
   },
 ]);

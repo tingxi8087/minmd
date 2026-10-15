@@ -1,3 +1,4 @@
+import { usePageTitle } from "@/components/PageTitles";
 import { UPLOAD_MAX_BYTES } from "@/utils/uploadLimits";
 import { filesApi } from "@/api/files";
 import { notifyFileAccessChanged } from "@/api/fileAccess";
@@ -189,6 +190,7 @@ function DocumentEditor({
     [],
   );
   const [title, setTitle] = useDocumentTitle(file.name);
+  usePageTitle(title.trim() || "未命名文档", 2);
   const [status, setStatus] = useState<"saved" | "saving" | "failed">("saved");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);

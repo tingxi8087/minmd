@@ -5,6 +5,7 @@ COPY system/server/package.json ./system/server/package.json
 COPY apps/app_server/package.json ./apps/app_server/package.json
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/web-cms/package.json ./apps/web-cms/package.json
+COPY patches ./patches
 RUN bun install --frozen-lockfile
 COPY . .
 RUN bun run build

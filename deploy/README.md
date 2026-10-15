@@ -40,7 +40,7 @@ docker compose --env-file deploy/.env.production -f deploy/compose.production.ya
 
 迁移失败时不要启动 app，不清库、不删除已应用迁移。保留日志，核查目标库、版本和失败 SQL，修复后重试迁移。后端必须找到 `/app/dist/web-cms/index.html`，即使后台静态文件实际由 Nginx 提供。
 
-用已有的 Caddy 或 Nginx 为该域名配置 HTTPS，转发至 `127.0.0.1:8080`（或 `WEB_BIND_PORT`）。外层 Nginx 的转发需保留原 Host、WebSocket Upgrade，关闭响应缓冲并允许至少 51 MiB 请求，例如在已经配置证书的 HTTPS server 内：
+用已有的 Caddy 或 Nginx 为该域名配置 HTTPS，转发至 `127.0.0.1:8080`（或 `WEB_BIND_PORT`）。外层 Nginx 的转发需保留原 Host、WebSocket Upgrade，关闭响应缓冲并允许至少 201 MiB 请求，例如在已经配置证书的 HTTPS server 内：
 
 ```nginx
 location / {
@@ -87,7 +87,7 @@ deploy/scripts/backup.sh deploy/.env.production backups/2026-10-12-001
 
 目标必须为新目录，不覆盖旧备份。成功后脚本恢复此前运行的 app 和 web。失败时可能保持停止状态，先核查错误和退出状态，补齐有效备份后手动启动；缺少数据库或附件的目录不是完整备份。
 
-备份含私有正文、账号哈希和分享授权信息，应加密并限制访问，复制到独立存储。脚本不包含环境文件和 TLS 私钥，它们需通过独立加密渠道保管。API 密钥原文使用 `AI_KEY_ENCRYPTION_KEY` 加密，备份恢复必须保留相同配置，否则旧原文无法解密（哈希认证仍可使用）。历史版本默认不自动删除，备份和附件容量会增长。
+备份含私有正文、账号哈希和分享授权信息，应加密并限制访问，复制到独立存储。脚本不包含环境文件和 TLS 私钥，它们需通过独立加密渠道保管。API 密钥原文使用 `AI_KEY_ENCRYPTION_KEY` 加密，备份恢复必须保留相同配置，否则旧原文无法解密（哈希认证仍可使用）。每个文件最多保留最近 100 个历史版本，写入新版本及服务启动时清理超额版本。当前内容独立保存；当前内容或其他保留版本仍引用的附件不会删除，无引用附件经过宽限期后清理。备份仍需同时包含数据库和附件。
 
 ## 恢复及演练
 
