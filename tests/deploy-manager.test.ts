@@ -74,22 +74,23 @@ async function fixture() {
     '#!/bin/sh\nprintf \'{"database":"connected"}\\n\'\n',
   );
   await chmod(join(dir, "bin/curl"), 0o700);
-  const run = async (args: string[], extra: Record<string, string> = {}) => {
-    const p = Bun.spawn(
-      ["sh", join(root, "minmd.sh"), ...args, "--dir", data],
-      {
-        env: {
-          ...process.env,
-          PATH: `${join(dir, "bin")}:${process.env.PATH}`,
-          TMPDIR: join(dir, "tmp"),
-          MINMD_FAKE_STATE: stateFile,
-          MINMD_TRACE: trace,
-          ...extra,
-        },
-        stdout: "pipe",
-        stderr: "pipe",
+  const run = async (
+    args: string[],
+    extra: Record<string, string> = {},
+    entry = join(root, "minmd.sh"),
+  ) => {
+    const p = Bun.spawn(["sh", entry, ...args, "--dir", data], {
+      env: {
+        ...process.env,
+        PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+        TMPDIR: join(dir, "tmp"),
+        MINMD_FAKE_STATE: stateFile,
+        MINMD_TRACE: trace,
+        ...extra,
       },
-    );
+      stdout: "pipe",
+      stderr: "pipe",
+    });
     const [out, err, code] = await Promise.all([
       new Response(p.stdout).text(),
       new Response(p.stderr).text(),
@@ -578,5 +579,103 @@ test("IP 直连拒绝域名、无效 IP、来源端口不匹配和代理参数�
     expect(await f.config()).toContain("APP_BIND_PORT=80");
   } finally {
     await clean(f);
+  }
+}, 30000);
+
+test("发布资源绑定实际仓库，一行安装和手动 Release 均调用真实维护入口，重复安装保持凭证", async () => {
+  for (const method of ["bootstrap", "release"]) {
+    const f = await fixture();
+    try {
+      const assets = join(f.dir, "release-assets"),
+        archive = join(assets, "minmd-v0.1.0.tar.gz");
+      const pack = Bun.spawn(
+        [
+          "sh",
+          join(root, "deploy/scripts/package-release.sh"),
+          "minmd-unit",
+          "v0.1.0",
+          archive,
+          "example/fork",
+        ],
+        { stdout: "pipe", stderr: "pipe" },
+      );
+      expect(await pack.exited).toBe(0);
+      expect(await readFile(join(assets, "release.env"), "utf8")).toBe(
+        "MINMD_IMAGE_PREFIX=minmd-unit\nMINMD_IMAGE_TAG=v0.1.0\n",
+      );
+      expect(await readFile(join(assets, "install.sh"), "utf8")).toContain(
+        "MINMD_DEFAULT_REPOSITORY=example/fork",
+      );
+      const target = join(f.dir, "installed"),
+        bootTrace = join(f.dir, "downloads");
+      await writeFile(bootTrace, "");
+      await writeFile(
+        join(f.dir, "bin/curl"),
+        `#!/bin/sh
+output= url=
+while [ "$#" -gt 0 ]; do
+  case "$1" in --output) output=$2; shift 2 ;; https://*) url=$1; shift ;; *) shift ;; esac
+done
+printf '%s\\n' "$url" >> "$MINMD_BOOT_TRACE"
+name=REPLACE_SHELL_NAME
+cp "$MINMD_BOOT_ASSETS/$name" "$output"
+`.replace("REPLACE_SHELL_NAME", "$" + "{url##*/}"),
+      );
+      const env = { MINMD_BOOT_TRACE: bootTrace, MINMD_BOOT_ASSETS: assets };
+      const options = [
+        "--mode",
+        "direct",
+        "--origin",
+        "http://192.0.2.10:19891",
+        "--offline",
+        "--yes",
+      ];
+      if (method === "bootstrap") {
+        const result = await f.run(
+          ["--install-dir", target, "--", ...options],
+          env,
+          join(assets, "install.sh"),
+        );
+        if (result.code) throw new Error(result.err);
+        expect(result.code).toBe(0);
+        expect(await readFile(bootTrace, "utf8")).toContain(
+          "https://github.com/example/fork/releases/latest/download/release.env",
+        );
+        const config = await f.config();
+        await writeFile(bootTrace, "");
+        expect(
+          (
+            await f.run(
+              ["--install-dir", target, "--", "--offline", "--yes"],
+              env,
+              join(assets, "install.sh"),
+            )
+          ).code,
+        ).toBe(0);
+        expect(await f.config()).toBe(config);
+        expect(await readFile(bootTrace, "utf8")).toBe("");
+      } else {
+        const extract = Bun.spawn(["tar", "xzf", archive, "-C", f.dir], {
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        expect(await extract.exited).toBe(0);
+        expect(
+          (
+            await f.run(
+              ["install", ...options],
+              {},
+              join(f.dir, "minmd/minmd.sh"),
+            )
+          ).code,
+        ).toBe(0);
+      }
+      expect(await f.config()).toContain("MINMD_DEPLOY_MODE=direct");
+      expect(
+        (await f.config()).match(/^POSTGRES_PASSWORD=[a-f0-9]{64}$/m),
+      ).not.toBeNull();
+    } finally {
+      await clean(f);
+    }
   }
 }, 30000);

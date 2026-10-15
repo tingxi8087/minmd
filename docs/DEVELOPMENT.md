@@ -40,6 +40,20 @@ docker compose -f deploy/compose.yaml up -d
 
 此 Compose 只启动开发 PostgreSQL，默认连接与 `.env.example` 一致。生产部署由单个 app 同端口托管两个网页及接口，数据库独立运行。完整应用使用独立 [生产 Compose](../deploy/compose.production.yaml)，步骤及单实例边界见 [部署与备份恢复](../deploy/README.md)。首次管理员从 `.env` 初始化，仅在库中没有超管时生效。不要对外使用模板默认密码。
 
+## 源码构建部署
+
+需要开发自定义版本，或尚未发布可用 Release 时，可在完整源码目录执行：
+
+```sh
+./minmd.sh install --build
+# 也可使用非交互 IP 直连
+./minmd.sh install --mode direct --origin http://192.168.1.10:9811 --build --yes
+```
+
+该方式由 Docker 本地构建 app / migrate 镜像，首次安装耗时更长，不需要在宿主机安装 Bun 或 Node。可选 `proxy`、`https`、`direct`，后续维护使用同一套 `minmd.sh`；正式用户安装优先选 [一行命令或 Release 部署包](../deploy/README.md#安装)。
+
+安装入口 `install.sh` 的行为回归可单独运行 `bun test tests/installer.test.ts`；其中管道交互测试使用开发机的 Python 3 创建真实控制终端，正式安装不依赖 Python。
+
 ## 命令和目录
 
 | 命令                                         | 用途                                                               |

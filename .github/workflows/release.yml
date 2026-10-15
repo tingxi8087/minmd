@@ -107,8 +107,9 @@ jobs:
           # 正式安装包只在匿名访问镜像通过后发布。首次发布需在 GHCR 将两个包设为 Public。
           docker manifest inspect "$PREFIX-app:$VERSION" >/dev/null
           docker manifest inspect "$PREFIX-migrate:$VERSION" >/dev/null
-          sh deploy/scripts/package-release.sh "$PREFIX" "$VERSION" "dist/minmd-$VERSION.tar.gz"
+          sh deploy/scripts/package-release.sh "$PREFIX" "$VERSION" "dist/minmd-$VERSION.tar.gz" "$REPOSITORY"
+          if printf '%s\n' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then RELEASE_FLAG=--latest; else RELEASE_FLAG=--prerelease; fi
           if ! gh release view "$VERSION" >/dev/null 2>&1; then
-            gh release create "$VERSION" --verify-tag --title "MinMD $VERSION" --notes '下载部署包，解压后执行 ./minmd.sh install。支持已有反代、自动 HTTPS 和 IP 直连三种模式。'
+            gh release create "$VERSION" --verify-tag "$RELEASE_FLAG" --title "MinMD $VERSION" --notes '下载部署包，解压后执行 ./minmd.sh install。支持已有反代、自动 HTTPS 和 IP 直连三种模式。'
           fi
-          gh release upload "$VERSION" "dist/minmd-$VERSION.tar.gz" "dist/minmd-$VERSION.tar.gz.sha256" --clobber
+          gh release upload "$VERSION" "dist/minmd-$VERSION.tar.gz" "dist/minmd-$VERSION.tar.gz.sha256" dist/install.sh dist/release.env --clobber

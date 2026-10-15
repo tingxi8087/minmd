@@ -18,9 +18,53 @@ MinMD 前台、后台 `/admin/`、API、MCP 和文档 / 表格协作均由同一
 
 ## 安装
 
-需要本机 Docker Engine / Docker Desktop、Docker Compose v2.20+、POSIX Shell，以及 `sha256sum` 或 `shasum`。`doctor` 检查公网入口还需要 curl。普通部署无需 Bun、Node.js、Git、编译工具或自行安装数据库。部署脚本在 Linux、macOS 的 Docker 上执行；Windows 使用 WSL2。
+需要本机 Docker Engine / Docker Desktop、Docker Compose v2.20+、POSIX Shell、tar / gzip，以及 `sha256sum` 或 `shasum`。`doctor` 检查公网入口还需要 curl。普通部署无需 Bun、Node.js、Git、编译工具或自行安装数据库。部署脚本在 Linux、macOS 的 Docker 上执行；Windows 使用 WSL2。
 
-下载 GitHub Release 中的 `minmd-v版本.tar.gz` 和 `.sha256` 文件，先校验再解压。SHA 文件使用对应归档的真实名称：
+### 方式一：一行命令安装
+
+```sh
+curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install.sh | sh
+# 或使用 wget
+wget -qO- https://github.com/tingxi8087/minmd/releases/latest/download/install.sh | sh
+```
+
+默认下载最新稳定版（不自动选择测试版本），校验部署包后保存到当前目录下的 `minmd/`，启动原有安装向导。入口只做环境检查和部署包下载，不安装系统软件。`curl | sh` 的交互向导从控制终端读取输入；无终端的 CI / 自动化须明确传入模式、地址和 `--yes`。
+
+指定部署文件目录和版本，入口选项在 `--` 之前，安装向导参数在其后：
+
+```sh
+curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install.sh \
+  | sh -s -- --version v0.1.0 --install-dir /opt/minmd
+
+# 无人值守示例，替换 IP；没有终端时必须提供完整安装参数
+curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install.sh \
+  | sh -s -- --install-dir /opt/minmd -- \
+    --mode direct --origin http://192.168.1.10:9811 --yes
+```
+
+`--install-dir` 是部署脚本目录，须为尚不存在的目录或已有的 Release 部署目录；安装器的高级 `--dir` 是凭证与部署状态目录，两者用途不同。目录可含空格和中文，不能使用 dotenv 插值 / 转义字符、符号链接或根目录。fork 发布的入口绑定实际 GitHub 仓库，也可在入口参数中指定 `--repo 用户/仓库`。
+
+重复执行时保留已下载部署文件及凭证，继续原版本安装，不自动覆盖或升级；指定了其他版本则拒绝并提示使用 `./minmd.sh upgrade <版本>`。下载 / 校验失败不会生成目标部署目录；向导失败会保留已经校验的部署包，以便重新执行。安装结束后进入该目录维护，例如 `cd /opt/minmd`。
+
+### 环境检查与失败提示
+
+| 检查           | 缺失或异常时                                                                             |
+| -------------- | ---------------------------------------------------------------------------------------- |
+| Docker         | 未安装时提示官方安装文档；已安装但不可用时提示启动服务或检查权限，不自动提权或修改用户组 |
+| Compose        | 缺失或低于 v2.20 时提示安装 / 更新 Compose 插件                                          |
+| 下载工具       | 优先 curl，没有时使用 wget；两者都没有则退出。执行管道命令本身也需要对应工具             |
+| 解压与校验     | tar / gzip 必须存在；SHA-256 使用 sha256sum 或 shasum，没有校验工具不会跳过校验          |
+| 磁盘及目录     | 空间不足、目录不可写、已有无关目录或并发安装时退出，不覆盖数据                           |
+| 网络及版本     | 下载失败、版本不存在、元数据异常或校验不匹配时退出，清理临时文件和下载锁                 |
+| 端口及已有资源 | 下载后由现有安装器检查实际端口、容器、网络和数据卷归属，提示调整端口或部署模式           |
+
+以上工具由用户自行安装，补齐后重新执行同一命令即可；不会停止其他服务或自动清库。运行环境支持 Linux / macOS，Windows 使用 WSL2。
+
+### 方式二：Release 部署包安装
+
+从 [GitHub Releases](https://github.com/tingxi8087/minmd/releases) 下载同一版本的部署包和校验文件。以下文件名是示例，使用时替换为实际发布版本；首次发布包含安装资源的 Release 之前，一行命令下载地址也不可用。
+
+先校验再解压，SHA 文件使用对应归档的真实名称：
 
 ```sh
 sha256sum -c minmd-v0.1.0.tar.gz.sha256
@@ -43,14 +87,7 @@ cd minmd
 ./minmd.sh install --mode https --origin https://docs.example.com --yes
 ```
 
-源码目录没有正式镜像默认值时，可显式指定镜像仓库和版本；开发者也可以在源码目录使用 `--build` 构建本地镜像。发布包不包含源码构建环境：
-
-```sh
-./minmd.sh install --mode proxy --origin https://docs.example.com \
-  --image-prefix ghcr.io/你的组织/你的仓库 --version v0.1.0 --yes
-# 源码开发 / 自测
-./minmd.sh install --mode proxy --origin https://docs.example.com --build --yes
-```
+源码构建与本地自测见 [开发指南](../docs/DEVELOPMENT.md#源码构建部署)。正式安装建议使用上述两种方式。
 
 ### 无域名：IP 直连
 
@@ -59,8 +96,6 @@ cd minmd
 ```sh
 # 正式部署包（普通部署不需要 --build）
 ./minmd.sh install --mode direct --origin http://192.168.1.10:9811 --yes
-# 完整源码目录本地构建
-./minmd.sh install --mode direct --origin http://192.168.1.10:9811 --build --yes
 ```
 
 当前仅支持完整 IPv4 地址，不接受域名、IPv6、监听通配地址 `0.0.0.0` 作为访问地址。`--bind-host` 可限定监听网卡；访问地址需要使用用户实际可达的服务器 IP。IP 直连不能设置 `--trust-proxy`，也不信任伪造的转发头。首次选择后沿用原安装配置，不能用重复 `install` 静默切换模式或地址。
@@ -171,10 +206,12 @@ docker compose --env-file deploy/.env.production \
 
 首次发布需要允许 GitHub Actions 写入 Packages，并在 GHCR 将 `仓库-app`、`仓库-migrate` 两个包设置为 Public。工作流在创建正式 Release 前检查匿名访问；检查失败时先修正包可见性，再重跑工作流。源仓库没有配置远端或尚未发布标签时，不存在可供用户下载的正式部署包。
 
-本地可检查打包：
+发布资源包括 `minmd-v版本.tar.gz`、对应 `.sha256`、`install.sh` 和 `release.env`。入口通过最新稳定 Release 的 `release.env` 读取版本后，使用固定版本地址下载部署包；不执行网络下载的环境文件。带后缀的版本发布为 prerelease，不占用 latest。发布包脚本会将实际仓库写入入口，fork 不会默认下载上游。
+
+本地可检查打包（输出到 `dist/` 或其他独立目录，不能覆盖源码入口）：
 
 ```sh
-sh deploy/scripts/package-release.sh ghcr.io/owner/minmd v0.1.0 dist/minmd-v0.1.0.tar.gz
+sh deploy/scripts/package-release.sh ghcr.io/owner/minmd v0.1.0 dist/minmd-v0.1.0.tar.gz owner/minmd
 ```
 
 依赖 Caddy 的自动 HTTPS 和流式反代行为见 [自动 HTTPS](https://caddyserver.com/docs/automatic-https)、[reverse_proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)。实际公网证书签发需在目标域名环境验收。

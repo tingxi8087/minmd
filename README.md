@@ -82,35 +82,47 @@ minmd 是一个开源、可自行部署的轻量文档协作系统。你可以�
 
 - 安装 Docker 和 Docker Compose v2.20+；Windows 使用 WSL2。
 - 选择 IP 直连时无需域名，在防火墙和云安全组放行应用 TCP 端口（默认 9811）。其他模式准备最终域名；自动 HTTPS 需要解析到服务器并开放 80/443，已有反代模式复用你的 HTTPS 入口。
-- 准备 `sha256sum`（macOS 可用 `shasum`）；入口诊断需要 `curl`。
+- 准备 `tar`、`gzip`、`sha256sum`（macOS 可用 `shasum`）。一行安装需要 `curl` 或 `wget`；入口诊断需要 `curl`。
 
-### 2. 安装并启动
+### 2. 选择安装方式
 
-**使用正式部署包**：取得对应版本的 `minmd-v版本.tar.gz` 及 `.sha256`，校验后解压，进入 `minmd` 目录执行：
+两种正式安装方式共用同一套向导，都可以选择 IP 直连、已有反代或自动 HTTPS。使用预构建镜像，服务器无需安装 Git、Bun、Node.js，也无需编译前端。
+
+**方式一：一行命令安装**
 
 ```sh
+curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install.sh | sh
+```
+
+没有 curl 时可以使用 wget：
+
+```sh
+wget -qO- https://github.com/tingxi8087/minmd/releases/latest/download/install.sh | sh
+```
+
+入口脚本检查环境后，下载最新稳定版部署包、校验 SHA-256、解压到当前目录的 `minmd/`，再启动安装向导。缺少环境时会提示并退出，**不会自动安装 Docker、提权或修改系统软件源**。
+
+需要指定版本、目录或无人值守安装，见 [安装参数](deploy/README.md#方式一一行命令安装)。
+
+**方式二：Release 部署包安装**
+
+在 [Releases](https://github.com/tingxi8087/minmd/releases) 下载同一版本的 `minmd-v版本.tar.gz` 和 `.sha256`。以下以 `v0.1.0` 为例，替换为实际发布版本：
+
+```sh
+sha256sum -c minmd-v0.1.0.tar.gz.sha256
+# macOS：shasum -a 256 -c minmd-v0.1.0.tar.gz.sha256
+tar xzf minmd-v0.1.0.tar.gz
+cd minmd
 ./minmd.sh install
 ```
 
-按提示选择模式、填写最终访问地址；IP 直连填写 `http://服务器IPv4:9811`，其他模式填写 HTTPS 地址。安装器自动生成凭证、检查端口与资源冲突、初始化数据库并启动服务。部署包使用预构建镜像，服务器无需安装 Bun、Node.js 或编译前端。部署包及镜像由仓库的标签发布工作流生成，可用版本以实际发布结果为准。
+按提示选择模式、填写最终访问地址；IP 直连填写 `http://服务器IPv4:9811`，其他模式填写 HTTPS 地址。安装器检查端口与资源冲突，自动生成凭证、初始化数据库并启动服务。
 
-**从源码部署**：如果尚无可用部署包，在完整源码目录运行：
-
-```sh
-./minmd.sh install --build
-```
-
-此方式由 Docker 本地构建镜像，首次安装耗时更长。部署包和源码安装都可以选择 `proxy`、`https` 或 `direct`。
+上述下载地址由正式版本发布流程提供，需先发布包含安装资源的 Release 才可使用，版本号以实际 Releases 为准。尚无可用部署包或需要修改源码时，见 [源码构建部署](docs/DEVELOPMENT.md#源码构建部署)。
 
 ### 3. 配好入口，打开网页
 
 IP 直连模式放行端口后，直接打开安装时填写的 HTTP 地址。已有反代模式将 HTTPS 域名反代到应用端口，并开启 WebSocket 和流式响应支持；自动 HTTPS 模式等待证书签发。填写的访问地址必须与浏览器地址一致。
-
-例如从源码以 IP 直连安装（替换为服务器实际 IPv4 地址）：
-
-```sh
-./minmd.sh install --mode direct --origin http://192.168.1.10:9811 --build --yes
-```
 
 IP 直连目前支持 IPv4，默认只开放应用端口，不使用 80/443；HTTP 不加密账号、内容和密钥的传输，适合内网或临时体验，公网长期使用建议选择 HTTPS。
 
@@ -121,7 +133,7 @@ IP 直连目前支持 IPv4，默认只开放应用端口，不使用 80/443；HT
 
 打开配置的访问地址，完成前台初始化，即可使用。后台位于同一域名的 `/admin/`，初始后台账号密码由安装器输出；**后台管理员和前台账号相互独立**。
 
-默认部署配置保存在 `.minmd/`，数据库、附件及证书保存在 Docker 数据卷。当前采用单 app 实例，协作房间在进程内管理。
+安装后进入部署目录 `minmd/` 执行维护命令。默认部署配置保存在该目录的 `.minmd/`，数据库、附件及证书保存在 Docker 数据卷。当前采用单 app 实例，协作房间在进程内管理。
 
 端口调整、反代示例、配置说明和故障排查见 [完整部署指南](deploy/README.md)。
 
