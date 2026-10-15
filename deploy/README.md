@@ -218,7 +218,7 @@ docker compose --env-file deploy/.env.production \
 
 ## 维护者发布
 
-Docker 构建显式使用 Bun 的 hoisted 依赖布局，并在构建阶段从根目录和系统工作区检查数据库依赖；检查保留软链接路径，避免打包产物依赖宿主内核的软链接解析行为。
+Docker 的运行镜像显式使用 Bun 的 hoisted 依赖布局，并在构建阶段从根目录和系统工作区检查数据库依赖；检查保留软链接路径，避免打包产物依赖宿主内核的软链接解析行为。前端构建依赖保持 workspace 隔离，避免前后台不同版本的构建工具互相影响。
 
 国内源在 GitHub 仓库配置变量 `TCR_NAMESPACE`，并配置 `TCR_USERNAME`、`TCR_PASSWORD` 两个 Actions Secrets；密码使用腾讯云镜像仓库登录密码，不提交源码。自动发布只需两个公有仓库：`minmd-app`、`minmd-migrate`。现有 `minmd-postgres`、`minmd-caddy` 公有副本保留用于备用，不随每次应用发布同步。
 
