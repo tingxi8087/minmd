@@ -1,3 +1,4 @@
+import { pruneFileVersions } from "../versions/retention";
 import type { FastifyInstance } from "fastify";
 import { Type, type Static } from "@sinclair/typebox";
 import { eq } from "drizzle-orm";
@@ -173,5 +174,6 @@ export async function bindPresentation(
     })
     .returning({ id: fileVersions.id });
   await syncContentAssets(tx, fileId, projection, version!.id, userId);
+  await pruneFileVersions(tx, fileId);
   return { fileId, revision, epoch, projection };
 }

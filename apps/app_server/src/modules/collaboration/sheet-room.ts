@@ -1,3 +1,4 @@
+import { pruneFileVersions } from "../versions/retention";
 import websocket from "@fastify/websocket";
 import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
@@ -746,6 +747,7 @@ export class SheetRooms {
       current.projection,
       version!.id,
     );
+    await pruneFileVersions(tx, current.fileId);
     return version!.id;
   }
   private async automaticCheckpoint(fileId: string) {

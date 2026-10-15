@@ -1,3 +1,4 @@
+import { pruneFileVersions } from "../versions/retention";
 import { Hocuspocus, type Document } from "@hocuspocus/server";
 import websocket from "@fastify/websocket";
 import type { FastifyInstance } from "fastify";
@@ -504,6 +505,7 @@ export class DocumentRooms {
       version!.id,
       actorId,
     );
+    await pruneFileVersions(tx, current.fileId);
     return version!.id;
   }
   private async persist(

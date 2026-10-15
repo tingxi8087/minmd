@@ -119,6 +119,7 @@ export default function SheetHistory({
       width="min(1100px, 94vw)"
       destroyOnClose
     >
+      <p>最多保留最近 100 个历史版本，超出后自动清理最旧版本。</p>
       <div className={styles.historyActions}>
         <Button loading={busy} onClick={() => void run(checkpoint)}>
           保存当前版本

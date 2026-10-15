@@ -1,3 +1,4 @@
+import { pruneExistingFileVersions } from "./modules/versions/retention";
 import { createApp, type AppConfig, type AppOptions } from "@mas/system-server";
 import { count, eq } from "drizzle-orm";
 import { adminPermissions, appPermissions } from "../../../config/permissions";
@@ -54,6 +55,9 @@ export function buildApp(
       },
     },
     register: async (app, { database, config }) => {
+      app.addHook("onReady", async () => {
+        await pruneExistingFileVersions(database);
+      });
       await registerDevWeb(app, config);
       let rooms: DocumentRooms | undefined;
       let sheetRooms: SheetRooms | undefined;
