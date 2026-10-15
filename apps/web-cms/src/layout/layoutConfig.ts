@@ -1,5 +1,6 @@
 import eBox from "e-boxes";
-export const NAV_NAME = "mas-cms";
+export const NAV_NAME = "minmd";
+export const NAV_LOGO = `${import.meta.env.BASE_URL}favicon.svg?v=minmd`;
 // 导航左侧标题
 export const layoutConfig = eBox({
   NAV_NAME,

@@ -1,3 +1,4 @@
+import { assertUploadSize } from "@/utils/uploadLimits";
 import axios from "axios";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -325,8 +326,10 @@ export default function Files() {
       message.warning("支持导入 .md 和 .xlsx 文件");
       return;
     }
-    if (!isSheet && file.size > 2 * 1024 * 1024) {
-      message.warning("Markdown 文件请小于 2MB");
+    try {
+      assertUploadSize(file);
+    } catch (error) {
+      message.warning(errorMessage(error));
       return;
     }
     const userId = useAuth.getState().user?.id;
@@ -721,7 +724,11 @@ export default function Files() {
       <FileDialogs
         action={action}
         close={() => setAction(null)}
-        onCreated={(id) => {
+        onCreated={(id, kind) => {
+          if (kind === "doc") {
+            navigate(`/document/${id}`);
+            return;
+          }
           if (
             action?.type === "upload" ||
             (action?.type === "create" &&

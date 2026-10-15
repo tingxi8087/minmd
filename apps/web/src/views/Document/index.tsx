@@ -1,3 +1,4 @@
+import { UPLOAD_MAX_BYTES } from "@/utils/uploadLimits";
 import { filesApi } from "@/api/files";
 import { notifyFileAccessChanged } from "@/api/fileAccess";
 import FileAccessGate from "@/components/FileAccessGate";
@@ -412,9 +413,9 @@ function DocumentEditor({
     if (!importFile) return;
     if (
       !/\.(md|markdown)$/i.test(importFile.name) ||
-      importFile.size > 2 * 1024 * 1024
+      importFile.size > UPLOAD_MAX_BYTES
     ) {
-      message.warning("请选择小于 2MB 的 Markdown 文件");
+      message.warning("请选择不超过 200 MB 的 Markdown 文件");
       return;
     }
     const text = await importFile.text();

@@ -39,11 +39,32 @@ test("独立预览只接受扩展名、MIME及实际签名相符的媒体", () =
     expect(() => validateMediaAsset(bytes, name, mime)).toThrow();
 });
 
-test("独立图片和PDF大小限制不会被视频上限放宽", () => {
+test("独立图片沿用统一200MB上限，超过旧20MB限制仍能通过体积校验", () => {
   const image = Buffer.alloc(20 * 1024 * 1024 + 1);
   Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(image);
   image.write("IHDR", 12, "ascii");
-  expect(() => validateMediaAsset(image, "large.png", "image/png")).toThrow(
-    "20 MB",
+  expect(validateMediaAsset(image, "large.png", "image/png").kind).toBe(
+    "image",
+  );
+});
+
+test("PDF和图片恰好200MB可通过体积校验，超限拒绝", () => {
+  const limit = 200 * 1024 * 1024;
+  const bytes = Buffer.alloc(limit + 1);
+  bytes.write("%PDF-1.7");
+  expect(
+    validateMediaAsset(bytes.subarray(0, limit), "large.pdf", "application/pdf")
+      .kind,
+  ).toBe("pdf");
+  expect(() =>
+    validateMediaAsset(bytes, "large.pdf", "application/pdf"),
+  ).toThrow("200 MB");
+  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(bytes);
+  bytes.write("IHDR", 12, "ascii");
+  expect(
+    validateMediaAsset(bytes.subarray(0, limit), "large.png", "image/png").kind,
+  ).toBe("image");
+  expect(() => validateMediaAsset(bytes, "large.png", "image/png")).toThrow(
+    "200 MB",
   );
 });

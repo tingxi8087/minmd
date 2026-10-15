@@ -1,3 +1,4 @@
+import { assertUploadSize } from "@/utils/uploadLimits";
 const database = () =>
   new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open("minmd-files", 1);
@@ -32,8 +33,7 @@ export const deletePresentation = (id: string) =>
   transact("readwrite", (store) => store.delete(id));
 export async function validatePresentation(file: File) {
   if (!/\.pptx$/i.test(file.name)) throw new Error("仅支持 .pptx 文件");
-  if (!file.size || file.size > 50 * 1024 * 1024)
-    throw new Error("文件不能为空，且不能超过 50 MB");
+  assertUploadSize(file);
   const { parseZip, buildPresentation, RECOMMENDED_ZIP_LIMITS } =
     await import("@aiden0z/pptx-renderer");
   let model;

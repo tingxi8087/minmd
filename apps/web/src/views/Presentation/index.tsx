@@ -515,7 +515,7 @@ export default function Presentation({ file }: { file: Entry }) {
         <div className={styles.empty}>
           <FileIcon kind="slide" />
           <h2>上传幻灯片，开始预览</h2>
-          <p>支持 .pptx · 最多 50 MB</p>
+          <p>支持 .pptx · 最多 200 MB</p>
           <button
             className="primary-button"
             disabled={uploading || contentLoading || !content}

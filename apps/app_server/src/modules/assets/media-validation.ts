@@ -1,5 +1,6 @@
 import { AppError } from "../../../../../system/server/src/errors";
-export const MEDIA_MAX_BYTES = 200 * 1024 * 1024;
+import { UPLOAD_MAX_BYTES } from "../../../../../config/uploads";
+export const MEDIA_MAX_BYTES = UPLOAD_MAX_BYTES;
 export function validateMediaAsset(
   bytes: Buffer,
   filename: string,
@@ -73,8 +74,7 @@ export function validateMediaAsset(
     ![mime, "application/octet-stream"].includes(suppliedMime)
   )
     throw invalid();
-  const limit =
-    (kind === "video" ? 200 : kind === "pdf" ? 50 : 20) * 1024 * 1024;
+  const limit = UPLOAD_MAX_BYTES;
   if (bytes.length > limit)
     throw new AppError(
       "ASSET_TOO_LARGE",

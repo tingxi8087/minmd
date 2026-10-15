@@ -40,7 +40,7 @@ export function registerMedia(
         tags: ["私有附件"],
         summary: "上传PDF、视频或图片并创建预览文件",
         description:
-          "空间成员上传 PDF（50MB）、图片（20MB）或MP4/WebM视频（200MB）。文件、正文与附件引用原子创建，失败不留下空文件；沿用空间及文件权限。",
+          "空间成员上传 PDF、图片或MP4/WebM视频（统一上限200MB）。文件、正文与附件引用原子创建，失败不留下空文件；沿用空间及文件权限。",
         params: Type.Object({ spaceId: id }, { additionalProperties: false }),
         querystring: query,
         consumes: ["multipart/form-data"],

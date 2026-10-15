@@ -1,3 +1,4 @@
+import { assertUploadSize } from "@/utils/uploadLimits";
 import ExcelJS from "exceljs";
 import type {
   IWorkbookData,
@@ -122,8 +123,7 @@ export async function importXlsx(
   name: string,
 ): Promise<IWorkbookData> {
   if (!/\.xlsx$/i.test(file.name)) throw new Error("仅支持 .xlsx 文件");
-  if (!file.size || file.size > 20 * 1024 * 1024)
-    throw new Error("文件不能为空，且不能超过 20 MB");
+  assertUploadSize(file);
   const excel = new ExcelJS.Workbook();
   try {
     await excel.xlsx.load(await file.arrayBuffer());

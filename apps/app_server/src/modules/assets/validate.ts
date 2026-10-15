@@ -1,3 +1,4 @@
+import { UPLOAD_MAX_BYTES } from "../../../../../config/uploads";
 import JSZip from "jszip";
 import { AppError } from "../../../../../system/server/src/errors";
 
@@ -62,8 +63,8 @@ export async function validateAsset(
 ) {
   if (!bytes.length) throw invalid();
   if (/\.pptx$/i.test(filename)) {
-    if (bytes.length > 50 * 1024 * 1024)
-      throw new AppError("ASSET_TOO_LARGE", "PPTX 不能超过 50 MB", 413);
+    if (bytes.length > UPLOAD_MAX_BYTES)
+      throw new AppError("ASSET_TOO_LARGE", "PPTX 不能超过 200 MB", 413);
     if (
       ![pptxMime, "application/octet-stream", "application/zip"].includes(
         suppliedMime,

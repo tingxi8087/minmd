@@ -1,4 +1,4 @@
-import { layoutConfig } from "../../layoutConfig";
+import { layoutConfig, NAV_LOGO } from "../../layoutConfig";
 import PersonMenu from "../PersonMenu";
 import styles from "./index.module.less";
 
@@ -7,7 +7,7 @@ export default function Nav() {
     <div className={styles.nav} style={{ height: layoutConfig.navHeight }}>
       <div className={styles.brand}>
         <span className={styles.brandMark}>
-          {layoutConfig.NAV_NAME.slice(0, 1).toUpperCase()}
+          <img src={NAV_LOGO} alt="" aria-hidden="true" />
         </span>
         <span className={styles.brandText}>{layoutConfig.NAV_NAME}</span>
       </div>

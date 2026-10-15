@@ -45,7 +45,7 @@ export async function registerAssets(
         tags: ["私有附件"],
         summary: "上传空间附件",
         description:
-          "空间成员上传PNG/JPEG/WebP/GIF（1MB）或PPTX（50MB）。文件体使用multipart的file字段，检测实际类型并存入私有目录，未绑定附件经过宽限期清理。",
+          "空间成员上传PNG/JPEG/WebP/GIF（1MB）或PPTX（200MB）。文件体使用multipart的file字段，检测实际类型并存入私有目录，未绑定附件经过宽限期清理。",
         consumes: ["multipart/form-data"],
         params: Type.Object({ spaceId: id }, { additionalProperties: false }),
         body: Type.Object(

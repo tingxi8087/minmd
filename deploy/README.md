@@ -28,7 +28,7 @@ openssl rand -hex 32
 
 将随机值填入 `POSTGRES_PASSWORD`，另设独立的 `ADMIN_PASSWORD`。数据库密码使用随机十六进制，避免数据库连接 URL 中需要转义的字符。配置实际 `PUBLIC_ORIGIN=https://你的域名`，不含路径或末尾斜杠；前后台同源。首次管理员密码在新库初始化时使用，已有超管不会被覆盖。首次登录后修改密码，并由后台创建前台账号；公开注册默认关闭。
 
-填写镜像标签 `MINMD_IMAGE_TAG`、Compose 项目名和不冲突的网络。文件中 JSON 上限默认 16 MiB；Nginx 请求上限 201 MiB；独立视频上传上限 200 MiB、PDF 50 MiB、图片 20 MiB，原有文档内图片仍为 1 MiB、PPTX 50 MiB。Nginx 协作和 MCP 响应等待上限 3600 秒，保持 WebSocket Upgrade 和 MCP 流式响应，应用身份与会话校验继续生效。
+填写镜像标签 `MINMD_IMAGE_TAG`、Compose 项目名和不冲突的网络。文件中 JSON 上限默认 16 MiB；Nginx 请求上限 201 MiB；独立文件上传统一上限 200 MiB，原有文档内图片仍为 1 MiB。Nginx 协作和 MCP 响应等待上限 3600 秒，保持 WebSocket Upgrade 和 MCP 流式响应，应用身份与会话校验继续生效。
 
 ```sh
 docker compose --env-file deploy/.env.production -f deploy/compose.production.yaml config --quiet

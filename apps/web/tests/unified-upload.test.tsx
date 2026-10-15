@@ -3,12 +3,36 @@ import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import FileDialogs from "../src/components/FileDialogs";
 import { useWorkspace } from "../src/store/workspace";
-const { upload, uploadPptx, basis, bind, validate } = vi.hoisted(() => ({
+const {
+  upload,
+  uploadPptx,
+  basis,
+  bind,
+  validate,
+  readSheet,
+  parseMd,
+  writeSheet,
+  writeDoc,
+} = vi.hoisted(() => ({
   upload: vi.fn(),
   uploadPptx: vi.fn(),
   basis: vi.fn(),
   bind: vi.fn(),
   validate: vi.fn(),
+  readSheet: vi.fn(),
+  parseMd: vi.fn(),
+  writeSheet: vi.fn(),
+  writeDoc: vi.fn(),
+}));
+vi.mock("@/views/Spreadsheet/exchange", () => ({ importXlsx: readSheet }));
+vi.mock("@/views/Document/utils/markdownImport", () => ({
+  parseMarkdownDocument: parseMd,
+}));
+vi.mock("@/api/documents", () => ({
+  documentApi: { content: basis, import: writeDoc },
+}));
+vi.mock("@/api/sheets", () => ({
+  sheetApi: { content: basis, import: writeSheet },
 }));
 vi.mock("@/api/assets", () => ({
   assetsApi: {
@@ -71,6 +95,12 @@ vi.mock("antd", async (original) => {
 });
 it.each([
   [
+    "test.xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ],
+  ["test.md", "text/markdown"],
+  ["test.markdown", "text/markdown"],
+  [
     "test.pptx",
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ],
@@ -85,12 +115,16 @@ it.each([
     const refresh = vi.fn().mockResolvedValue(undefined),
       created = vi.fn(),
       close = vi.fn();
-    const add = vi.fn().mockResolvedValue("uploaded-pptx");
+    const add = vi.fn().mockResolvedValue("created-file");
     useWorkspace.setState({ space: "upload-space", loadFiles: refresh, add });
     uploadPptx.mockResolvedValue({ id: "pptx-asset" });
     basis.mockResolvedValue({ revision: 1, epoch: 1 });
     bind.mockResolvedValue({});
     validate.mockResolvedValue({});
+    readSheet.mockResolvedValue([]);
+    parseMd.mockReturnValue({ type: "doc", content: [] });
+    writeSheet.mockResolvedValue({});
+    writeDoc.mockResolvedValue({});
     upload.mockResolvedValue({ id: "uploaded-media" });
     const host = document.createElement("div"),
       root = createRoot(host);
@@ -105,32 +139,45 @@ it.each([
         ),
       );
       expect(host.textContent).toContain("上传文件");
-      expect(host.textContent).toContain("PPTX / PDF ≤ 50 MB");
-      expect(host.textContent).toContain("视频（MP4 / WebM）≤ 200 MB");
+      expect(host.textContent).toContain("单个文件最大 200 MB");
+      expect(host.textContent).toContain("MP4 / WebM");
       const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
       expect(input.accept).toContain(".pptx,.pdf,.mp4,.webm");
       const file = new File(["fixture"], name!, { type: mime });
+      Object.defineProperty(file, "text", { value: async () => "# fixture" });
       Object.defineProperty(input, "files", { value: [file] });
       await act(async () =>
         input.dispatchEvent(new Event("change", { bubbles: true })),
       );
       expect(
         host.querySelector<HTMLInputElement>('input:not([type="file"])')?.value,
-      ).toBe(name);
+      ).toBe(name?.replace(/\.(xlsx|md|markdown)$/i, ""));
       await act(async () =>
         host.querySelector<HTMLButtonElement>("button")!.click(),
       );
-      if (name?.endsWith(".pptx")) {
+      if (/\.(xlsx|md|markdown)$/i.test(name!)) {
+        const kind = name!.endsWith(".xlsx") ? "sheet" : "doc";
+        expect(add).toHaveBeenCalledWith("test", kind, "target-folder");
+        expect(upload).not.toHaveBeenCalled();
+        expect(kind === "sheet" ? writeSheet : writeDoc).toHaveBeenCalledWith(
+          "created-file",
+          kind === "sheet" ? [] : { type: "doc", content: [] },
+          1,
+          1,
+          expect.any(AbortSignal),
+        );
+        expect(created).toHaveBeenCalledWith("created-file", kind);
+      } else if (name?.endsWith(".pptx")) {
         expect(validate).toHaveBeenCalledWith(file);
         expect(upload).not.toHaveBeenCalled();
         expect(add).toHaveBeenCalledWith(name, "slide", "target-folder");
         expect(bind).toHaveBeenCalledWith(
-          "uploaded-pptx",
+          "created-file",
           "pptx-asset",
           { revision: 1, epoch: 1 },
           expect.any(AbortSignal),
         );
-        expect(created).toHaveBeenCalledWith("uploaded-pptx");
+        expect(created).toHaveBeenCalledWith("created-file");
       } else {
         expect(upload).toHaveBeenCalledWith(
           "upload-space",

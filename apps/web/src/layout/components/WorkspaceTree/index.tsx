@@ -357,14 +357,14 @@ export default function WorkspaceTree() {
       <FileDialogs
         action={action}
         close={() => setAction(null)}
-        onCreated={(id) => {
+        onCreated={(id, kind) => {
           if (action?.type !== "create" && action?.type !== "upload") return;
           if (action.parent)
             setExpanded((keys) => [...new Set([...keys, action.parent!])]);
           navigate(
             action.type === "create" && action.kind === "folder"
               ? `/files?folder=${id}`
-              : `/${action.type === "create" && action.kind === "doc" ? "document" : "preview"}/${id}`,
+              : `/${kind === "doc" || (action.type === "create" && action.kind === "doc") ? "document" : "preview"}/${id}`,
           );
         }}
       />

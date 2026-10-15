@@ -1,3 +1,6 @@
+import { assertUploadSize } from "@/utils/uploadLimits";
+import { documentApi } from "@/api/documents";
+import { sheetApi } from "@/api/sheets";
 import { filesApi } from "@/api/files";
 import { notifyFileAccessChanged } from "@/api/fileAccess";
 import { useEffect, useState, useRef } from "react";
@@ -31,7 +34,7 @@ export default function FileDialogs({
 }: {
   action: FileAction | null;
   close: () => void;
-  onCreated?: (id: string) => void;
+  onCreated?: (id: string, kind?: FileKind) => void;
 }) {
   const { add, patch, files, space, relocate, spaces } = useWorkspace();
   const { message, modal } = App.useApp();
@@ -68,7 +71,8 @@ export default function FileDialogs({
       <ShareDialog key={action.file.id} file={action.file} close={close} />
     );
   const mediaKind = action.type === "upload";
-  const mediaAccept = ".pptx,.pdf,.mp4,.webm,.png,.jpg,.jpeg,.webp,.gif";
+  const mediaAccept =
+    ".xlsx,.md,.markdown,.pptx,.pdf,.mp4,.webm,.png,.jpg,.jpeg,.webp,.gif";
   const presentationUpload =
     (action.type === "create" && action.kind === "slide") ||
     (action.type === "upload" && /\.pptx$/i.test(presentation?.name ?? ""));
@@ -101,6 +105,104 @@ export default function FileDialogs({
     action.type === "move" && parent === destinationFile?.parent;
   const save = async () => {
     if (saving || invalidDestination || sameLocation) return;
+    if (action.type === "upload" && presentation) {
+      try {
+        assertUploadSize(presentation);
+      } catch (error) {
+        message.warning(errorMessage(error));
+        return;
+      }
+    }
+    if (
+      action.type === "upload" &&
+      presentation &&
+      /\.(xlsx|md|markdown)$/i.test(presentation.name)
+    ) {
+      if (!name.trim()) {
+        message.warning("请输入名称");
+        return;
+      }
+      const isSheet = /\.xlsx$/i.test(presentation.name);
+      setSaving(true);
+      const operation = begin();
+      activeTask.current = operation;
+      const task =
+        pending.current?.file === presentation
+          ? pending.current
+          : { file: presentation, userId: user?.id ?? "", spaceId: space };
+      pending.current = task;
+      const confirmReplace = () =>
+        new Promise<boolean>((resolve) =>
+          modal.confirm({
+            title: "导入目标已被修改",
+            content:
+              "重试将替换此前创建文件的当前内容，原文件和历史版本仍保留。是否继续？",
+            onOk: () => resolve(true),
+            onCancel: () => resolve(false),
+          }),
+        );
+      try {
+        let id: string;
+        if (isSheet) {
+          const { importXlsx } = await operation.wait(
+            () => import("@/views/Spreadsheet/exchange"),
+          );
+          const sheets = await operation.wait(() =>
+            importXlsx(presentation, crypto.randomUUID(), name.trim()),
+          );
+          id = await saveImportedContent(task, sheets, {
+            assertActive: operation.assertActive,
+            create: () => add(name.trim(), "sheet", parent),
+            content: (target) => sheetApi.content(target, operation.signal),
+            confirmReplace,
+            write: (target, projection, revision, epoch) =>
+              sheetApi.import(
+                target,
+                projection,
+                revision,
+                epoch,
+                operation.signal,
+              ),
+          });
+        } else {
+          const text = await operation.wait(() => presentation.text());
+          const { parseMarkdownDocument } = await operation.wait(
+            () => import("@/views/Document/utils/markdownImport"),
+          );
+          id = await saveImportedContent(task, parseMarkdownDocument(text), {
+            assertActive: operation.assertActive,
+            create: () => add(name.trim(), "doc", parent),
+            content: (target) => documentApi.content(target, operation.signal),
+            confirmReplace,
+            write: (target, projection, revision, epoch) =>
+              documentApi.import(
+                target,
+                projection,
+                revision,
+                epoch,
+                operation.signal,
+              ),
+          });
+        }
+        operation.assertActive();
+        onCreated?.(id, isSheet ? "sheet" : "doc");
+        message.success(
+          isSheet
+            ? "Excel 已保存到服务器，图表等高级对象暂不支持转换"
+            : "Markdown 已保存到服务器，可打开编辑",
+        );
+        close();
+      } catch (error) {
+        if (!operation.signal.aborted)
+          message.error(
+            `${errorMessage(error)}。原文件${task.createdId ? "和已创建目标" : ""}已保留，可重试。`,
+          );
+      } finally {
+        operation.finish();
+        if (!operation.signal.aborted) setSaving(false);
+      }
+      return;
+    }
     if (action.type === "upload" && !presentationUpload) {
       if (!presentation || !name.trim()) {
         message.warning("请选择文件并输入名称");
@@ -285,7 +387,9 @@ export default function FileDialogs({
                 }
                 setPresentation(file);
                 setName(
-                  mediaKind ? file.name : file.name.replace(/\.pptx$/i, ""),
+                  mediaKind
+                    ? file.name.replace(/\.(xlsx|md|markdown)$/i, "")
+                    : file.name.replace(/\.pptx$/i, ""),
                 );
                 return false;
               }}
@@ -297,8 +401,8 @@ export default function FileDialogs({
                   : "点击选择或拖入 .pptx 文件"}
               <p className="muted">
                 {mediaKind
-                  ? "PPTX / PDF ≤ 50 MB · 视频（MP4 / WebM）≤ 200 MB · 图片（PNG / JPEG / WebP / GIF）≤ 20 MB"
-                  : "最多 50 MB · 只读预览"}
+                  ? "支持 XLSX、MD / Markdown、PPTX、PDF、MP4 / WebM、PNG / JPEG / WebP / GIF · 单个文件最大 200 MB"
+                  : "最多 200 MB · 只读预览"}
               </p>
             </Upload.Dragger>
           )}

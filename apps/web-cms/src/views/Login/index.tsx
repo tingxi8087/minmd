@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { login } from "@/http/services/auth";
 import { authStore, landingPath } from "@/http/authSession";
-import { layoutConfig } from "@/layout/layoutConfig";
+import { layoutConfig, NAV_LOGO } from "@/layout/layoutConfig";
 import { Form, Input, Button, Alert } from "antd";
 import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
@@ -28,11 +28,11 @@ export default function Login() {
       <div className={styles.shell}>
         <section className={styles.brandPanel}>
           <div className={styles.brandMark}>
-            {NAV_NAME.slice(0, 1).toUpperCase()}
+            <img src={NAV_LOGO} alt="" aria-hidden="true" />
           </div>
           <div>
             <div className={styles.brandName}>{NAV_NAME}</div>
-            <div className={styles.brandLine}>Web CMS</div>
+            <div className={styles.brandLine}>管理后台</div>
           </div>
         </section>
 

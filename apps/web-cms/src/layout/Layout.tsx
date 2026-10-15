@@ -17,7 +17,7 @@ export default function Layout() {
     boxMinWidth,
     bodyPadding,
   } = layoutConfig;
-  document.title = NAV_NAME;
+  document.title = `${NAV_NAME} 管理后台`;
 
   useEffect(() => {
     const collapsedEvent = () => {
