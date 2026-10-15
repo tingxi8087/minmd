@@ -69,6 +69,7 @@ if (url && !new URL(url).pathname.endsWith("_test"))
         AUTH_TRANSPORT: "bearer",
         LOG_LEVEL: "silent",
         WEB_CMS_DIST: "tests/fixtures/web-cms",
+        WEB_DIST: "tests/fixtures/web",
       }),
       { logger: false },
     );
@@ -388,6 +389,7 @@ if (url && !new URL(url).pathname.endsWith("_test"))
         AUTH_TRANSPORT: "bearer",
         LOG_LEVEL: "silent",
         WEB_CMS_DIST: "tests/fixtures/web-cms",
+        WEB_DIST: "tests/fixtures/web",
       }),
       { logger: false },
     );

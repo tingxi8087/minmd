@@ -1,3 +1,4 @@
+import { v4 as createId } from "uuid";
 import { collaborationUrl } from "@/utils/collaborationUrl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
@@ -107,9 +108,7 @@ export function useSheetCollaboration(
   }>();
   const userId = useAuth((state) => state.user?.id ?? "");
   const editKey = `minmd-sheet-editor:${userId}:${fileId}`;
-  const editSession = useRef(
-    sessionStorage.getItem(editKey) ?? crypto.randomUUID(),
-  );
+  const editSession = useRef(sessionStorage.getItem(editKey) ?? createId());
   const legacyKey = `${editKey}:${editSession.current}-draft`;
   const prefix = recoveryPrefix(userId, spaceId, fileId, editSession.current);
   const initialCopies = useRef(listRecoveryCopies(prefix, legacyKey));
@@ -174,7 +173,7 @@ export function useSheetCollaboration(
           existing.draft.epoch === draftEpoch &&
           (!existing.draft.recovery || recovery)
             ? existing.key
-            : `${prefix}${draftEpoch}:${crypto.randomUUID()}`;
+            : `${prefix}${draftEpoch}:${createId()}`;
         activeBackup.current = key;
         localStorage.setItem(
           key,
@@ -287,7 +286,7 @@ export function useSheetCollaboration(
       heartbeat: ReturnType<typeof setInterval> | undefined,
       attempt = 0,
       occupied = false;
-    const nonce = crypto.randomUUID();
+    const nonce = createId();
     const channel =
       typeof BroadcastChannel === "undefined"
         ? undefined
@@ -550,7 +549,7 @@ export function useSheetCollaboration(
         draftRecovery.current = false;
         setRecoveryCopies([]);
         setHasRecovery(false);
-        editSession.current = crypto.randomUUID();
+        editSession.current = createId();
         queue.current = [];
         setPendingCount(0);
         setRetry((value) => value + 1);
@@ -611,7 +610,7 @@ export function useSheetCollaboration(
         return;
       queue.current.push({
         type: "operations",
-        operationId: crypto.randomUUID(),
+        operationId: createId(),
         // 输入期间延迟应用远端快照，坐标仍属于实际渲染的修订。
         baseRevision:
           renderedRevision.current?.revision ?? latest.current.revision,
@@ -630,7 +629,7 @@ export function useSheetCollaboration(
       queue.current.push({
         type: redo ? "redo" : "undo",
         baseRevision: latest.current.revision,
-        operationId: crypto.randomUUID(),
+        operationId: createId(),
         epoch: latest.current.epoch,
       });
       setState("saving");

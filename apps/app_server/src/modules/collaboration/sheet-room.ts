@@ -554,6 +554,8 @@ export class SheetRooms {
         [
           "SESSION_EXPIRED",
           "SPACE_FORBIDDEN",
+          "FILE_ACCESS_REQUIRED",
+          "FILE_PERMISSION_DENIED",
           "FILE_DELETED",
           "NOT_FOUND",
           "EPOCH_CONFLICT",

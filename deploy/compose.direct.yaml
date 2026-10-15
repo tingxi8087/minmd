@@ -1,0 +1,10 @@
+# 无域名 IPv4 HTTP 直连；不启动反代，不开放数据库端口。
+services:
+  app:
+    ports:
+      - "${APP_BIND_HOST:-0.0.0.0}:${APP_BIND_PORT:-9811}:9811"
+    environment:
+      HTTP_IP_DIRECT: "true"
+  migrate:
+    environment:
+      HTTP_IP_DIRECT: "true"

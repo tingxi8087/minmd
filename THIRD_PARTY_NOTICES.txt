@@ -1,5 +1,5 @@
 MinMD 第三方版权及许可证全文
-bun.lock SHA-256: 553b0d77f36d1403cfa980d15e2004c4e67d205649efb024ca0c53f0e651f120
+bun.lock SHA-256: a8a050132ce7a2ad8056ee13c5cb119f96bc60ba59e0d7c8ea1a1bc8d3d6f22b
 范围：所有工作区生产依赖及其已安装的传递、可选和同伴依赖；可能保守包含构建期依赖。项目自有工作区由根LICENSE覆盖。
 许可声明及版权全文来自已安装发布包；少数发布包未附全文时，使用docs/licenses/package-overrides/sources.json中逐版本核实并保留的证据。依赖升级需重新生成，不能沿用旧版本通知。
 双许可证组件采用许可表达式中的宽松分支：JSZip选择MIT；相关许可原文仍完整保留。
@@ -5421,6 +5421,36 @@ Creative Commons Attribution 4.0 International (CC-BY-4.0)
 Documentation in this project (excluding specifications) is licensed under
 CC-BY-4.0. See https://creativecommons.org/licenses/by/4.0/legalcode for
 the full license text.
+
+
+================================================================================
+@noble/hashes@2.4.0
+声明许可: MIT
+作者声明: "Paul Miller (https://paulmillr.com)"
+仓库声明: {"type":"git","url":"git+https://github.com/paulmillr/noble-hashes.git"}
+
+原文来源: npm:@noble/hashes@2.4.0/LICENSE
+The MIT License (MIT)
+
+Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the “Software”), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 
 ================================================================================

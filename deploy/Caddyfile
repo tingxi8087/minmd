@@ -1,0 +1,20 @@
+{
+	# 反代错误可能携带完整 URI；关闭此类请求错误日志，保留证书及运行日志。
+	log default {
+		exclude http.log.error
+	}
+}
+
+{$MINMD_SITE} {
+	# 不启用访问日志，避免分享令牌、查询参数和用户凭证进入代理日志。
+	request_body {
+		max_size 201MiB
+	}
+	reverse_proxy app:9811 {
+		flush_interval -1
+		stream_close_delay 5m
+		transport http {
+			response_header_timeout 3600s
+		}
+	}
+}

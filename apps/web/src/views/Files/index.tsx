@@ -1,3 +1,4 @@
+import { v4 as createId } from "uuid";
 import { usePageTitle } from "@/components/PageTitles";
 import { assertUploadSize } from "@/utils/uploadLimits";
 import axios from "axios";
@@ -368,7 +369,7 @@ export default function Files() {
       if (isSheet) {
         const { importXlsx } = await import("@/views/Spreadsheet/exchange");
         assertActive();
-        const sheets = await importXlsx(file, crypto.randomUUID(), name);
+        const sheets = await importXlsx(file, createId(), name);
         assertActive();
         id = await saveImportedContent(task, sheets, {
           assertActive,

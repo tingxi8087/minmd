@@ -230,6 +230,10 @@ export default function ApiDebug() {
   }
   async function copy(text: string) {
     try {
+      if (!navigator.clipboard) {
+        message.info("当前 HTTP 环境不支持自动复制，请手动选择内容复制");
+        return;
+      }
       await navigator.clipboard.writeText(text);
       message.success("已复制");
     } catch {

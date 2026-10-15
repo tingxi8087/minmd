@@ -55,6 +55,7 @@ if (url && !new URL(url).pathname.endsWith("_test"))
         DATABASE_URL: url!,
         APP_ENV: "staging",
         WEB_CMS_DIST: "tests/fixtures/web-cms",
+        WEB_DIST: "tests/fixtures/web",
         LOG_LEVEL: "silent",
         AUTH_TRANSPORT: "bearer",
       }),
@@ -271,6 +272,7 @@ if (url && !new URL(url).pathname.endsWith("_test"))
         DATABASE_URL: url!,
         APP_ENV: "staging",
         WEB_CMS_DIST: "tests/fixtures/web-cms",
+        WEB_DIST: "tests/fixtures/web",
         LOG_LEVEL: "silent",
         AUTH_TRANSPORT: "bearer",
       }),
@@ -359,6 +361,7 @@ if (url && !new URL(url).pathname.endsWith("_test"))
       DATABASE_URL: url!,
       APP_ENV: "staging",
       WEB_CMS_DIST: "tests/fixtures/web-cms",
+      WEB_DIST: "tests/fixtures/web",
       LOG_LEVEL: "silent",
       AUTH_TRANSPORT: "bearer",
     });

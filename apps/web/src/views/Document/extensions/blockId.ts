@@ -1,3 +1,4 @@
+import { v4 as createId } from "uuid";
 import { Extension } from "@tiptap/core";
 import { Plugin, type Transaction } from "@tiptap/pm/state";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
@@ -68,7 +69,7 @@ export function repairBlockIds(
       seen.add(id);
       return;
     }
-    const next = crypto.randomUUID();
+    const next = createId();
     seen.add(next);
     tr.setNodeMarkup(pos, undefined, { ...node.attrs, blockId: next });
   });

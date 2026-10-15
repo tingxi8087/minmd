@@ -554,7 +554,7 @@ export async function registerShares(
       for (const prefix of ["/api/public/shares", "/api/app/shares"])
         reply.setCookie(shareCookie(row.share.id), guestToken, {
           httpOnly: true,
-          secure: config.APP_ENV === "production",
+          secure: config.APP_ENV === "production" && !config.HTTP_IP_DIRECT,
           sameSite: "strict",
           path: `${prefix}/${request.params.token}`,
           expires: expiresAt,

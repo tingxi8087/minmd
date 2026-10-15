@@ -1,0 +1,29 @@
+# 自动 HTTPS：只有 Caddy 发布端口，app / PostgreSQL 留在项目内网。
+services:
+  caddy:
+    image: caddy:2.11.4-alpine
+    labels:
+      io.minmd.installation: ${MINMD_INSTALLATION_ID:-manual}
+    environment:
+      MINMD_SITE: ${PUBLIC_ORIGIN:?请设置实际HTTPS访问来源}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:2019/config/]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    stop_grace_period: 15s
+    restart: unless-stopped
+volumes:
+  caddy_data:
+    labels:
+      io.minmd.installation: ${MINMD_INSTALLATION_ID:-manual}
+  caddy_config:
+    labels:
+      io.minmd.installation: ${MINMD_INSTALLATION_ID:-manual}

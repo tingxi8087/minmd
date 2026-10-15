@@ -30,8 +30,17 @@ if (!result.success) {
 // 只转换公开模板，不复制本机 .env、密码或 public 中的文件。
 const example = (await Bun.file(".env.example").text())
   .replace(/^APP_ENV=.*$/m, "APP_ENV=production")
-  .replace(/^PUBLIC_ORIGIN=.*$/m, "PUBLIC_ORIGIN=http://127.0.0.1:9811")
+  .replace(/^PUBLIC_ORIGIN=.*$/m, "PUBLIC_ORIGIN=https://docs.example.com")
+  .replace(
+    /^APP_PUBLIC_ORIGIN=.*$/m,
+    "APP_PUBLIC_ORIGIN=https://docs.example.com",
+  )
   .replace(/^# WEB_CMS_DIST=.*$/m, "WEB_CMS_DIST=web-cms")
+  .replace(/^# WEB_DIST=.*$/m, "WEB_DIST=web")
+  .replace(
+    "相对于启动目录；默认 dist/web，仅预发和正式环境托管。",
+    "相对于启动目录；部署包中使用 web。",
+  )
   .replace(
     "相对于项目根目录；默认 dist/web-cms，通常无需修改。",
     "相对于启动目录；部署包中使用 web-cms。",
@@ -53,5 +62,5 @@ for (const directory of ["dist", "dist/web", "dist/web-cms"]) {
 await rm("dist/package.json", { force: true });
 await rm("dist/bun.lock", { force: true });
 console.log(
-  "构建完成：dist/web 为前台，dist/web-cms 为后台，dist/server 为后端。后端进入 dist 配置 .env 后运行 bun server/main.js；前台静态页面需由 Web 服务提供。",
+  "构建完成：dist/web 为前台，dist/web-cms 为后台，dist/server 为后端。后端进入 dist 配置 .env 后运行 bun server/main.js；同一后端端口托管前后台页面、API、协作连接与 MCP。",
 );

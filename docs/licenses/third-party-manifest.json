@@ -1,5 +1,5 @@
 {
-  "lockHash": "553b0d77f36d1403cfa980d15e2004c4e67d205649efb024ca0c53f0e651f120",
+  "lockHash": "a8a050132ce7a2ad8056ee13c5cb119f96bc60ba59e0d7c8ea1a1bc8d3d6f22b",
   "packages": [
     {
       "name": "@aiden0z/pptx-renderer",
@@ -1253,6 +1253,20 @@
       ],
       "hashes": [
         "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a"
+      ]
+    },
+    {
+      "name": "@noble/hashes",
+      "version": "2.4.0",
+      "license": "MIT",
+      "sources": [
+        "npm:@noble/hashes@2.4.0/LICENSE"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ],
+      "hashes": [
+        "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec"
       ]
     },
     {

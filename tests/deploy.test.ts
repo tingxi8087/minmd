@@ -64,21 +64,19 @@ async function fixture() {
       .map((line) => JSON.parse(line) as string[]);
   return { root, trace, run, commands };
 }
-test("备份先停止所有入口及房间，正常退出后再收集数据库与附件", async () => {
+test("备份停止统一应用入口及房间，正常退出后再收集数据库与附件", async () => {
   const f = await fixture();
   try {
     const result = await f.run("backup.sh", [join(f.root, "backup")]);
     expect(result.code).toBe(0);
     const commands = await f.commands();
-    const stopWeb = commands.findIndex(
-      (args) => args.includes("stop") && args.at(-1) === "web",
-    );
     const stopApp = commands.findIndex(
       (args) => args.includes("stop") && args.at(-1) === "app",
     );
     const dump = commands.findIndex((args) => args.at(-1)?.includes("pg_dump"));
     const archive = commands.findIndex((args) => args.includes("tar"));
-    expect(stopWeb).toBeLessThan(stopApp);
+    expect(commands.some((args) => args.includes("web"))).toBe(false);
+    expect(stopApp).toBeGreaterThanOrEqual(0);
     expect(stopApp).toBeLessThan(dump);
     expect(dump).toBeLessThan(archive);
     expect(await readFile(join(f.root, "backup/SHA256SUMS"), "utf8")).toContain(
@@ -87,7 +85,7 @@ test("备份先停止所有入口及房间，正常退出后再收集数据库�
     expect(
       commands
         .slice(archive)
-        .some((args) => args.includes("up") && args.at(-1) === "web"),
+        .some((args) => args.includes("up") && args.at(-1) === "app"),
     ).toBe(true);
     const reused = await f.run("backup.sh", [join(f.root, "backup")]);
     expect(reused.code).not.toBe(0);

@@ -1,3 +1,4 @@
+import { v4 as createId } from "uuid";
 import React, { DependencyList, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useResource, ResourceOptions } from "./useResource";
 import { useRefState } from "./useRefState";
@@ -279,7 +280,7 @@ export const useAddRowAtStart = <TData extends Record<string, any> = any>(
     const newRows: TData[] = [];
     for (let i = 0; i < len; i++) {
       newRows.push({
-        [idName]: `new-${Date.now()}-${i}-${crypto.randomUUID()}`,
+        [idName]: `new-${Date.now()}-${i}-${createId()}`,
         ...(totalRowInitialData || {}),
         ...(initialData || {})
       } as unknown as TData);
@@ -309,7 +310,7 @@ export const useAddRowAtEnd = <TData extends Record<string, any> = any>(
     const newRows: TData[] = [];
     for (let i = 0; i < len; i++) {
       newRows.push({
-        [idName]: `new-${Date.now()}-${i}-${crypto.randomUUID()}`,
+        [idName]: `new-${Date.now()}-${i}-${createId()}`,
         ...(totalRowInitialData || {}),
         ...(initialData || {})
       } as unknown as TData);

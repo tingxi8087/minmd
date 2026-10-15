@@ -539,6 +539,44 @@ async function wait(check: () => boolean, label: string) {
         .set({ deletedAt: null })
         .where(eq(files.id, otherFile));
     });
+    test("编辑权限降为只读后，下一次写入拒绝并关闭连接", async () => {
+      await database.db
+        .update(files)
+        .set({ memberPermission: "read" })
+        .where(eq(files.id, fileId));
+      try {
+        await send(b, {
+          type: "operations",
+          operationId: "read-only-forbidden",
+          epoch: 1,
+          baseRevision: Number(latest(b).revision),
+          operations: [
+            {
+              type: "setCell",
+              sheetId: "s",
+              row: 0,
+              column: 0,
+              value: "read-only-forbidden",
+            },
+          ],
+        });
+        await wait(() => !!b.closed, "只读权限关闭编辑连接");
+        expect(b.closed).toBe(4003);
+        const [current] = await database.db
+          .select()
+          .from(fileContents)
+          .where(eq(fileContents.fileId, fileId));
+        expect(JSON.stringify(current!.projection)).not.toContain(
+          "read-only-forbidden",
+        );
+      } finally {
+        await database.db
+          .update(files)
+          .set({ memberPermission: "edit" })
+          .where(eq(files.id, fileId));
+      }
+      b = await connect(true);
+    });
     test("服务重启恢复当前状态与个人历史；被移除成员下一次写入立即关闭", async () => {
       const identity = a.editSessionId,
         before = latest(a).workbook;

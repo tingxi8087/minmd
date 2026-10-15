@@ -61,17 +61,17 @@ minmd/
 
 ### 2.2 技术栈
 
-| 层 | 方案 |
-|---|---|
-| 前台 | 现有 React、TypeScript、Vite、Hash Router、Zustand、Ant Design、Less Modules |
-| 编辑器 | 保留 Tiptap 和现有 PPTX 渲染器；FortuneSheet 1.0.4；兼容转换旧 Univer 快照 |
-| 文档协作 | Tiptap Collaboration + Yjs + 自托管 Hocuspocus 4.7.0；正式房间鉴权，PG 权威状态及更新日志 |
+| 层       | 方案                                                                                                              |
+| -------- | ----------------------------------------------------------------------------------------------------------------- |
+| 前台     | 现有 React、TypeScript、Vite、Hash Router、Zustand、Ant Design、Less Modules                                      |
+| 编辑器   | 保留 Tiptap 和现有 PPTX 渲染器；FortuneSheet 1.0.4；兼容转换旧 Univer 快照                                        |
+| 文档协作 | Tiptap Collaboration + Yjs + 自托管 Hocuspocus 4.7.0；正式房间鉴权，PG 权威状态及更新日志                         |
 | 表格协作 | FortuneSheet 1.0.4 + 服务端权威操作引擎；稳定行列身份、旧坐标映射、个人撤销及 PG 持久化；默认每表格 10 个编辑会话 |
-| 后端 | Bun、Fastify、Drizzle、PostgreSQL，沿用 MAS |
-| 契约 | TypeBox 请求 / 响应 Schema，OpenAPI；前端通过集中请求模块调用 |
-| 附件 | 私有文件目录 + 数据库元数据 + Docker 持久化卷 |
-| MCP | 官方 TypeScript SDK，Streamable HTTP，复用业务服务 |
-| 部署 | Web 反向代理、应用服务、PostgreSQL；同源访问 |
+| 后端     | Bun、Fastify、Drizzle、PostgreSQL，沿用 MAS                                                                       |
+| 契约     | TypeBox 请求 / 响应 Schema，OpenAPI；前端通过集中请求模块调用                                                     |
+| 附件     | 私有文件目录 + 数据库元数据 + Docker 持久化卷                                                                     |
+| MCP      | 官方 TypeScript SDK，Streamable HTTP，复用业务服务                                                                |
+| 部署     | Web 反向代理、应用服务、PostgreSQL；同源访问                                                                      |
 
 文档和表格协作使用单应用实例和 PostgreSQL，不依赖 Redis 或托管协作服务。房间队列及缓存位于单个应用进程，当前不能将应用扩成多个副本。附件存储封装读取、写入、删除边界。
 
@@ -99,19 +99,19 @@ JSON / Markdown / XLSX 是内容读取、导入导出及版本预览格式，不
 - 前台账号使用 MAS `app_users` 和前台会话；后台账号、角色、系统权限和审计沿用脚手架。
 - 前后台身份严格分离，后台会话不能直接作为前台身份。
 - 第一版账号默认由后台创建和管理；公开注册入口默认关闭，可通过明确配置启用现有注册能力。
-- 前台采用 HttpOnly Cookie 会话，写请求携带 CSRF Token。生产环境使用 HTTPS，保留来源校验。
+- 前台采用 HttpOnly Cookie 会话，写请求携带 CSRF Token。生产默认使用 HTTPS；显式 IP 直连允许 HTTP IPv4，保留来源校验。
 - 登录、退出、会话撤销、密码修改使用 MAS 现有流程，不另建认证框架。
 
 ### 3.2 空间权限
 
 MAS 已有账号与系统角色权限；空间和成员关系是本项目新增业务，不假定脚手架已有空间实现。
 
-| 身份 | 访问能力 |
-|---|---|
-| 空间负责人 | 使用空间文件、管理空间资料和成员、永久删除回收站文件 |
-| 空间成员 | 默认只读；按文件授权编辑；创建者和空间负责人管理文件、分享与授权 |
-| 访客 | 只读访问有效公开分享及其必要附件 |
-| API Key | 在绑定空间内，根据只读 / 读写范围执行允许的接口 |
+| 身份       | 访问能力                                                         |
+| ---------- | ---------------------------------------------------------------- |
+| 空间负责人 | 使用空间文件、管理空间资料和成员、永久删除回收站文件             |
+| 空间成员   | 默认只读；按文件授权编辑；创建者和空间负责人管理文件、分享与授权 |
+| 访客       | 只读访问有效公开分享及其必要附件                                 |
+| API Key    | 在绑定空间内，根据只读 / 读写范围执行允许的接口                  |
 
 - 每个空间有一个负责人；负责人转移必须在事务内完成，不能移除最后一个负责人。
 - 后台可管理空间和分配成员；前台提供空间创建、资料修改和负责人管理成员入口，成员从已有账号选择。
@@ -136,19 +136,19 @@ MAS 已有账号与系统角色权限；空间和成员关系是本项目新增�
 
 ### 4.1 模块划分
 
-| 模块 | 职责 |
-|---|---|
-| `spaces` | 空间 CRUD、成员关系、负责人变更、空间访问校验 |
-| `files` | 文件元数据、树结构、移动排序、删除恢复、列表查询 |
-| `contents` | 内容初始化、读取投影、schema 与修订检查，不直接覆盖活跃协作状态 |
-| `collaboration` | 文档 / 表格协作适配、房间认证、持久化确认、成员状态和会话撤销 |
-| `versions` | 历史快照、备注、只读预览、恢复及历史附件引用 |
-| `assets` | 图片和 PPTX 上传、文件读取、引用关系及清理 |
-| `activity` | 每个账号的收藏、最近访问 |
-| `shares` | 分享设置、Token、密码验证、访客授权 |
-| `api-keys` | 密钥签发、哈希验证、范围和撤销 |
-| `mcp` | MCP 工具映射、认证和协议适配 |
-| `demo-import` | 本地演示数据一次性导入、ID 映射及结果报告 |
+| 模块            | 职责                                                            |
+| --------------- | --------------------------------------------------------------- |
+| `spaces`        | 空间 CRUD、成员关系、负责人变更、空间访问校验                   |
+| `files`         | 文件元数据、树结构、移动排序、删除恢复、列表查询                |
+| `contents`      | 内容初始化、读取投影、schema 与修订检查，不直接覆盖活跃协作状态 |
+| `collaboration` | 文档 / 表格协作适配、房间认证、持久化确认、成员状态和会话撤销   |
+| `versions`      | 历史快照、备注、只读预览、恢复及历史附件引用                    |
+| `assets`        | 图片和 PPTX 上传、文件读取、引用关系及清理                      |
+| `activity`      | 每个账号的收藏、最近访问                                        |
+| `shares`        | 分享设置、Token、密码验证、访客授权                             |
+| `api-keys`      | 密钥签发、哈希验证、范围和撤销                                  |
+| `mcp`           | MCP 工具映射、认证和协议适配                                    |
+| `demo-import`   | 本地演示数据一次性导入、ID 映射及结果报告                       |
 
 业务服务共用空间检查、文件树约束和版本写入规则。浏览器 API、API Key 接口和 MCP 不分别实现三套 CRUD。
 
@@ -156,24 +156,24 @@ MAS 已有账号与系统角色权限；空间和成员关系是本项目新增�
 
 表名为建议名称，迁移时沿用脚手架命名约定。
 
-| 表 | 主要字段与约束 |
-|---|---|
-| `spaces` | `id`、名称、负责人账号、创建 / 更新时间 |
-| `space_members` | 空间、账号、加入时间；空间与账号唯一 |
-| `files` | `id`、空间、类型、名称、`parent_id`、`position`、创建者、公开状态、元数据版本、删除批次、删除时间 |
-| `file_contents` | 文件 ID 唯一、引擎类型、内容 schema 版本、持久化修订号、读取投影及投影对应修订号 |
-| `document_collab_states` | 文档 ID、Yjs 状态 / 更新记录、已持久化序号和内容 epoch；记录压缩保留可恢复检查点 |
-| `file_versions` | 文件、持久化修订号、epoch、内容快照 / 引擎恢复数据引用、来源、操作人、备注、创建时间 |
-| `version_assets` | 历史版本与附件引用关系，旧版本图片仍可读取 |
-| `assets` | 空间、存储键、原文件名、MIME、字节数、校验和、上传人和时间 |
-| `file_assets` | 文件与附件引用关系，用于授权和垃圾清理 |
-| `file_favorites` | 账号与文件唯一 |
-| `file_visits` | 账号与文件唯一、最近访问时间 |
-| `file_shares` | 文件唯一、Token 哈希、密码哈希、有效期、撤销状态、分享配置版本 |
-| `share_sessions` | 密码验证后的访客会话哈希、分享配置版本、到期时间 |
-| `api_keys` | 创建者、空间、名称、前缀、密钥哈希、加密原文、显式操作权限集合、到期 / 撤销时间、最后使用时间 |
-| `space_ai_policies` | 旧版策略迁移来源，运行时不再参与授权 |
-| `demo_imports` | 账号、空间、导入幂等键、映射与进度，用于重复提交和失败重试 |
+| 表                       | 主要字段与约束                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| `spaces`                 | `id`、名称、负责人账号、创建 / 更新时间                                                           |
+| `space_members`          | 空间、账号、加入时间；空间与账号唯一                                                              |
+| `files`                  | `id`、空间、类型、名称、`parent_id`、`position`、创建者、公开状态、元数据版本、删除批次、删除时间 |
+| `file_contents`          | 文件 ID 唯一、引擎类型、内容 schema 版本、持久化修订号、读取投影及投影对应修订号                  |
+| `document_collab_states` | 文档 ID、Yjs 状态 / 更新记录、已持久化序号和内容 epoch；记录压缩保留可恢复检查点                  |
+| `file_versions`          | 文件、持久化修订号、epoch、内容快照 / 引擎恢复数据引用、来源、操作人、备注、创建时间              |
+| `version_assets`         | 历史版本与附件引用关系，旧版本图片仍可读取                                                        |
+| `assets`                 | 空间、存储键、原文件名、MIME、字节数、校验和、上传人和时间                                        |
+| `file_assets`            | 文件与附件引用关系，用于授权和垃圾清理                                                            |
+| `file_favorites`         | 账号与文件唯一                                                                                    |
+| `file_visits`            | 账号与文件唯一、最近访问时间                                                                      |
+| `file_shares`            | 文件唯一、Token 哈希、密码哈希、有效期、撤销状态、分享配置版本                                    |
+| `share_sessions`         | 密码验证后的访客会话哈希、分享配置版本、到期时间                                                  |
+| `api_keys`               | 创建者、空间、名称、前缀、密钥哈希、加密原文、显式操作权限集合、到期 / 撤销时间、最后使用时间     |
+| `space_ai_policies`      | 旧版策略迁移来源，运行时不再参与授权                                                              |
+| `demo_imports`           | 账号、空间、导入幂等键、映射与进度，用于重复提交和失败重试                                        |
 
 - 通用时间使用服务端 UTC 时间；客户端按时区显示。
 - `files` 索引覆盖空间、父节点、排序和删除状态；收藏及访问记录按账号索引。
@@ -255,39 +255,39 @@ MAS 已有账号与系统角色权限；空间和成员关系是本项目新增�
 
 ### 6.2 主要接口设计
 
-| 接口 | 用途 |
-|---|---|
-| `POST /api/app/auth/login`、`/logout`；`GET /api/app/auth/me` | 复用 MAS 认证契约 |
-| `GET/POST /api/app/spaces` | 可访问空间列表 / 创建空间 |
-| `GET/PATCH/DELETE /api/app/spaces/:spaceId` | 空间信息 / 修改 / 删除 |
-| `GET/POST /api/app/spaces/:spaceId/members` | 列出 / 添加成员 |
-| `DELETE /api/app/spaces/:spaceId/members/:userId` | 移除成员 |
-| `POST /api/app/spaces/:spaceId/transfer-owner` | 转移负责人 |
-| `GET /api/app/spaces/:spaceId/tree` | 仅元数据的文件树，支持按父节点加载 |
-| `GET/POST /api/app/spaces/:spaceId/files` | 分页查询 / 创建文件或文件夹 |
-| `PATCH /api/app/files/:fileId` | 重命名等白名单元数据更新 |
-| `POST /api/app/files/:fileId/move` | 改变父节点和顺序 |
-| `DELETE /api/app/files/:fileId` | 软删除 |
-| `POST /api/app/files/:fileId/restore`、`/purge` | 恢复 / 永久删除 |
-| `PUT/DELETE /api/app/files/:fileId/favorite` | 收藏 / 取消收藏 |
-| `POST /api/app/files/:fileId/visit` | 更新当前账号最近访问记录 |
-| `GET /api/app/files/:fileId/content` | 从权威协作检查点读取 JSON 投影及修订号 |
-| `POST /api/app/files/:fileId/collaboration-ticket` | 获取短期、限定文件与会话的协作连接凭证 |
-| `POST /api/app/files/:fileId/checkpoint` | 等待指定更新持久化，按需生成手动历史版本 |
-| `POST /api/app/files/:fileId/content-import` | 整体导入替换，校验修订并切换 epoch |
-| `GET /api/app/files/:fileId/versions`、`/versions/:versionId` | 历史列表 / 只读快照 |
-| `PATCH /api/app/files/:fileId/versions/:versionId` | 修改版本备注 |
-| `POST /api/app/files/:fileId/versions/:versionId/restore` | 恢复为新 epoch 和新历史版本 |
-| `POST /api/app/spaces/:spaceId/assets` | 上传附件 |
-| `GET /api/app/assets/:assetId` | 经成员鉴权读取附件 |
-| `PUT /api/app/files/:fileId/presentation` | 按版本绑定 / 替换 PPTX 附件 |
-| `GET/PUT/DELETE /api/app/files/:fileId/share` | 分享设置 / 保存 / 撤销 |
-| `GET /api/public/shares/:token` | 返回有效分享元数据或密码验证要求 |
-| `POST /api/public/shares/:token/unlock` | 验证密码并建立访客会话 |
-| `GET /api/public/shares/:token/content`、`/assets/:assetId` | 读取获授权内容与附件 |
-| `GET/POST /api/app/spaces/:spaceId/api-keys` | 列表 / 创建密钥 |
-| `DELETE /api/app/api-keys/:keyId` | 删除密钥及其幂等记录 |
-| `POST /api/app/spaces/:spaceId/demo-imports` | 创建或恢复本地演示导入任务 |
+| 接口                                                          | 用途                                     |
+| ------------------------------------------------------------- | ---------------------------------------- |
+| `POST /api/app/auth/login`、`/logout`；`GET /api/app/auth/me` | 复用 MAS 认证契约                        |
+| `GET/POST /api/app/spaces`                                    | 可访问空间列表 / 创建空间                |
+| `GET/PATCH/DELETE /api/app/spaces/:spaceId`                   | 空间信息 / 修改 / 删除                   |
+| `GET/POST /api/app/spaces/:spaceId/members`                   | 列出 / 添加成员                          |
+| `DELETE /api/app/spaces/:spaceId/members/:userId`             | 移除成员                                 |
+| `POST /api/app/spaces/:spaceId/transfer-owner`                | 转移负责人                               |
+| `GET /api/app/spaces/:spaceId/tree`                           | 仅元数据的文件树，支持按父节点加载       |
+| `GET/POST /api/app/spaces/:spaceId/files`                     | 分页查询 / 创建文件或文件夹              |
+| `PATCH /api/app/files/:fileId`                                | 重命名等白名单元数据更新                 |
+| `POST /api/app/files/:fileId/move`                            | 改变父节点和顺序                         |
+| `DELETE /api/app/files/:fileId`                               | 软删除                                   |
+| `POST /api/app/files/:fileId/restore`、`/purge`               | 恢复 / 永久删除                          |
+| `PUT/DELETE /api/app/files/:fileId/favorite`                  | 收藏 / 取消收藏                          |
+| `POST /api/app/files/:fileId/visit`                           | 更新当前账号最近访问记录                 |
+| `GET /api/app/files/:fileId/content`                          | 从权威协作检查点读取 JSON 投影及修订号   |
+| `POST /api/app/files/:fileId/collaboration-ticket`            | 获取短期、限定文件与会话的协作连接凭证   |
+| `POST /api/app/files/:fileId/checkpoint`                      | 等待指定更新持久化，按需生成手动历史版本 |
+| `POST /api/app/files/:fileId/content-import`                  | 整体导入替换，校验修订并切换 epoch       |
+| `GET /api/app/files/:fileId/versions`、`/versions/:versionId` | 历史列表 / 只读快照                      |
+| `PATCH /api/app/files/:fileId/versions/:versionId`            | 修改版本备注                             |
+| `POST /api/app/files/:fileId/versions/:versionId/restore`     | 恢复为新 epoch 和新历史版本              |
+| `POST /api/app/spaces/:spaceId/assets`                        | 上传附件                                 |
+| `GET /api/app/assets/:assetId`                                | 经成员鉴权读取附件                       |
+| `PUT /api/app/files/:fileId/presentation`                     | 按版本绑定 / 替换 PPTX 附件              |
+| `GET/PUT/DELETE /api/app/files/:fileId/share`                 | 分享设置 / 保存 / 撤销                   |
+| `GET /api/public/shares/:token`                               | 返回有效分享元数据或密码验证要求         |
+| `POST /api/public/shares/:token/unlock`                       | 验证密码并建立访客会话                   |
+| `GET /api/public/shares/:token/content`、`/assets/:assetId`   | 读取获授权内容与附件                     |
+| `GET/POST /api/app/spaces/:spaceId/api-keys`                  | 列表 / 创建密钥                          |
+| `DELETE /api/app/api-keys/:keyId`                             | 删除密钥及其幂等记录                     |
+| `POST /api/app/spaces/:spaceId/demo-imports`                  | 创建或恢复本地演示导入任务               |
 
 空间删除需负责人确认且空间为空；非空空间第一版不提供一键清空。树加载、搜索、收藏、最近访问和回收站通过明确查询参数区分，服务端仍校验数据范围。
 
@@ -336,11 +336,11 @@ AI 文档局部修改示例（页面实时编辑走协作协议）：
 
 MCP 为主要 AI 接入体验，HTTP 为脚本和第三方集成入口。工具发现与 HTTP 契约不同，但权限、参数语义和业务实现共用。
 
-| MCP 工具 | HTTP 接口 | 数据粒度 |
-|---|---|---|
-| `read_document` | `GET /api/v1/files/:id/document` | 修订号、稳定 block ID、块内容；可按块读取 |
-| `update_document` | `PATCH /api/v1/files/:id/document` | 文字替换、块插入 / 替换 / 删除、块类型修改 |
-| `read_workbook` | `GET /api/v1/files/:id/workbook` | 工作表 ID、范围、值 / 公式、按需格式 |
+| MCP 工具          | HTTP 接口                          | 数据粒度                                       |
+| ----------------- | ---------------------------------- | ---------------------------------------------- |
+| `read_document`   | `GET /api/v1/files/:id/document`   | 修订号、稳定 block ID、块内容；可按块读取      |
+| `update_document` | `PATCH /api/v1/files/:id/document` | 文字替换、块插入 / 替换 / 删除、块类型修改     |
+| `read_workbook`   | `GET /api/v1/files/:id/workbook`   | 工作表 ID、范围、值 / 公式、按需格式           |
 | `update_workbook` | `PATCH /api/v1/files/:id/workbook` | 单元格读写 / 清空 / 格式、插删行列、工作表管理 |
 
 - 文档每个可操作内容块使用稳定 ID；插入新块生成 ID，协作复制 / 粘贴和批量导入不得产生重复 ID。AI 不用段落序号或字符串偏移作为长期定位。
@@ -373,19 +373,19 @@ MCP 为主要 AI 接入体验，HTTP 为脚本和第三方集成入口。工具�
 
 ### 8.2 页面联调清单
 
-| 页面 / 组件 | 联调内容 |
-|---|---|
-| 登录与账号菜单 | 真实认证、资料、退出、会话过期、前后台入口分离 |
-| 空间切换 / 设置 | 空间列表、创建、资料、成员分配及负责人权限 |
-| 首页 / 文件树 | 查询、搜索、类型筛选、CRUD、拖拽排序、服务端失败回滚 |
-| 收藏 / 最近访问 / 回收站 | 每账号记录、删除批次、恢复位置与永久删除确认 |
-| 文档 | 协作初始化、在线成员 / 光标、本人的撤销、图片附件、同步 / 持久化状态、手动保存和断线恢复 |
-| 表格 | 协作工作簿、在线成员 / 选区、并发公式 / 行列操作、当前输入提交、XLSX 整体导入的 epoch 切换 |
-| 版本历史 | 列表、来源 / 备注、隔离只读预览、恢复确认、在线客户端 epoch 切换及旧草稿保留 |
-| PPT | 服务端原文件、替换、下载、加载失败与文件不存在状态 |
-| 分享弹窗 | 真链接、复制、重新生成、密码和有效期，不再复制演示说明 |
-| 访客页面 | 独立 `#/share/:token` 路由、密码 / 过期 / 撤销状态、三种只读查看器 |
-| AI 设置 | 独立密钥六项权限、权限预设、创建 / 查看 / 修改 / 删除、到期时间、真实 API / MCP 模板 |
+| 页面 / 组件              | 联调内容                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------ |
+| 登录与账号菜单           | 真实认证、资料、退出、会话过期、前后台入口分离                                             |
+| 空间切换 / 设置          | 空间列表、创建、资料、成员分配及负责人权限                                                 |
+| 首页 / 文件树            | 查询、搜索、类型筛选、CRUD、拖拽排序、服务端失败回滚                                       |
+| 收藏 / 最近访问 / 回收站 | 每账号记录、删除批次、恢复位置与永久删除确认                                               |
+| 文档                     | 协作初始化、在线成员 / 光标、本人的撤销、图片附件、同步 / 持久化状态、手动保存和断线恢复   |
+| 表格                     | 协作工作簿、在线成员 / 选区、并发公式 / 行列操作、当前输入提交、XLSX 整体导入的 epoch 切换 |
+| 版本历史                 | 列表、来源 / 备注、隔离只读预览、恢复确认、在线客户端 epoch 切换及旧草稿保留               |
+| PPT                      | 服务端原文件、替换、下载、加载失败与文件不存在状态                                         |
+| 分享弹窗                 | 真链接、复制、重新生成、密码和有效期，不再复制演示说明                                     |
+| 访客页面                 | 独立 `#/share/:token` 路由、密码 / 过期 / 撤销状态、三种只读查看器                         |
+| AI 设置                  | 独立密钥六项权限、权限预设、创建 / 查看 / 修改 / 删除、到期时间、真实 API / MCP 模板       |
 
 访客页面不挂载成员工作区布局，不显示文件树、空间设置或编辑入口。文档编辑器不可编辑，表格使用只读配置并验证所有写入口失效，PPT 复用只读组件。服务端同时禁止访客写入，不能只靠隐藏按钮。
 
@@ -409,7 +409,9 @@ MCP 为主要 AI 接入体验，HTTP 为脚本和第三方集成入口。工具�
 
 ### 9.2 Docker Compose
 
-部署服务为 `web`（前台及后台静态文件、Nginx 反向代理）、`app`（Bun 后端、Hocuspocus 文档房间和 FortuneSheet 表格房间）、`postgres`，以及显式运行的一次性 `migrate` 任务。第一版只有一个 `app` 实例，同一文件只有一个进程内权威房间；不能通过增加应用副本扩容，跨实例房间路由和共享协调不在本版范围内。
+部署服务为 `app`（同一端口托管前后台静态页面、API、MCP、Hocuspocus 文档房间和 FortuneSheet 表格房间）、`postgres`，以及显式运行的一次性 `migrate` 任务。宿主机 HTTPS 代理直接连接 app 的本机映射端口，Docker 不再提供独立 web 服务。第一版只有一个 `app` 实例，同一文件只有一个进程内权威房间；不能通过增加应用副本扩容，跨实例房间路由和共享协调不在本版范围内。
+
+部署入口支持三种模式：已有 HTTPS 反代时仅映射本机 app 端口；自动 HTTPS 时由 Caddy 提供 80/443，app 只在项目内网运行；IP 直连使用 HTTP IPv4，仅映射应用端口。维护脚本统一负责首次预检、持久化凭证、显式迁移、启动、备份、固定版本升级和恢复；失败保留维护状态，不自动清库或启动不匹配版本。网页账号初始化保留原流程，不增加部署者初始化码。
 
 - `/` 挂载前台；`/admin/` 挂载后台；`/api/` 和 `/mcp` 代理到应用；文档 / 表格协作连接均代理到单实例 `app`，配置 WebSocket 升级与心跳超时。
 - 后台静态资源基础路径和 MAS `WEB_CMS_PATH` 保持一致，前台 Hash Router 保持现状。
@@ -422,16 +424,16 @@ MCP 为主要 AI 接入体验，HTTP 为脚本和第三方集成入口。工具�
 
 ## 10. 开发阶段与验收
 
-| 阶段 | 实现范围 | 验收条件 |
-|---|---|---|
-| 0：工程整合 | 引入 MAS、前台迁至 `apps/web`、workspace、依赖、配置和启动构建命令整合 | 原前台编辑交互保持；前后台可启动 / 构建；后端健康检查与数据库迁移正常 |
-| 1：协作验证与选型 | 文档协作最小验证、表格协作方案 / 授权 / 部署依赖验证 | 文档双端协作、重连和持久化通过；表格给出可执行选型结论、分发条件及依赖，并验证服务端写入；不能只验证演示光标 |
-| 2：登录与空间 | 认证、当前账号、空间与成员 | 两个账号只能看到各自可访问空间；移除成员和会话撤销即时生效；后台管理入口可用 |
-| 3：文件树与文档协作 | 树 CRUD、移动排序、文档实时状态、可靠保存、文档版本历史 | 双账号 / 多标签并发编辑收敛；重连及重启后内容正确；个人撤销正确；首位拖拽有效；跨空间 / 循环移动被拒绝；恢复不重放旧输入 |
-| 4：附件、PPT 与管理流程 | 图片 / PPT 原文件、个人记录、回收站、演示导入 | 私有附件鉴权正确；历史图片保留；PPT 重启后可读；文件删除撤销协作连接；演示导入初始化协作状态 |
-| 5：分享与文档 AI | 真链接、访客只读、独立密钥权限、文档 API / MCP 协作写入 | 密码 / 过期 / 撤销生效；无附件越权；AI 修改广播给在线用户并落盘；旧版本 / 权限不足拒绝；MCP 客户端真实调用 |
-| 6：表格协作与版本 / AI | 选定表格引擎落地、快照迁移、多人编辑、历史、表格 API / MCP | 并发单元格 / 行列 / 公式正确；重连 / 重启恢复；个人撤销；版本恢复 epoch 隔离；AI 操作通过引擎广播并持久化；不能以单人租约替代验收 |
-| 7：整体验收与部署 | 跨模块验收、Docker、备份恢复和开源发布说明 | 全新 Compose 部署，文档与表格协作均通过；权限撤销即时有效；当前 / 历史 / 附件可恢复；无试用密钥和未经允许分发的依赖 |
+| 阶段                    | 实现范围                                                               | 验收条件                                                                                                                          |
+| ----------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 0：工程整合             | 引入 MAS、前台迁至 `apps/web`、workspace、依赖、配置和启动构建命令整合 | 原前台编辑交互保持；前后台可启动 / 构建；后端健康检查与数据库迁移正常                                                             |
+| 1：协作验证与选型       | 文档协作最小验证、表格协作方案 / 授权 / 部署依赖验证                   | 文档双端协作、重连和持久化通过；表格给出可执行选型结论、分发条件及依赖，并验证服务端写入；不能只验证演示光标                      |
+| 2：登录与空间           | 认证、当前账号、空间与成员                                             | 两个账号只能看到各自可访问空间；移除成员和会话撤销即时生效；后台管理入口可用                                                      |
+| 3：文件树与文档协作     | 树 CRUD、移动排序、文档实时状态、可靠保存、文档版本历史                | 双账号 / 多标签并发编辑收敛；重连及重启后内容正确；个人撤销正确；首位拖拽有效；跨空间 / 循环移动被拒绝；恢复不重放旧输入          |
+| 4：附件、PPT 与管理流程 | 图片 / PPT 原文件、个人记录、回收站、演示导入                          | 私有附件鉴权正确；历史图片保留；PPT 重启后可读；文件删除撤销协作连接；演示导入初始化协作状态                                      |
+| 5：分享与文档 AI        | 真链接、访客只读、独立密钥权限、文档 API / MCP 协作写入                | 密码 / 过期 / 撤销生效；无附件越权；AI 修改广播给在线用户并落盘；旧版本 / 权限不足拒绝；MCP 客户端真实调用                        |
+| 6：表格协作与版本 / AI  | 选定表格引擎落地、快照迁移、多人编辑、历史、表格 API / MCP             | 并发单元格 / 行列 / 公式正确；重连 / 重启恢复；个人撤销；版本恢复 epoch 隔离；AI 操作通过引擎广播并持久化；不能以单人租约替代验收 |
+| 7：整体验收与部署       | 跨模块验收、Docker、备份恢复和开源发布说明                             | 全新 Compose 部署，文档与表格协作均通过；权限撤销即时有效；当前 / 历史 / 附件可恢复；无试用密钥和未经允许分发的依赖               |
 
 阶段 0 独立验收，不以协作选型结果作为工程整合完成条件；阶段 1 在整合后的工程中使用隔离验证模块确认方案，尚不代表业务协作已交付。协作权威存储和协议定稿依赖阶段 1 结论，后续业务落地按上述阶段顺序推进。
 
@@ -462,3 +464,7 @@ MCP 为主要 AI 接入体验，HTTP 为脚本和第三方集成入口。工具�
 - Docker 能启动不等于可部署验收通过，必须验证真实持久化和恢复路径。
 
 本文件先确定第一版技术边界。开发中若改变权限语义、分享范围、数据格式或部署结构，先同步本文件，再实施相应代码与联调。
+
+### 无域名 IP 直连
+
+安装器支持 `direct` 模式，来源为 `http://IPv4:端口`，默认绑定所有 IPv4 网卡，端口从来源读取。只映射 app 端口，不启动 Caddy、不公开 PostgreSQL。应用仍使用 production，显式 `HTTP_IP_DIRECT=true` 时关闭 Secure Cookie、HSTS 和 HTTPS 自动升级，保留前后台身份隔离、CSRF、文件权限和协作鉴权。HTTP 前端兼容 UUID 与复制，剪贴板读取不可用时使用键盘粘贴。已有 HTTPS 模式继续使用默认安全配置；直连不信任代理。

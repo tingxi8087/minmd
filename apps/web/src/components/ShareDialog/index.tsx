@@ -1,3 +1,4 @@
+import { copyText } from "@/utils/clipboard";
 import AccessManager from "./AccessManager";
 import FileIcon from "@/components/FileIcon";
 import { fileAccessApi } from "@/api/fileAccess";
@@ -121,9 +122,7 @@ export default function ShareDialog({
     });
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(
-        shared && token ? shareLink(token) : internalLink,
-      );
+      await copyText(shared && token ? shareLink(token) : internalLink);
       message.success(
         shared && token ? "已复制公开链接" : "已复制文档链接，访问仍需对应权限",
       );

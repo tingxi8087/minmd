@@ -116,6 +116,7 @@ suite("文件树、回收站与账号资源边界", () => {
         DATABASE_URL: url!,
         APP_ENV: "staging",
         WEB_CMS_DIST: "tests/fixtures/web-cms",
+        WEB_DIST: "tests/fixtures/web",
         LOG_LEVEL: "silent",
         AUTH_TRANSPORT: "bearer",
       }),

@@ -90,3 +90,37 @@ test("authentication configuration rejects unsafe or invalid options", () => {
     }).AUTH_TRANSPORT,
   ).toBe("cookie");
 });
+
+test("HTTP IP 直连是显式且受限的生产例外，HTTPS 默认行为不变", () => {
+  const base = {
+    DATABASE_URL: "postgresql://localhost/unused_test",
+    APP_ENV: "production",
+    AUTH_TRANSPORT: "cookie",
+    PUBLIC_ORIGIN: "http://192.168.1.10:9811",
+    HTTP_IP_DIRECT: "true",
+  };
+  expect(loadConfig(base).HTTP_IP_DIRECT).toBe(true);
+  expect(() => loadConfig({ ...base, HTTP_IP_DIRECT: "false" })).toThrow(
+    "HTTPS",
+  );
+  for (const extra of [
+    { PUBLIC_ORIGIN: "http://docs.example.com:9811" },
+    { PUBLIC_ORIGIN: "https://192.168.1.10:9811" },
+    { PUBLIC_ORIGIN: "http://0.0.0.0:9811" },
+    { PUBLIC_ORIGIN: "http://255.255.255.255:9811" },
+    { PUBLIC_ORIGIN: "http://[::1]:9811" },
+    { AUTH_TRANSPORT: "bearer" },
+    { TRUST_PROXY_ADDRESSES: "127.0.0.1" },
+    { HTTP_IP_DIRECT: "yes" },
+  ])
+    expect(() => loadConfig({ ...base, ...extra })).toThrow(
+      "Invalid configuration",
+    );
+  expect(
+    loadConfig({
+      ...base,
+      PUBLIC_ORIGIN: "https://docs.example.com",
+      HTTP_IP_DIRECT: "false",
+    }).HTTP_IP_DIRECT,
+  ).toBe(false);
+});

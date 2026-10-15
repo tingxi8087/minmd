@@ -1,3 +1,4 @@
+import { v4 as createId } from "uuid";
 import type { MermaidConfig } from "mermaid";
 export const MERMAID_MAX_SOURCE = 50_000;
 let rendering: Promise<void> = Promise.resolve();
@@ -91,7 +92,7 @@ export function renderMermaid(
     document.body.append(container);
     try {
       const { svg } = await mermaid.render(
-        `minmd-mermaid-${crypto.randomUUID()}`,
+        `minmd-mermaid-${createId()}`,
         source,
         container,
       );

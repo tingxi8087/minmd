@@ -7,8 +7,8 @@ MINMD_ENV=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 MINMD_BACKUP=$(cd "$2" && pwd)
 [ -f "$MINMD_ENV" ] && [ -f "$MINMD_BACKUP/database.dump" ] && [ -f "$MINMD_BACKUP/assets.tar.gz" ] && [ -f "$MINMD_BACKUP/SHA256SUMS" ] || { echo '环境或备份文件不完整' >&2; exit 2; }
 (cd "$MINMD_BACKUP" && if command -v sha256sum >/dev/null 2>&1; then sha256sum -c SHA256SUMS; else shasum -a 256 -c SHA256SUMS; fi)
-compose() { docker compose --env-file "$MINMD_ENV" -f "$MINMD_DEPLOY_ROOT/compose.production.yaml" "$@"; }
-compose stop web app
+. "$MINMD_DEPLOY_ROOT/scripts/compose.sh"
+compose stop app
 compose up -d --wait --wait-timeout 60 postgres
 compose create app
 MINMD_APP=$(compose ps -aq app)

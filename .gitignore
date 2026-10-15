@@ -19,3 +19,6 @@ coverage/
 test-results/
 playwright-report/
 *.log
+
+# 部署安装器生成的凭证、状态和备份
+/.minmd/

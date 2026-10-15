@@ -73,10 +73,10 @@ export type ImportTask = {
   jobId?: string;
 };
 export async function sourceHash(entries: LocalEntry[]) {
-  const bytes = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(JSON.stringify(entries)),
-  );
+  const input = new TextEncoder().encode(JSON.stringify(entries));
+  const bytes = crypto.subtle
+    ? await crypto.subtle.digest("SHA-256", input)
+    : (await import("@noble/hashes/sha2.js")).sha256(input);
   return Array.from(new Uint8Array(bytes), (value) =>
     value.toString(16).padStart(2, "0"),
   ).join("");

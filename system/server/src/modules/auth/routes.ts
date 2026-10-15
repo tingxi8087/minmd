@@ -183,7 +183,7 @@ export async function registerAuthRoutes(
       if (config.AUTH_TRANSPORT === "cookie") {
         reply.setCookie(sessionCookie, token, {
           httpOnly: true,
-          secure: config.APP_ENV === "production",
+          secure: config.APP_ENV === "production" && !config.HTTP_IP_DIRECT,
           sameSite: "strict",
           path: "/api",
           expires: expiresAt,
@@ -259,7 +259,7 @@ export async function registerAuthRoutes(
         reply.clearCookie(sessionCookie, {
           path: "/api",
           httpOnly: true,
-          secure: config.APP_ENV === "production",
+          secure: config.APP_ENV === "production" && !config.HTTP_IP_DIRECT,
           sameSite: "strict",
         });
       return { ok: true };

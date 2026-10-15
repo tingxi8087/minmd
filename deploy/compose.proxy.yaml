@@ -1,0 +1,5 @@
+# 已有 HTTPS 反代：默认仅允许宿主机访问应用端口。
+services:
+  app:
+    ports:
+      - "${APP_BIND_HOST:-127.0.0.1}:${APP_BIND_PORT:-9811}:9811"

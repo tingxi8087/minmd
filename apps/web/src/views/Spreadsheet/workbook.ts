@@ -1,3 +1,4 @@
+import { v4 as createId } from "uuid";
 import type { Cell, Sheet } from "@fortune-sheet/core";
 import {
   is_date as isDateFormat,
@@ -172,7 +173,7 @@ export function toLegacy(
   const filters: Record<string, unknown> = {};
   for (const source of sheets) {
     const sheet = emptySheet(source.name);
-    sheet.id = source.id || crypto.randomUUID();
+    sheet.id = source.id || createId();
     sheet.rowCount = source.row || 200;
     sheet.columnCount = source.column || 26;
     sheet.defaultRowHeight = source.defaultRowHeight || 28;

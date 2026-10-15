@@ -36,6 +36,7 @@ suite("front and back office identity boundaries", () => {
     DATABASE_URL: url ?? "postgresql://localhost/unused_test",
     APP_ENV: "staging",
     WEB_CMS_DIST: "tests/fixtures/web-cms",
+    WEB_DIST: "tests/fixtures/web",
     LOG_LEVEL: "silent",
     AUTH_TRANSPORT: "bearer",
     PUBLIC_ORIGIN: "http://127.0.0.1:5173",

@@ -57,7 +57,11 @@ export function loadMinmdConfig(
     );
   const primaryOrigin = parsed.data.APP_PUBLIC_ORIGIN ?? config.PUBLIC_ORIGIN;
   const assetDirectory = resolve(parsed.data.ASSET_STORAGE_DIR);
-  for (const publicDirectory of [config.STATIC_DIR, config.WEB_CMS_DIST]) {
+  for (const publicDirectory of [
+    config.STATIC_DIR,
+    config.WEB_CMS_DIST,
+    config.WEB_DIST,
+  ]) {
     const difference = relative(resolve(publicDirectory), assetDirectory);
     if (
       !difference ||
@@ -71,10 +75,16 @@ export function loadMinmdConfig(
   if (
     config.APP_ENV === "production" &&
     config.AUTH_TRANSPORT === "cookie" &&
+    !config.HTTP_IP_DIRECT &&
     !primaryOrigin.startsWith("https://")
   ) {
     throw new Error(
       "Invalid configuration: APP_PUBLIC_ORIGIN must use HTTPS for production Cookie authentication",
+    );
+  }
+  if (config.HTTP_IP_DIRECT && primaryOrigin !== config.PUBLIC_ORIGIN) {
+    throw new Error(
+      "Invalid configuration: APP_PUBLIC_ORIGIN must match PUBLIC_ORIGIN in HTTP_IP_DIRECT mode",
     );
   }
   return {

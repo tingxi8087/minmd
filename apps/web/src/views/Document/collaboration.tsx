@@ -1,3 +1,4 @@
+import { v4 as createId } from "uuid";
 import axios from "axios";
 import { collaborationUrl } from "@/utils/collaborationUrl";
 import { snapshotConfirmed } from "./collaborationState";
@@ -112,7 +113,7 @@ export function useDocumentCollaboration(file: Entry) {
           userId: user.id,
           spaceId: file.space,
           fileId: file.id,
-          sessionId: crypto.randomUUID(),
+          sessionId: createId(),
           epoch: ticket.epoch,
         },
       };

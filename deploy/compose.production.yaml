@@ -7,19 +7,21 @@ x-app-environment: &app-environment
   AI_EXECUTION_TIMEOUT_MS: ${AI_EXECUTION_TIMEOUT_MS:-15000}
   HTTP_BODY_LIMIT_BYTES: ${HTTP_BODY_LIMIT_BYTES:-16777216}
   DATABASE_URL: postgresql://minmd:${POSTGRES_PASSWORD:?请设置POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-minmd}
+  HTTP_IP_DIRECT: "false"
   AUTH_TRANSPORT: cookie
   AUTH_SESSION_HOURS: ${AUTH_SESSION_HOURS:-24}
-  PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?请设置实际HTTPS访问来源}
-  APP_PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?请设置实际HTTPS访问来源}
+  PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?请设置实际访问来源}
+  APP_PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?请设置实际访问来源}
   APP_DEV_ORIGINS: ""
   APP_REGISTRATION_ENABLED: "false"
   CORS_ORIGINS: ""
-  TRUST_PROXY_ADDRESSES: ${MINMD_PROXY_IP:-172.30.88.10}
+  TRUST_PROXY_ADDRESSES: ${TRUST_PROXY_ADDRESSES:-}
   API_DEBUG_ENABLED: "false"
   ADMIN_ACCOUNT: ${ADMIN_ACCOUNT:-admin}
   ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请设置首次管理员密码}
   WEB_CMS_PATH: /admin
   WEB_CMS_DIST: /app/dist/web-cms
+  WEB_DIST: /app/dist/web
   STATIC_DIR: /app/runtime/public
   STATIC_PATH: /public
   AI_KEY_ENCRYPTION_KEY: ${AI_KEY_ENCRYPTION_KEY:-}
@@ -33,6 +35,8 @@ x-app-environment: &app-environment
 services:
   postgres:
     image: postgres:18
+    labels:
+      io.minmd.installation: ${MINMD_INSTALLATION_ID:-manual}
     environment:
       POSTGRES_USER: minmd
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请设置POSTGRES_PASSWORD}
@@ -46,20 +50,24 @@ services:
       retries: 20
     restart: unless-stopped
   migrate:
-    image: minmd-migrate:${MINMD_IMAGE_TAG:-local}
+    image: ${MINMD_IMAGE_PREFIX:-minmd}-migrate:${MINMD_IMAGE_TAG:-local}
     build: { context: .., dockerfile: deploy/Dockerfile, target: migrate }
     profiles: [tools]
+    labels:
+      io.minmd.installation: ${MINMD_INSTALLATION_ID:-manual}
     environment:
       <<: *app-environment
       WEB_CMS_DIST: /workspace/dist/web-cms
+      WEB_DIST: /workspace/dist/web
     depends_on:
       postgres: { condition: service_healthy }
     restart: "no"
   app:
-    image: minmd-app:${MINMD_IMAGE_TAG:-local}
+    image: ${MINMD_IMAGE_PREFIX:-minmd}-app:${MINMD_IMAGE_TAG:-local}
     build: { context: .., dockerfile: deploy/Dockerfile, target: app }
+    labels:
+      io.minmd.installation: ${MINMD_INSTALLATION_ID:-manual}
     environment: *app-environment
-    networks: [default, proxy]
     volumes:
       - asset_data:/var/lib/minmd/assets
     depends_on:
@@ -78,34 +86,15 @@ services:
       retries: 6
     stop_grace_period: 30s
     restart: unless-stopped
-  web:
-    image: minmd-web:${MINMD_IMAGE_TAG:-local}
-    build: { context: .., dockerfile: deploy/Dockerfile, target: web }
-    environment:
-      MINMD_PROXY_GATEWAY: ${MINMD_PROXY_GATEWAY:-172.30.88.1}
-    ports:
-      - "127.0.0.1:${WEB_BIND_PORT:-8080}:8080"
-    depends_on:
-      app: { condition: service_healthy }
-    healthcheck:
-      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/nginx-health]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-    networks:
-      proxy:
-        ipv4_address: ${MINMD_PROXY_IP:-172.30.88.10}
-    read_only: true
-    tmpfs:
-      - /tmp
-    restart: unless-stopped
 volumes:
   postgres_data:
+    labels:
+      io.minmd.installation: ${MINMD_INSTALLATION_ID:-manual}
   asset_data:
+    labels:
+      io.minmd.installation: ${MINMD_INSTALLATION_ID:-manual}
 
 networks:
-  proxy:
-    ipam:
-      config:
-        - subnet: ${MINMD_PROXY_SUBNET:-172.30.88.0/24}
-          gateway: ${MINMD_PROXY_GATEWAY:-172.30.88.1}
+  default:
+    labels:
+      io.minmd.installation: ${MINMD_INSTALLATION_ID:-manual}

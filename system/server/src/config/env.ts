@@ -53,6 +53,10 @@ const schema = z.object({
   ADMIN_ACCOUNT: z.string().optional(),
   ADMIN_PASSWORD: z.string().optional(),
   AUTH_TRANSPORT: z.enum(["bearer", "cookie"]).default("bearer"),
+  HTTP_IP_DIRECT: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   AUTH_TOKEN_STORAGE: z
     .enum(["memory", "sessionStorage", "localStorage"])
     .default("sessionStorage"),
@@ -85,6 +89,7 @@ const schema = z.object({
   LOG_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(14),
   AUDIT_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(365),
   WEB_CMS_DIST: z.string().min(1).default("dist/web-cms"),
+  WEB_DIST: z.string().trim().min(1).default("dist/web"),
   STATIC_DIR: z.string().trim().min(1).default("public"),
   STATIC_PATH: z
     .string()
@@ -121,11 +126,27 @@ export function loadConfig(
   if (
     result.data.APP_ENV === "production" &&
     result.data.AUTH_TRANSPORT === "cookie" &&
+    !result.data.HTTP_IP_DIRECT &&
     !result.data.PUBLIC_ORIGIN.startsWith("https://")
   ) {
     throw new Error(
       "Invalid configuration: PUBLIC_ORIGIN must use HTTPS for production Cookie authentication",
     );
+  }
+  if (result.data.HTTP_IP_DIRECT) {
+    const origin = new URL(result.data.PUBLIC_ORIGIN);
+    if (
+      origin.protocol !== "http:" ||
+      isIP(origin.hostname) !== 4 ||
+      origin.hostname === "0.0.0.0" ||
+      origin.hostname === "255.255.255.255" ||
+      result.data.AUTH_TRANSPORT !== "cookie" ||
+      result.data.TRUST_PROXY_ADDRESSES.length > 0
+    ) {
+      throw new Error(
+        "Invalid configuration: HTTP_IP_DIRECT requires an HTTP IPv4 PUBLIC_ORIGIN, Cookie authentication and no trusted proxy",
+      );
+    }
   }
   const { STATIC_PATH, WEB_CMS_PATH } = result.data;
   // 后台挂载在根路径时，具体的静态前缀优先于其通配路由。

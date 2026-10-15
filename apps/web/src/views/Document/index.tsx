@@ -1,3 +1,4 @@
+import { copyText, readClipboardText } from "@/utils/clipboard";
 import { usePageTitle } from "@/components/PageTitles";
 import { UPLOAD_MAX_BYTES } from "@/utils/uploadLimits";
 import { filesApi } from "@/api/files";
@@ -574,9 +575,7 @@ function DocumentEditor({
     const { from, to, empty } = editor.state.selection;
     const copy = async (cut = false) => {
       try {
-        await navigator.clipboard.writeText(
-          editor.state.doc.textBetween(from, to, "\n"),
-        );
+        await copyText(editor.state.doc.textBetween(from, to, "\n"));
         if (cut) editor.chain().focus().deleteRange({ from, to }).run();
       } catch {
         message.info("无法访问剪贴板，请使用键盘快捷键。");
@@ -625,8 +624,7 @@ function DocumentEditor({
         label: "粘贴纯文本",
         icon: <ClipboardPaste size={15} />,
         run: () => {
-          void navigator.clipboard
-            .readText()
+          void readClipboardText()
             .then((text) => {
               if (text)
                 editor

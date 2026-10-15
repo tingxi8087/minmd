@@ -23,6 +23,7 @@ suite("API debugger authentication and production controls", () => {
   const config = (extra = {}) =>
     loadConfig({
       WEB_CMS_DIST: "tests/fixtures/web-cms",
+      WEB_DIST: "tests/fixtures/web",
       DATABASE_URL: url,
       LOG_LEVEL: "silent",
       ...extra,

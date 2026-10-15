@@ -1,3 +1,4 @@
+import { v4 as createId } from "uuid";
 import { assertUploadSize } from "@/utils/uploadLimits";
 import { documentApi } from "@/api/documents";
 import { sheetApi } from "@/api/sheets";
@@ -148,7 +149,7 @@ export default function FileDialogs({
             () => import("@/views/Spreadsheet/exchange"),
           );
           const sheets = await operation.wait(() =>
-            importXlsx(presentation, crypto.randomUUID(), name.trim()),
+            importXlsx(presentation, createId(), name.trim()),
           );
           id = await saveImportedContent(task, sheets, {
             assertActive: operation.assertActive,

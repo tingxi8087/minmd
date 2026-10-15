@@ -1,3 +1,4 @@
+import { installWebFrontend } from "../../../system/server/src/plugins/web-frontend";
 import { pruneExistingFileVersions } from "./modules/versions/retention";
 import { createApp, type AppConfig, type AppOptions } from "@mas/system-server";
 import { count, eq } from "drizzle-orm";
@@ -171,6 +172,7 @@ export function buildApp(
               ? sheetRooms!.persistBarrier(fileId)
               : Promise.resolve(),
       });
+      await installWebFrontend(app, config);
     },
   });
 }

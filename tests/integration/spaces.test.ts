@@ -54,6 +54,7 @@ suite("空间身份、成员与负责人事务边界", () => {
         DATABASE_URL: url!,
         APP_ENV: "staging",
         WEB_CMS_DIST: "tests/fixtures/web-cms",
+        WEB_DIST: "tests/fixtures/web",
         LOG_LEVEL: "silent",
         AUTH_TRANSPORT: "bearer",
       }),

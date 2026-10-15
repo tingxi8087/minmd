@@ -21,7 +21,7 @@ export function respondSession(
   if (config.AUTH_TRANSPORT === "cookie") {
     reply.setCookie(appSessionCookie, token, {
       httpOnly: true,
-      secure: config.APP_ENV === "production",
+      secure: config.APP_ENV === "production" && !config.HTTP_IP_DIRECT,
       sameSite: "strict",
       path: "/api/app",
       expires: expiresAt,

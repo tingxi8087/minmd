@@ -19,10 +19,12 @@ export async function installSecurity(app: FastifyInstance, config: AppConfig) {
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:"],
         connectSrc: ["'self'"],
-        upgradeInsecureRequests: config.APP_ENV === "production" ? [] : null,
+        upgradeInsecureRequests:
+          config.APP_ENV === "production" && !config.HTTP_IP_DIRECT ? [] : null,
       },
     },
-    strictTransportSecurity: config.APP_ENV === "production",
+    strictTransportSecurity:
+      config.APP_ENV === "production" && !config.HTTP_IP_DIRECT,
   });
   await app.register(rateLimit, {
     max: 300,

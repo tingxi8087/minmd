@@ -31,8 +31,9 @@ export function startupErrorMessage(error: unknown): string {
   if (
     error instanceof Error &&
     (error.message.startsWith("Invalid configuration") ||
-      error.message === "Web CMS build missing: run bun run build first")
+      error.message === "Web CMS build missing: run bun run build first" ||
+      error.message === "Web frontend build missing: run bun run build first")
   )
     return error.message;
-  return "Server startup failed; check configuration, port and web-cms build.";
+  return "Server startup failed; check configuration, port and frontend/admin builds.";
 }

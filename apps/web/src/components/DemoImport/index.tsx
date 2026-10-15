@@ -1,3 +1,4 @@
+import { v4 as createId } from "uuid";
 import { useEffect, useRef, useState } from "react";
 import { App, Checkbox, Modal, Select } from "antd";
 import { useWorkspace } from "@/store/workspace";
@@ -165,7 +166,7 @@ export default function DemoImport({ close }: { close: () => void }) {
           if (!accepted) return;
         }
         task = {
-          key: crypto.randomUUID(),
+          key: createId(),
           userId: user.id,
           target,
           source: selected,

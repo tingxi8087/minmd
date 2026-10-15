@@ -29,6 +29,7 @@ const suite = url ? describe : describe.skip;
 suite("PostgreSQL foundation", () => {
   const config = loadConfig({
     WEB_CMS_DIST: "tests/fixtures/web-cms",
+    WEB_DIST: "tests/fixtures/web",
     DATABASE_URL: url ?? "postgresql://localhost/unused_test",
     LOG_LEVEL: "info",
   });

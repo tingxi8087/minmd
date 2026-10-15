@@ -1,3 +1,4 @@
+import { v4 as createId } from "uuid";
 import {
   LocaleType,
   type IWorkbookData,
@@ -6,7 +7,7 @@ import {
 } from "@univerjs/core";
 export function emptySheet(name = "工作表1"): IWorksheetData {
   return {
-    id: crypto.randomUUID(),
+    id: createId(),
     name,
     tabColor: "",
     hidden: 0,

@@ -1,3 +1,4 @@
+import { copyText } from "@/utils/clipboard";
 import { useEffect, useRef, useState } from "react";
 import { App, Checkbox, Input, Modal, Tooltip } from "antd";
 import { Copy, Plus, Trash2, PencilLine, Eye, EyeOff } from "lucide-react";
@@ -120,7 +121,7 @@ export default function AiSettings({
   }, [spaceId, userId, reload]);
   const copy = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyText(text);
       message.success("已复制");
     } catch {
       message.error("复制失败，请手动选择内容");

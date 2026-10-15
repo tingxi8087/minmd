@@ -33,6 +33,7 @@ suite("real database authentication and RBAC", () => {
   const config = (transport = "bearer") =>
     loadConfig({
       WEB_CMS_DIST: "tests/fixtures/web-cms",
+      WEB_DIST: "tests/fixtures/web",
       DATABASE_URL: url,
       APP_ENV: "staging",
       LOG_LEVEL: "silent",

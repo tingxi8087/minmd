@@ -23,3 +23,11 @@ test("provides migration and port hints, and safely handles unknown or cyclic er
   expect(startupErrorMessage(error)).not.toContain("secret");
   expect(startupErrorMessage(new Error("secret"))).not.toContain("secret");
 });
+
+test("缺少前台构建时输出可执行的构建提示", () => {
+  expect(
+    startupErrorMessage(
+      new Error("Web frontend build missing: run bun run build first"),
+    ),
+  ).toBe("Web frontend build missing: run bun run build first");
+});
