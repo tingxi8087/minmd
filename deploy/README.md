@@ -22,17 +22,15 @@ MinMD 前台、后台 `/admin/`、API、MCP 和文档 / 表格协作均由同一
 
 ### 方式一：一行命令安装
 
-国内镜像源（应用使用腾讯云 TCR，基础镜像使用 DaoCloud，公开匿名拉取）：
+国内镜像：
 
 ```sh
 curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install-china.sh | sh
 ```
 
-这个入口下载独立的 `minmd-v版本-china.tar.gz`，其中 app、migrate 使用 `ccr.ccs.tencentyun.com/tingxi8087/minmd-*`；PostgreSQL 使用 `m.daocloud.io/docker.io/library/postgres:18`，Caddy 使用 `m.daocloud.io/docker.io/library/caddy:2.11.4-alpine`。脚本及部署包仍从 GitHub 下载；国内镜像源不会替代 GitHub 文件下载。应用和迁移镜像的国内同步尚未完成时，安装会失败，不会换用其他应用版本。
-
 下载当前源码的通用入口后，也可用 `sh install.sh --image-source china` 选择国内包；显式指定版本使用 `--version v0.1.0`。国内入口 `install-china.sh` 默认选择 china，官方入口默认选择 official。已有部署目录不允许用重复安装跨源改写配置。
 
-官方镜像源（GHCR / Docker Hub）：
+官方镜像：
 
 ```sh
 curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install.sh | sh
