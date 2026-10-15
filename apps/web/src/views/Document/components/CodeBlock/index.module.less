@@ -3,6 +3,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
+  overscroll-behavior: auto;
   .header {
     display: flex;
     align-items: center;
@@ -19,6 +20,7 @@
     }
   }
   pre {
+    overscroll-behavior: auto;
     margin: 0 !important;
     border: 0 !important;
     border-radius: 0 !important;
@@ -79,4 +81,53 @@
   :global(.hljs-emphasis) {
     font-style: italic;
   }
+}
+
+.block pre.hiddenSource {
+  display: none;
+}
+.language {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 0 8px;
+}
+.views {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+  button {
+    font: inherit;
+    font-size: 11px;
+    line-height: 22px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-secondary);
+    &[aria-pressed="true"] {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+  }
+}
+
+.deleteButton {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 24px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  &:hover {
+    background: var(--hover);
+    color: var(--danger);
+  }
+}
+.views + .deleteButton {
+  margin-left: 6px;
 }

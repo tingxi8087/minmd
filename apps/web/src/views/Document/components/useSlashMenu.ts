@@ -14,6 +14,7 @@ import {
   ListTodo,
   Quote,
   Code2,
+  Workflow,
   Table2,
   Minus,
   ImagePlus,
@@ -151,6 +152,25 @@ export function useSlashMenu(
       keywords: "code dmk",
       icon: Code2,
       run: () => editor!.chain().focus().toggleCodeBlock().run(),
+    },
+    {
+      id: "mermaid",
+      title: "Mermaid 图表",
+      hint: "用源码绘制流程图、时序图等",
+      keywords: "mermaid diagram flowchart tb lct",
+      icon: Workflow,
+      run: () =>
+        editor!
+          .chain()
+          .focus()
+          .insertContent({
+            type: "codeBlock",
+            attrs: { language: "mermaid" },
+            content: [
+              { type: "text", text: "graph TD\n  A[开始] --> B[结束]" },
+            ],
+          })
+          .run(),
     },
     {
       id: "table",

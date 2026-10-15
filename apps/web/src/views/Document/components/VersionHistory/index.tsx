@@ -42,7 +42,7 @@ export function ReadonlyPreview({
     content: projection,
     extensions: [
       StarterKit.configure({ undoRedo: false, codeBlock: false }),
-      SelectableCodeBlock.extend({ addNodeView: () => null }),
+      SelectableCodeBlock,
       TableKit.configure({ table: { resizable: false } }),
       TaskList,
       TaskItem.configure({ nested: true }),

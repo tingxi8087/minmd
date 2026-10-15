@@ -132,3 +132,12 @@ assert.equal(
   "#fff5a3",
 );
 console.log("文字背景色导出检查通过：独立检测、样式移除、其他格式与原文保留");
+
+const mermaidMarkdown = "```mermaid\ngraph TD\nA[开始] --> B[结束]\n```";
+const mermaidDocument = manager.parse(mermaidMarkdown);
+const mermaidBlock = mermaidDocument.content?.find(
+  (node) => node.type === "codeBlock",
+);
+assert.equal(mermaidBlock?.attrs?.language, "mermaid");
+assert.equal(mermaidBlock?.content?.[0]?.text, "graph TD\nA[开始] --> B[结束]");
+assert.equal(manager.serialize(mermaidDocument).trim(), mermaidMarkdown);
