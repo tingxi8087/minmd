@@ -29,6 +29,7 @@ async function fixture(
     checksum?: "sha256sum" | "shasum" | "none";
     docker?: "ok" | "missing" | "stopped" | "old" | "compose-missing";
     missing?: string;
+    imageSource?: "official" | "china";
   } = {},
 ) {
   const dir = await mkdtemp(join(tmpdir(), "minmd-bootstrap-")),
@@ -132,7 +133,14 @@ fi
 printf '安装向导完成\\n'
 `,
   );
-  const archive = join(assets, "minmd-v0.1.0.tar.gz");
+  const archiveName = `minmd-v0.1.0${options.imageSource === "china" ? "-china" : ""}.tar.gz`;
+  const archive = join(assets, archiveName);
+  if (options.imageSource === "china") {
+    await writeFile(
+      join(bundle, "deploy/release.env"),
+      "MINMD_IMAGE_PREFIX=ccr.ccs.tencentyun.com/tingxi8087/minmd\nMINMD_IMAGE_TAG=v0.1.0\nMINMD_IMAGE_SOURCE=china\n",
+    );
+  }
   const repack = async () => {
     const packed = await command([
       "tar",
@@ -146,11 +154,14 @@ printf '安装向导完成\\n'
     const hash = createHash("sha256")
       .update(await readFile(archive))
       .digest("hex");
-    await writeFile(archive + ".sha256", `${hash}  minmd-v0.1.0.tar.gz\n`);
+    await writeFile(archive + ".sha256", `${hash}  ${archiveName}\n`);
   };
   await repack();
   await writeFile(
-    join(assets, "release.env"),
+    join(
+      assets,
+      options.imageSource === "china" ? "release-china.env" : "release.env",
+    ),
     "MINMD_IMAGE_PREFIX=ghcr.io/example/minmd\nMINMD_IMAGE_TAG=v0.1.0\n",
   );
   const env = {
@@ -176,6 +187,51 @@ printf '安装向导完成\\n'
 }
 const clean = (f: { dir: string }) =>
   rm(f.dir, { recursive: true, force: true });
+
+test("国内入口下载独立部署包，重复安装不跨镜像源改写已有部署", async () => {
+  const f = await fixture({ imageSource: "china" });
+  const args = ["--image-source", "china", "--", "--yes"];
+  try {
+    expect((await f.run(args)).code).toBe(0);
+    const downloads = await readFile(f.trace, "utf8");
+    expect(downloads).toContain("/latest/download/release-china.env");
+    expect(downloads).toContain("/download/v0.1.0/minmd-v0.1.0-china.tar.gz\n");
+    expect(downloads).toContain("minmd-v0.1.0-china.tar.gz.sha256");
+    expect(await readFile(join(f.dir, "args"), "utf8")).toBe(
+      "install\n--yes\n",
+    );
+    await writeFile(f.trace, "");
+    expect((await f.run(args)).code).toBe(0);
+    expect(await readFile(f.trace, "utf8")).toBe("");
+    const otherSource = await f.run(["--", "--yes"]);
+    expect(otherSource.code).not.toBe(0);
+    expect(otherSource.err).toContain("另一镜像源");
+    expect(await readFile(f.trace, "utf8")).toBe("");
+  } finally {
+    await clean(f);
+  }
+}, 30000);
+
+test("国内包内部源错误及未知下载源在安装前拒绝", async () => {
+  const f = await fixture({ imageSource: "china" });
+  try {
+    await writeFile(
+      join(f.bundle, "deploy/release.env"),
+      "MINMD_IMAGE_TAG=v0.1.0\nMINMD_IMAGE_SOURCE=official\n",
+    );
+    await f.repack();
+    const mismatch = await f.run(["--image-source", "china", "--", "--yes"]);
+    expect(mismatch.code).not.toBe(0);
+    expect(mismatch.err).toContain("内部镜像源");
+    expect(await Bun.file(join(f.target, "minmd.sh")).exists()).toBe(false);
+    await writeFile(f.trace, "");
+    const unknown = await f.run(["--image-source", "other", "--", "--yes"]);
+    expect(unknown.code).not.toBe(0);
+    expect(await readFile(f.trace, "utf8")).toBe("");
+  } finally {
+    await clean(f);
+  }
+}, 30000);
 
 test("最新稳定版下载、校验、路径含空格和中文，向导参数按原样传递", async () => {
   const f = await fixture();

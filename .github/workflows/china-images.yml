@@ -41,3 +41,37 @@ jobs:
           NAMESPACE: ${{ vars.TCR_NAMESPACE }}
           TARGET: ${{ matrix.target }}
         run: sh deploy/scripts/mirror-images.sh "$REPOSITORY" "$VERSION" "$NAMESPACE" "$TARGET"
+  package:
+    needs: mirror
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.bundle.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - run: bun install --frozen-lockfile
+      - run: bun test tests/deploy-manager.test.ts tests/installer.test.ts tests/image-mirror.test.ts
+      - id: bundle
+        name: 添加国内部署包，保留已有官方发布附件
+        env:
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ inputs.version || github.event.workflow_run.head_branch }}
+          NAMESPACE: ${{ vars.TCR_NAMESPACE }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$'
+          printf '%s\n' "$NAMESPACE" | grep -Eq '^[a-z0-9][a-z0-9_-]{0,62}$'
+          gh release view "$VERSION" >/dev/null
+          sh deploy/scripts/package-release.sh "ccr.ccs.tencentyun.com/$NAMESPACE/minmd" "$VERSION" "dist/minmd-$VERSION-china.tar.gz" "$REPOSITORY" china
+          gh release upload "$VERSION" "dist/minmd-$VERSION-china.tar.gz" "dist/minmd-$VERSION-china.tar.gz.sha256" dist/install-china.sh dist/release-china.env --clobber
+          printf 'version=%s\n' "$VERSION" >> "$GITHUB_OUTPUT"
+  install:
+    needs: package
+    uses: ./.github/workflows/install-smoke.yml
+    with:
+      version: ${{ needs.package.outputs.version }}
+      image_source: china

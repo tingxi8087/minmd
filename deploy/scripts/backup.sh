@@ -19,7 +19,7 @@ compose stop app
 MINMD_EXIT=$(docker inspect "$MINMD_APP" --format '{{.State.ExitCode}}')
 [ "$MINMD_EXIT" -eq 0 ] || { echo '应用未正常退出，拒绝把该备份视为一致备份；服务保持停止' >&2; exit 1; }
 compose exec -T postgres sh -c 'exec pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom --no-owner --no-acl --no-password' > "$MINMD_BACKUP/database.dump"
-docker run --rm --network none --read-only -v "$MINMD_ASSET_VOLUME:/source:ro" -v "$MINMD_BACKUP:/backup" postgres:18 tar czf /backup/assets.tar.gz -C /source .
+docker run --rm --network none --read-only -v "$MINMD_ASSET_VOLUME:/source:ro" -v "$MINMD_BACKUP:/backup" "$(minmd_postgres_image)" tar czf /backup/assets.tar.gz -C /source .
 docker inspect "$MINMD_APP" --format '{{.Image}}' > "$MINMD_BACKUP/app-image.txt"
 date -u '+%Y-%m-%dT%H:%M:%SZ' > "$MINMD_BACKUP/created-at.txt"
 (cd "$MINMD_BACKUP" && if command -v sha256sum >/dev/null 2>&1; then sha256sum database.dump assets.tar.gz > SHA256SUMS; else shasum -a 256 database.dump assets.tar.gz > SHA256SUMS; fi)

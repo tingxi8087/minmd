@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
-[ "$#" -ge 3 ] && [ "$#" -le 4 ] || { echo '用法：package-release.sh 镜像前缀 版本 输出tar.gz [GitHub用户/仓库]' >&2; exit 2; }
+[ "$#" -ge 3 ] && [ "$#" -le 5 ] || { echo '用法：package-release.sh 镜像前缀 版本 输出tar.gz [GitHub用户/仓库] [official|china]' >&2; exit 2; }
+MINMD_CHANNEL=${5:-official}
+case "$MINMD_CHANNEL" in official) MINMD_ENTRY=install.sh; MINMD_META=release.env ;; china) MINMD_ENTRY=install-china.sh; MINMD_META=release-china.env ;; *) exit 2 ;; esac
 printf '%s\n' "$1" | LC_ALL=C grep -Eq '^[a-z0-9][a-z0-9./:_-]*$' || exit 2
 printf '%s\n' "$2" | LC_ALL=C grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$' || exit 2
 MINMD_SOURCE=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -23,14 +25,19 @@ for MINMD_FILE in manage.sh compose.sh backup.sh restore.sh; do
   cp "$MINMD_SOURCE/deploy/scripts/$MINMD_FILE" "$MINMD_BUNDLE/deploy/scripts/"
 done
 printf 'MINMD_IMAGE_PREFIX=%s\nMINMD_IMAGE_TAG=%s\n' "$1" "$2" > "$MINMD_BUNDLE/deploy/release.env"
+printf 'MINMD_IMAGE_SOURCE=%s\n' "$MINMD_CHANNEL" >> "$MINMD_BUNDLE/deploy/release.env"
+if [ "$MINMD_CHANNEL" = china ]; then
+  printf 'POSTGRES_IMAGE=%s-postgres:18\nCADDY_IMAGE=%s-caddy:2.11.4-alpine\n' "$1" "$1" >> "$MINMD_BUNDLE/deploy/release.env"
+fi
 chmod +x "$MINMD_BUNDLE/minmd.sh"
 tar czf "$3" -C "$MINMD_STAGE" minmd
 MINMD_OUTPUT_DIR=$(CDPATH= cd -- "$(dirname "$3")" && pwd)
 MINMD_OUTPUT_FILE=$(basename "$3")
 (cd "$MINMD_OUTPUT_DIR" && if command -v sha256sum >/dev/null 2>&1; then sha256sum "$MINMD_OUTPUT_FILE" > "$MINMD_OUTPUT_FILE.sha256"; else shasum -a 256 "$MINMD_OUTPUT_FILE" > "$MINMD_OUTPUT_FILE.sha256"; fi)
 # Release 的薄入口绑定实际发布仓库，fork 发布也不会误下载上游。
-sed "s|^MINMD_DEFAULT_REPOSITORY=.*|MINMD_DEFAULT_REPOSITORY=$MINMD_RELEASE_REPOSITORY|" "$MINMD_SOURCE/install.sh" > "$MINMD_STAGE/install.sh"
-cp "$MINMD_STAGE/install.sh" "$MINMD_OUTPUT_DIR/install.sh"
-chmod +x "$MINMD_OUTPUT_DIR/install.sh"
-cp "$MINMD_BUNDLE/deploy/release.env" "$MINMD_OUTPUT_DIR/release.env"
-echo "部署包、校验文件、install.sh 和 release.env 已生成：$MINMD_OUTPUT_DIR"
+sed -e "s|^MINMD_DEFAULT_REPOSITORY=.*|MINMD_DEFAULT_REPOSITORY=$MINMD_RELEASE_REPOSITORY|" \
+  -e "s|^MINMD_DEFAULT_IMAGE_SOURCE=.*|MINMD_DEFAULT_IMAGE_SOURCE=$MINMD_CHANNEL|" "$MINMD_SOURCE/install.sh" > "$MINMD_STAGE/install.sh"
+cp "$MINMD_STAGE/install.sh" "$MINMD_OUTPUT_DIR/$MINMD_ENTRY"
+chmod +x "$MINMD_OUTPUT_DIR/$MINMD_ENTRY"
+cp "$MINMD_BUNDLE/deploy/release.env" "$MINMD_OUTPUT_DIR/$MINMD_META"
+echo "部署包、校验文件、$MINMD_ENTRY 和 $MINMD_META 已生成：$MINMD_OUTPUT_DIR"

@@ -22,6 +22,18 @@ MinMD 前台、后台 `/admin/`、API、MCP 和文档 / 表格协作均由同一
 
 ### 方式一：一行命令安装
 
+国内镜像源（腾讯云 TCR，公开匿名拉取）：
+
+```sh
+curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install-china.sh | sh
+```
+
+这个入口下载独立的 `minmd-v版本-china.tar.gz`，其中 app、migrate、PostgreSQL 和 Caddy 镜像均使用 `ccr.ccs.tencentyun.com/tingxi8087/minmd-*`。脚本及部署包仍从 GitHub 下载；国内镜像源不会替代 GitHub 文件下载。国内同步尚未完成的版本不会悄悄回退到其他镜像源。
+
+下载当前源码的通用入口后，也可用 `sh install.sh --image-source china` 选择国内包；显式指定版本使用 `--version v0.1.0`。国内入口 `install-china.sh` 默认选择 china，官方入口默认选择 official。已有部署目录不允许用重复安装跨源改写配置。
+
+官方镜像源（GHCR / Docker Hub）：
+
 ```sh
 curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install.sh | sh
 # 或使用 wget
@@ -63,6 +75,8 @@ curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install.
 ### 方式二：Release 部署包安装
 
 从 [GitHub Releases](https://github.com/tingxi8087/minmd/releases) 下载同一版本的部署包和校验文件。以下文件名是示例，使用时替换为实际发布版本；首次发布包含安装资源的 Release 之前，一行命令下载地址也不可用。
+
+国内源下载带 `-china` 后缀的部署包及校验文件，其他操作相同。官方包与国内包分开发布，不会覆盖对方附件。基础镜像由包内元数据写入部署配置的 `POSTGRES_IMAGE`、`CADDY_IMAGE`；旧配置未填写时，仍使用 `postgres:18`、`caddy:2.11.4-alpine`。这两个字段接受带固定标签的镜像地址，不接受 `latest`；Compose、端口检查、数据库连接检查和附件备份恢复都沿用配置中的镜像，不受 Shell 导出同名变量覆盖。
 
 先校验再解压，SHA 文件使用对应归档的真实名称：
 
@@ -201,6 +215,12 @@ docker compose --env-file deploy/.env.production \
 从旧 `web/app` 拓扑切换时，先正常停止旧 app 并确认退出，再用旧 Compose 执行 `down --remove-orphans`，不加 `-v`；保留项目名及数据库、附件数据卷。新配置移除 `web` 和固定代理网段，`WEB_BIND_PORT` 改为 `APP_BIND_PORT`，外层反代直接连 app。不要用新安装器生成的随机凭证套用已有数据卷。
 
 ## 维护者发布
+
+国内源在 GitHub 仓库配置变量 `TCR_NAMESPACE`，并配置 `TCR_USERNAME`、`TCR_PASSWORD` 两个 Actions Secrets；密码使用腾讯云镜像仓库登录密码，不提交源码。命名空间下需有四个公有仓库：`minmd-app`、`minmd-migrate`、`minmd-postgres`、`minmd-caddy`。
+
+`.github/workflows/china-images.yml` 跟随成功的 Release 工作流，也可手动指定已发布版本执行。它先锁定来源清单摘要，再复制 linux/amd64 和 linux/arm64，使用 Docker v2 清单兼容个人版仓库；保留镜像内容，不重复构建应用。公开双架构检查通过后，测试并追加国内部署包、校验文件、`install-china.sh`、`release-china.env`，最后执行不登录镜像仓库的真实安装与首次账号初始化验收。官方源的既有附件保持原样。
+
+个人版采用共享服务，首次从海外同步镜像可能较慢，按仓库串行复制以降低推拉并发。每个应用版本含合并清单和两个架构标签，会占用三个版本名；配额以腾讯云控制台为准。腾讯云不兼容的 OCI 附加证明不会进入国内副本，国内副本的清单摘要可与 GHCR 不同，镜像层内容由复制工具校验。
 
 推送 `v主版本.次版本.修订号` 标签后，`.github/workflows/release.yml` 会运行类型 / 行为 / 数据库 / 真实部署测试，构建 amd64、arm64 的 app / migrate 镜像并推送 GHCR，再生成带固定镜像前缀和版本的部署包及校验文件。
 

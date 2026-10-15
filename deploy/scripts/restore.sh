@@ -16,5 +16,5 @@ MINMD_ASSET_VOLUME=$(docker inspect "$MINMD_APP" --format '{{range .Mounts}}{{if
 [ -n "$MINMD_ASSET_VOLUME" ] || { echo '找不到目标私有附件卷' >&2; exit 1; }
 # 恢复期间不启动app；数据库单事务失败会回滚。附件恢复失败时服务保持停止。
 compose exec -T postgres sh -c 'exec pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner --no-acl --no-password --single-transaction' < "$MINMD_BACKUP/database.dump"
-docker run --rm --network none -v "$MINMD_ASSET_VOLUME:/target" -v "$MINMD_BACKUP:/backup:ro" postgres:18 sh -c 'find /target -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + && tar xzf /backup/assets.tar.gz -C /target'
+docker run --rm --network none -v "$MINMD_ASSET_VOLUME:/target" -v "$MINMD_BACKUP:/backup:ro" "$(minmd_postgres_image)" sh -c 'find /target -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + && tar xzf /backup/assets.tar.gz -C /target'
 echo '恢复写入完成；应用保持停止。请用备份匹配版本启动并核验当前内容、历史版本和附件。'

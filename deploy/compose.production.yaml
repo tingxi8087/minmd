@@ -34,7 +34,7 @@ x-app-environment: &app-environment
   LOG_LEVEL: ${LOG_LEVEL:-info}
 services:
   postgres:
-    image: postgres:18
+    image: ${POSTGRES_IMAGE:-postgres:18}
     labels:
       io.minmd.installation: ${MINMD_INSTALLATION_ID:-manual}
     environment:

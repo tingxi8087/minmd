@@ -1,7 +1,7 @@
 # 自动 HTTPS：只有 Caddy 发布端口，app / PostgreSQL 留在项目内网。
 services:
   caddy:
-    image: caddy:2.11.4-alpine
+    image: ${CADDY_IMAGE:-caddy:2.11.4-alpine}
     labels:
       io.minmd.installation: ${MINMD_INSTALLATION_ID:-manual}
     environment:

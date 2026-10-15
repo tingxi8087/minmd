@@ -22,9 +22,12 @@ skopeo inspect --raw "docker://$MINMD_SOURCE" > "$MINMD_STAGE/source.json"
 MINMD_DIGEST="sha256:$(sha256sum "$MINMD_STAGE/source.json" | awk '{print $1}')"
 MINMD_PINNED="${MINMD_SOURCE%:*}@$MINMD_DIGEST"
 for MINMD_ARCH in amd64 arm64; do
+  # 跨境推送较慢时，流式复制会拖住上游连接并触发 CDN 中断；先完整落盘再上传。
   skopeo --override-os linux --override-arch "$MINMD_ARCH" copy --retry-times 3 --format v2s2 \
+    "docker://$MINMD_PINNED" "dir:$MINMD_STAGE/$MINMD_ARCH"
+  skopeo copy --retry-times 3 --format v2s2 \
     --authfile "${DOCKER_CONFIG:-$HOME/.docker}/config.json" \
-    "docker://$MINMD_PINNED" "docker://$MINMD_TARGET:$MINMD_TAG-$MINMD_ARCH"
+    "dir:$MINMD_STAGE/$MINMD_ARCH" "docker://$MINMD_TARGET:$MINMD_TAG-$MINMD_ARCH"
 done
 docker buildx imagetools create --tag "$MINMD_TARGET:$MINMD_TAG" \
   "$MINMD_TARGET:$MINMD_TAG-amd64" "$MINMD_TARGET:$MINMD_TAG-arm64"

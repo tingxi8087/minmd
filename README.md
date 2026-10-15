@@ -90,6 +90,14 @@ minmd 是一个开源、可自行部署的轻量文档协作系统。你可以�
 
 **方式一：一行命令安装**
 
+国内服务器可使用腾讯云公开镜像源，应用、迁移、PostgreSQL 和 Caddy 都从国内仓库拉取，用户无需登录镜像仓库：
+
+```sh
+curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install-china.sh | sh
+```
+
+安装脚本和部署包仍从 GitHub Release 下载。需要使用 GHCR / Docker Hub 官方源时执行：
+
 ```sh
 curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install.sh | sh
 ```
@@ -105,6 +113,8 @@ wget -qO- https://github.com/tingxi8087/minmd/releases/latest/download/install.s
 需要指定版本、目录或无人值守安装，见 [安装参数](deploy/README.md#方式一一行命令安装)。
 
 **方式二：Release 部署包安装**
+
+国内镜像源选择 `minmd-v版本-china.tar.gz` 和对应 `.sha256`；官方源选择无 `-china` 后缀的部署包。两套包的应用版本相同，安装配置分别绑定各自镜像源，不要混用校验文件。
 
 在 [Releases](https://github.com/tingxi8087/minmd/releases) 下载同一版本的 `minmd-v版本.tar.gz` 和 `.sha256`。以下以 `v0.1.0` 为例，替换为实际发布版本：
 

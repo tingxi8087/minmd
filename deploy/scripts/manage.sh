@@ -123,6 +123,7 @@ hash_text() {
 random_hex() { od -An -N32 -tx1 /dev/urandom | tr -d ' \n'; }
 valid_tag() { printf '%s\n' "$1" | LC_ALL=C grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$' && [ "$1" != latest ]; }
 valid_prefix() { printf '%s\n' "$1" | LC_ALL=C grep -Eq '^[a-z0-9][a-z0-9./:_-]*[a-z0-9]$|^[a-z0-9]$'; }
+valid_image() { printf '%s\n' "$1" | LC_ALL=C grep -Eq '^[a-z0-9][a-z0-9./:_-]*:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$' && [ "${1##*:}" != latest ]; }
 valid_port() { case "$1" in ''|*[!0-9]*|0*) return 1 ;; esac; [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
 valid_ipv4() { printf '%s\n' "$1" | awk -F. 'NF!=4 {exit 1} {for(i=1;i<=4;i++)if($i!~/^[0-9]+$/||length($i)>3||$i+0>255||(length($i)>1&&substr($i,1,1)=="0"))exit 1}'; }
 normalize_origin() {
@@ -139,6 +140,8 @@ validate_config() {
   [ "$(value MINMD_MANAGED)" = 1 ] || fail '此文件不是安装器配置；已有手动部署请继续使用原部署流程，不会自动接管或覆盖'
   MODE=$(value MINMD_DEPLOY_MODE); ORIGIN=$(value PUBLIC_ORIGIN); PROJECT=$(value COMPOSE_PROJECT_NAME)
   PREFIX=$(value MINMD_IMAGE_PREFIX); VERSION=$(value MINMD_IMAGE_TAG); INSTALLATION=$(value MINMD_INSTALLATION_ID)
+  POSTGRES_IMAGE=$(minmd_postgres_image); CADDY_IMAGE=$(minmd_caddy_image)
+  valid_image "$POSTGRES_IMAGE" && valid_image "$CADDY_IMAGE" || fail '基础镜像必须是带固定标签的有效镜像地址，不能使用 latest'
   PORT=$(value APP_BIND_PORT); BIND=$(value APP_BIND_HOST); TRUST=$(value TRUST_PROXY_ADDRESSES)
   case "$(value MINMD_TRUST_AUTOMATIC)" in true|false) ;; *) fail 'MINMD_TRUST_AUTOMATIC 必须为 true 或 false' ;; esac
   case "$TRUST" in *0.0.0.0/0*|*::/0*) fail '不能信任任意来源代理地址' ;; esac
@@ -209,20 +212,20 @@ check_ownership() {
   fi
 }
 image_ready() { docker image inspect "$1" >/dev/null 2>&1; }
-ensure_base_image() { image_ready postgres:18 || docker pull postgres:18; }
+ensure_base_image() { image_ready "$POSTGRES_IMAGE" || docker pull "$POSTGRES_IMAGE"; }
 prepare_images() {
   if [ "$BUILD" = true ]; then
     [ -f "$MINMD_DEPLOY_ROOT/Dockerfile" ] && [ -f "$MINMD_ROOT/package.json" ] || fail '发布包不包含源码，不能使用 --build'
     compose --profile tools build app migrate
   elif [ "$OFFLINE" = false ]; then
-    for minmd_image in "$PREFIX-app:$VERSION" "$PREFIX-migrate:$VERSION" postgres:18; do
+    for minmd_image in "$PREFIX-app:$VERSION" "$PREFIX-migrate:$VERSION" "$POSTGRES_IMAGE"; do
       if [ "$COMMAND" = upgrade ] || ! image_ready "$minmd_image"; then docker pull "$minmd_image"; fi
     done
   else
-    for minmd_image in "$PREFIX-app:$VERSION" "$PREFIX-migrate:$VERSION" postgres:18; do image_ready "$minmd_image" || fail "缺少离线镜像：$minmd_image"; done
+    for minmd_image in "$PREFIX-app:$VERSION" "$PREFIX-migrate:$VERSION" "$POSTGRES_IMAGE"; do image_ready "$minmd_image" || fail "缺少离线镜像：$minmd_image"; done
   fi
   if [ "$MODE" = https ]; then
-    if [ "$OFFLINE" = false ]; then image_ready caddy:2.11.4-alpine || compose pull caddy; else image_ready caddy:2.11.4-alpine || fail '缺少离线 Caddy 镜像'; fi
+    if [ "$OFFLINE" = false ]; then image_ready "$CADDY_IMAGE" || compose pull caddy; else image_ready "$CADDY_IMAGE" || fail '缺少离线 Caddy 镜像'; fi
   fi
 }
 own_port() {
@@ -235,7 +238,7 @@ own_port() {
 check_port() {
   if own_port "$1" "$2"; then return; fi
   # 由实际 Docker 引擎尝试绑定，兼容 Linux / Docker Desktop，也能发现非 Docker 进程占用。
-  if ! docker run --rm --label "io.minmd.port-probe=$INSTALLATION" -p "$2:$1:5432" --entrypoint sh postgres:18 -c ':' >/dev/null 2>&1; then
+  if ! docker run --rm --label "io.minmd.port-probe=$INSTALLATION" -p "$2:$1:5432" --entrypoint sh "$POSTGRES_IMAGE" -c ':' >/dev/null 2>&1; then
     fail "端口 $2:$1 无法绑定，可能已被占用或当前 Docker 不允许绑定；请选择其他应用端口 / 已有反代模式"
   fi
 }
@@ -261,7 +264,7 @@ stop_app() {
 }
 check_database() {
   # 密码通过标准输入传入，不进入进程参数或日志；显式 TCP 验证实际数据库密码。
-  if ! printf '%s\n' "$(value POSTGRES_PASSWORD)" | docker run --rm -i --network "${PROJECT}_default" --entrypoint sh postgres:18 -c 'IFS= read -r PGPASSWORD; export PGPASSWORD; exec psql -h postgres -U minmd -d "$1" --no-password -Atqc "select 1"' sh "$(value POSTGRES_DB)" >/dev/null 2>&1; then
+  if ! printf '%s\n' "$(value POSTGRES_PASSWORD)" | docker run --rm -i --network "${PROJECT}_default" --entrypoint sh "$POSTGRES_IMAGE" -c 'IFS= read -r PGPASSWORD; export PGPASSWORD; exec psql -h postgres -U minmd -d "$1" --no-password -Atqc "select 1"' sh "$(value POSTGRES_DB)" >/dev/null 2>&1; then
     fail '数据库认证失败：请检查原数据库名和密码，不会覆盖或重新初始化已有数据'
   fi
 }
@@ -351,6 +354,12 @@ new_install() {
   fi
   if [ "$BUILD" = true ]; then minmd_default_prefix=minmd; minmd_default_version=local; fi
   PREFIX=${PREFIX_ARG:-$minmd_default_prefix}; VERSION=${VERSION_ARG:-$minmd_default_version}
+  POSTGRES_IMAGE=postgres:18; CADDY_IMAGE=caddy:2.11.4-alpine
+  if [ -f "$MINMD_DEPLOY_ROOT/release.env" ]; then
+    minmd_release_postgres=$(minmd_value POSTGRES_IMAGE "$MINMD_DEPLOY_ROOT/release.env")
+    minmd_release_caddy=$(minmd_value CADDY_IMAGE "$MINMD_DEPLOY_ROOT/release.env")
+    POSTGRES_IMAGE=${minmd_release_postgres:-$POSTGRES_IMAGE}; CADDY_IMAGE=${minmd_release_caddy:-$CADDY_IMAGE}
+  fi
   [ -n "$PREFIX" ] && [ -n "$VERSION" ] || fail '源码目录请使用 --build；预构建部署请提供 --image-prefix 和 --version，或下载正式部署包'
   PROJECT=${PROJECT_ARG:-minmd-$(printf '%s' "$MINMD_DIR" | cksum | awk '{print $1}')}
   INSTALLATION=$(random_hex)
@@ -361,6 +370,7 @@ new_install() {
     printf 'MINMD_MANAGED=1\nMINMD_INSTALL_DIR=%s\n' "$MINMD_DIR"
     printf 'MINMD_INSTALLATION_ID=%s\nMINMD_DEPLOY_MODE=%s\n' "$INSTALLATION" "$MODE"
     printf 'COMPOSE_PROJECT_NAME=%s\nMINMD_IMAGE_PREFIX=%s\nMINMD_IMAGE_TAG=%s\n' "$PROJECT" "$PREFIX" "$VERSION"
+    printf 'POSTGRES_IMAGE=%s\nCADDY_IMAGE=%s\n' "$POSTGRES_IMAGE" "$CADDY_IMAGE"
     printf 'PUBLIC_ORIGIN=%s\nAPP_BIND_HOST=%s\nAPP_BIND_PORT=%s\n' "$ORIGIN" "$BIND" "$PORT"
     printf 'MINMD_TRUST_AUTOMATIC=%s\nTRUST_PROXY_ADDRESSES=%s\n' "$([ "$MODE" != direct ] && [ -z "$TRUST_ARG" ] && echo true || echo false)" "$TRUST_ARG"
     printf 'POSTGRES_DB=minmd\nPOSTGRES_PASSWORD=%s\nADMIN_ACCOUNT=admin\nADMIN_PASSWORD=%s\nAI_KEY_ENCRYPTION_KEY=%s\n' "$minmd_db_secret" "$minmd_admin_secret" "$minmd_key_secret"

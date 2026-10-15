@@ -143,6 +143,45 @@ async function fixture() {
 const clean = (f: { dir: string }) =>
   rm(f.dir, { recursive: true, force: true });
 
+test("旧配置沿用基础镜像默认值，非法基础镜像在启动前拒绝", async () => {
+  const f = await fixture();
+  try {
+    expect((await f.install()).code).toBe(0);
+    const original = await f.config();
+    const legacy = original
+      .replace(/^POSTGRES_IMAGE=.*\n/m, "")
+      .replace(/^CADDY_IMAGE=.*\n/m, "");
+    await writeFile(join(f.data, ".env"), legacy);
+    expect((await f.run(["restart", "--offline"])).code).toBe(0);
+    expect(await f.config()).toBe(legacy);
+    for (const image of [
+      "postgres:latest",
+      "bad;echo injected:18",
+      "missing-tag",
+    ]) {
+      await writeFile(
+        join(f.data, ".env"),
+        legacy + `POSTGRES_IMAGE=${image}\n`,
+      );
+      const before = (await f.commands()).length;
+      const result = await f.run(["start", "--offline"]);
+      expect(result.code).not.toBe(0);
+      expect(result.err).toContain("基础镜像");
+      const calls = (await f.commands()).slice(before);
+      expect(
+        calls.some(
+          (c) =>
+            c.args[0] === "run" ||
+            c.args[0] === "pull" ||
+            c.args.includes("up"),
+        ),
+      ).toBe(false);
+    }
+  } finally {
+    await clean(f);
+  }
+}, 30000);
+
 test("首次安装生成独立凭证；已有反代和自动 HTTPS 选择各自的 Compose，不泄漏 Shell 覆盖", async () => {
   for (const mode of ["proxy", "https"]) {
     const f = await fixture();
@@ -488,7 +527,7 @@ test("发布包仅包含运行脚本和公开模板，解压后可独立使用 h
       await Bun.file(join(dir, "minmd/deploy/compose.direct.yaml")).exists(),
     ).toBe(true);
     expect(await readFile(join(dir, "minmd/deploy/release.env"), "utf8")).toBe(
-      "MINMD_IMAGE_PREFIX=ghcr.io/example/minmd\nMINMD_IMAGE_TAG=v0.1.0\n",
+      "MINMD_IMAGE_PREFIX=ghcr.io/example/minmd\nMINMD_IMAGE_TAG=v0.1.0\nMINMD_IMAGE_SOURCE=official\n",
     );
     expect(await Bun.file(join(dir, "minmd/.env")).exists()).toBe(false);
     expect(await Bun.file(join(dir, "minmd/deploy/Dockerfile")).exists()).toBe(
@@ -583,27 +622,42 @@ test("IP 直连拒绝域名、无效 IP、来源端口不匹配和代理参数�
 }, 30000);
 
 test("发布资源绑定实际仓库，一行安装和手动 Release 均调用真实维护入口，重复安装保持凭证", async () => {
-  for (const method of ["bootstrap", "release"]) {
+  for (const method of [
+    "bootstrap",
+    "release",
+    "china-bootstrap",
+    "china-release",
+  ]) {
+    const china = method.startsWith("china-");
+    const prefix = china
+      ? "ccr.ccs.tencentyun.com/tingxi8087/minmd"
+      : "minmd-unit";
+    const metadata = china ? "release-china.env" : "release.env";
+    const bootstrap = china ? "install-china.sh" : "install.sh";
     const f = await fixture();
     try {
       const assets = join(f.dir, "release-assets"),
-        archive = join(assets, "minmd-v0.1.0.tar.gz");
+        archive = join(assets, `minmd-v0.1.0${china ? "-china" : ""}.tar.gz`);
       const pack = Bun.spawn(
         [
           "sh",
           join(root, "deploy/scripts/package-release.sh"),
-          "minmd-unit",
+          prefix,
           "v0.1.0",
           archive,
           "example/fork",
+          china ? "china" : "official",
         ],
         { stdout: "pipe", stderr: "pipe" },
       );
       expect(await pack.exited).toBe(0);
-      expect(await readFile(join(assets, "release.env"), "utf8")).toBe(
-        "MINMD_IMAGE_PREFIX=minmd-unit\nMINMD_IMAGE_TAG=v0.1.0\n",
+      expect(await readFile(join(assets, metadata), "utf8")).toBe(
+        `MINMD_IMAGE_PREFIX=${prefix}\nMINMD_IMAGE_TAG=v0.1.0\nMINMD_IMAGE_SOURCE=${china ? "china" : "official"}\n` +
+          (china
+            ? `POSTGRES_IMAGE=${prefix}-postgres:18\nCADDY_IMAGE=${prefix}-caddy:2.11.4-alpine\n`
+            : ""),
       );
-      expect(await readFile(join(assets, "install.sh"), "utf8")).toContain(
+      expect(await readFile(join(assets, bootstrap), "utf8")).toContain(
         "MINMD_DEFAULT_REPOSITORY=example/fork",
       );
       const target = join(f.dir, "installed"),
@@ -630,16 +684,16 @@ cp "$MINMD_BOOT_ASSETS/$name" "$output"
         "--offline",
         "--yes",
       ];
-      if (method === "bootstrap") {
+      if (method.endsWith("bootstrap")) {
         const result = await f.run(
           ["--install-dir", target, "--", ...options],
           env,
-          join(assets, "install.sh"),
+          join(assets, bootstrap),
         );
         if (result.code) throw new Error(result.err);
         expect(result.code).toBe(0);
         expect(await readFile(bootTrace, "utf8")).toContain(
-          "https://github.com/example/fork/releases/latest/download/release.env",
+          `https://github.com/example/fork/releases/latest/download/${metadata}`,
         );
         const config = await f.config();
         await writeFile(bootTrace, "");
@@ -648,7 +702,7 @@ cp "$MINMD_BOOT_ASSETS/$name" "$output"
             await f.run(
               ["--install-dir", target, "--", "--offline", "--yes"],
               env,
-              join(assets, "install.sh"),
+              join(assets, bootstrap),
             )
           ).code,
         ).toBe(0);
@@ -670,6 +724,33 @@ cp "$MINMD_BOOT_ASSETS/$name" "$output"
           ).code,
         ).toBe(0);
       }
+      if (china) {
+        expect(await f.config()).toContain(
+          `POSTGRES_IMAGE=${prefix}-postgres:18`,
+        );
+        expect(await f.config()).toContain(
+          `CADDY_IMAGE=${prefix}-caddy:2.11.4-alpine`,
+        );
+        await f.change({ missingImage: true });
+        expect((await f.run(["upgrade", "v0.1.1", "--yes"])).code).toBe(0);
+        const backup = join(f.dir, "国内源备份");
+        expect((await f.run(["backup", backup])).code).toBe(0);
+        expect((await f.run(["restore", backup, "--yes"])).code).toBe(0);
+        const calls = await f.commands();
+        expect(
+          calls.some(
+            (c) =>
+              c.args[0] === "pull" && c.args[1] === `${prefix}-postgres:18`,
+          ),
+        ).toBe(true);
+        expect(
+          calls.some(
+            (c) =>
+              c.args.includes("postgres:18") ||
+              c.args.includes("caddy:2.11.4-alpine"),
+          ),
+        ).toBe(false);
+      }
       expect(await f.config()).toContain("MINMD_DEPLOY_MODE=direct");
       expect(
         (await f.config()).match(/^POSTGRES_PASSWORD=[a-f0-9]{64}$/m),
@@ -678,4 +759,4 @@ cp "$MINMD_BOOT_ASSETS/$name" "$output"
       await clean(f);
     }
   }
-}, 30000);
+}, 60000);

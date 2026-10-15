@@ -6,6 +6,19 @@ on:
         description: "已发布版本，例如 v0.1.0；latest 为最新稳定版"
         required: true
         default: latest
+      image_source:
+        description: "镜像源"
+        type: choice
+        options: [official, china]
+        default: official
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      image_source:
+        type: string
+        default: official
   # GITHUB_TOKEN 创建 Release 不会再次触发 release 事件，改为跟随发布工作流完成。
   workflow_run:
     workflows: [Release]
@@ -14,12 +27,13 @@ permissions:
   contents: read
 jobs:
   install:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       RELEASE_VERSION: ${{ inputs.version || github.event.workflow_run.head_branch }}
       RELEASE_REPOSITORY: ${{ github.repository }}
+      IMAGE_SOURCE: ${{ inputs.image_source || 'official' }}
     steps:
       - name: 从公开 Release 安装并验证首次初始化
         shell: bash
@@ -43,11 +57,12 @@ jobs:
           mkdir -p "$DOCKER_CONFIG"
           printf '{}\n' > "$DOCKER_CONFIG/config.json"
           VERSION=${RELEASE_VERSION:-latest}
+          case "$IMAGE_SOURCE" in official) INSTALL_ENTRY=install.sh ;; china) INSTALL_ENTRY=install-china.sh ;; *) exit 2 ;; esac
           if [ "$VERSION" = latest ]; then
-            ENTRY="https://github.com/$RELEASE_REPOSITORY/releases/latest/download/install.sh"
+            ENTRY="https://github.com/$RELEASE_REPOSITORY/releases/latest/download/$INSTALL_ENTRY"
           else
             printf '%s\n' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$'
-            ENTRY="https://github.com/$RELEASE_REPOSITORY/releases/download/$VERSION/install.sh"
+            ENTRY="https://github.com/$RELEASE_REPOSITORY/releases/download/$VERSION/$INSTALL_ENTRY"
           fi
           if ! curl -q -fsSL --max-time 90 "$ENTRY" | sh -s -- \
             --version "$VERSION" --install-dir "$ROOT/minmd" -- \

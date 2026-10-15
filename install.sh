@@ -5,7 +5,9 @@ umask 077
 # 先完整解析入口函数，防止管道下载中断时执行半份脚本。
 main() {
 MINMD_DEFAULT_REPOSITORY=tingxi8087/minmd
+MINMD_DEFAULT_IMAGE_SOURCE=official
 MINMD_REPOSITORY=$MINMD_DEFAULT_REPOSITORY
+MINMD_IMAGE_SOURCE=$MINMD_DEFAULT_IMAGE_SOURCE
 MINMD_VERSION=latest
 MINMD_INSTALL_DIR="$PWD/minmd"
 MINMD_STAGE= MINMD_LOCK=
@@ -15,6 +17,7 @@ usage() {
 用法：sh install.sh [入口选项] [-- 安装向导选项]
   --repo <用户/仓库>       GitHub 仓库，默认当前发布仓库
   --version <版本>         默认 latest（最新稳定版），也可指定 v0.1.0
+  --image-source <源>      official：官方镜像；china：腾讯云国内镜像及国内部署包
   --install-dir <目录>     部署文件目录，默认当前目录下的 minmd
   --help                  显示帮助，不检查或安装环境
 安装向导选项放在 -- 后，例如：
@@ -24,17 +27,18 @@ HELP
 }
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --repo|--version|--install-dir)
+    --repo|--version|--install-dir|--image-source)
       [ "$#" -ge 2 ] && [ -n "$2" ] || fail "$1 缺少参数"
       case "$2" in *'
 '*) fail '参数不能包含换行' ;; esac
-      case "$1" in --repo) MINMD_REPOSITORY=$2 ;; --version) MINMD_VERSION=$2 ;; --install-dir) MINMD_INSTALL_DIR=$2 ;; esac
+      case "$1" in --repo) MINMD_REPOSITORY=$2 ;; --version) MINMD_VERSION=$2 ;; --install-dir) MINMD_INSTALL_DIR=$2 ;; --image-source) MINMD_IMAGE_SOURCE=$2 ;; esac
       shift 2 ;;
     --help|-h) usage; exit 0 ;;
     --) shift; break ;;
     *) fail "未知入口选项：$1；安装向导选项请放在 -- 后" ;;
   esac
 done
+case "$MINMD_IMAGE_SOURCE" in official) MINMD_SUFFIX=; MINMD_META=release.env ;; china) MINMD_SUFFIX=-china; MINMD_META=release-china.env ;; *) fail '--image-source 只能是 official 或 china' ;; esac
 valid_version() {
   case "$1" in *'
 '*) return 1 ;; esac
@@ -105,6 +109,8 @@ run_installer() {
 if [ -e "$MINMD_INSTALL_DIR" ]; then
   [ -d "$MINMD_INSTALL_DIR" ] && [ ! -L "$MINMD_INSTALL_DIR/minmd.sh" ] && [ -f "$MINMD_INSTALL_DIR/minmd.sh" ] && [ -f "$MINMD_INSTALL_DIR/deploy/release.env" ] || fail '目标目录已存在且不是 Release 部署目录；不会覆盖，请选择空闲的 --install-dir'
   minmd_installed=$(awk 'index($0,"MINMD_IMAGE_TAG=")==1 {print substr($0,17);exit}' "$MINMD_INSTALL_DIR/deploy/release.env")
+  minmd_installed_source=$(awk 'index($0,"MINMD_IMAGE_SOURCE=")==1 {print substr($0,20);exit}' "$MINMD_INSTALL_DIR/deploy/release.env")
+  [ "${minmd_installed_source:-official}" = "$MINMD_IMAGE_SOURCE" ] || fail '目标目录已有另一镜像源的部署；不会通过重复安装改写配置，请使用原安装入口或选择新的 --install-dir'
   valid_version "$minmd_installed" || fail '已有部署的版本信息损坏，不会覆盖；请检查原部署文件'
   [ "$MINMD_VERSION" = latest ] || [ "$MINMD_VERSION" = "$minmd_installed" ] || fail '目标目录已是其他版本；一行安装不会自动升级，请使用目录中的 ./minmd.sh upgrade <版本>'
   printf '沿用已有部署文件及凭证（%s），不重新下载或自动升级。\n' "$minmd_installed"
@@ -122,13 +128,13 @@ download() {
 }
 MINMD_RELEASE_URL="https://github.com/$MINMD_REPOSITORY/releases"
 if [ "$MINMD_VERSION" = latest ]; then
-  download "$MINMD_RELEASE_URL/latest/download/release.env" "$MINMD_STAGE/release.env"
+  download "$MINMD_RELEASE_URL/latest/download/$MINMD_META" "$MINMD_STAGE/release.env"
   # 只读取版本字段，不 source 网络文件，也不依赖 jq、Node、Bun 或 Git。
   MINMD_VERSION=$(awk 'index($0,"MINMD_IMAGE_TAG=")==1 {count++;value=substr($0,17)} END{if(count!=1)exit 1;print value}' "$MINMD_STAGE/release.env") || fail 'Release 版本元数据无效或重复'
   valid_version "$MINMD_VERSION" || fail 'Release 没有有效的固定版本信息'
   printf '%s\n' "$MINMD_VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail 'latest 必须指向稳定版；测试版请显式指定 --version'
 fi
-MINMD_ARCHIVE="minmd-$MINMD_VERSION.tar.gz"
+MINMD_ARCHIVE="minmd-$MINMD_VERSION$MINMD_SUFFIX.tar.gz"
 printf '下载 %s（%s）…\n' "$MINMD_REPOSITORY" "$MINMD_VERSION"
 download "$MINMD_RELEASE_URL/download/$MINMD_VERSION/$MINMD_ARCHIVE" "$MINMD_STAGE/$MINMD_ARCHIVE"
 download "$MINMD_RELEASE_URL/download/$MINMD_VERSION/$MINMD_ARCHIVE.sha256" "$MINMD_STAGE/$MINMD_ARCHIVE.sha256"
@@ -148,6 +154,8 @@ minmd_bundle="$MINMD_STAGE/extracted/minmd"
 [ -f "$minmd_bundle/minmd.sh" ] && [ -f "$minmd_bundle/deploy/scripts/manage.sh" ] && [ -f "$minmd_bundle/deploy/release.env" ] || fail '部署包缺少必要文件'
 minmd_bundle_version=$(awk 'index($0,"MINMD_IMAGE_TAG=")==1 {print substr($0,17);exit}' "$minmd_bundle/deploy/release.env")
 [ "$minmd_bundle_version" = "$MINMD_VERSION" ] || fail '部署包内部版本与请求版本不符，未安装'
+minmd_bundle_source=$(awk 'index($0,"MINMD_IMAGE_SOURCE=")==1 {print substr($0,20);exit}' "$minmd_bundle/deploy/release.env")
+[ "${minmd_bundle_source:-official}" = "$MINMD_IMAGE_SOURCE" ] || fail '部署包内部镜像源与请求不符，未安装'
 chmod +x "$minmd_bundle/minmd.sh"
 [ ! -e "$MINMD_INSTALL_DIR" ] && [ ! -L "$MINMD_INSTALL_DIR" ] || fail '安装目录在下载期间被其他程序创建，不会覆盖'
 mv "$minmd_bundle" "$MINMD_INSTALL_DIR"
