@@ -90,6 +90,8 @@ export async function registerContents(
         request.params.fileId,
         { permission: "edit" },
       );
+      if (!["doc", "sheet"].includes(file.kind))
+        throw new AppError("FILE_KIND_INVALID", "此文件只支持预览和下载", 400);
       if (file.kind === "sheet") {
         if (request.body.snapshot)
           throw new AppError("SNAPSHOT_INVALID", "表格不接收Yjs快照", 400);
@@ -117,6 +119,8 @@ export async function registerContents(
         request.params.fileId,
         { permission: "edit" },
       );
+      if (!["doc", "sheet"].includes(file.kind))
+        throw new AppError("FILE_KIND_INVALID", "此文件只支持预览和下载", 400);
       if (file.kind === "sheet")
         return sheetRooms.replaceWorkbook(file.id, userId, {
           ...request.body,

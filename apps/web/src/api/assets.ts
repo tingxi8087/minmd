@@ -1,3 +1,4 @@
+import type { RemoteFile } from "./files";
 import { request } from "@/http";
 export type Asset = {
   id: string;
@@ -22,6 +23,23 @@ export type PresentationContent = {
 };
 export const ASSET_TRANSFER_TIMEOUT_MS = 120_000;
 export const assetsApi = {
+  uploadMedia: async (
+    spaceId: string,
+    file: File,
+    parent: string | null,
+    name: string,
+    signal?: AbortSignal,
+  ) => {
+    const body = new FormData();
+    body.set("file", file);
+    return (
+      await request.post<RemoteFile>(`/app/spaces/${spaceId}/media`, body, {
+        params: { parentId: parent ?? undefined, name },
+        signal,
+        timeout: ASSET_TRANSFER_TIMEOUT_MS,
+      })
+    ).data;
+  },
   upload: async (
     spaceId: string,
     file: File,

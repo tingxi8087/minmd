@@ -52,7 +52,7 @@ export const files = pgTable(
       "files_member_permission",
       sql`${t.memberPermission} in ('read','edit')`,
     ),
-    check("files_kind", sql`${t.kind} in ('doc','sheet','slide','folder')`),
+    check("files_kind", sql`${t.kind} in ('doc','sheet','slide','folder','pdf','video','image')`),
     check("files_visibility", sql`${t.visibility} in ('public','private')`),
   ],
 );

@@ -1,3 +1,4 @@
+import MediaPreview, { type MediaKind } from "@/views/Media/MediaPreview";
 import { useAuth } from "@/store/auth";
 import {
   lazy,
@@ -118,6 +119,15 @@ export default function Share() {
         <strong>minmd</strong>
         <span>{share?.file.name ?? "公开分享"}</span>
         <span className="muted">只读</span>
+        {share && ["pdf", "video", "image"].includes(share.file.kind) && (
+          <a
+            className="secondary-button"
+            href={`/api/public/shares/${encodeURIComponent(token)}/assets/${(projection as PresentationProjection).assetId}?download=true`}
+            download={share.file.name}
+          >
+            下载原文件
+          </a>
+        )}
         {share && user && status === "authenticated" && (
           <Button
             size="small"
@@ -207,6 +217,15 @@ export default function Share() {
             </article>
           ) : share.file.kind === "sheet" ? (
             <SharedSpreadsheet sheets={sheets} />
+          ) : ["pdf", "video", "image"].includes(share.file.kind) ? (
+            <div style={{ height: "calc(100dvh - 50px)" }}>
+              <MediaPreview
+                key={share.file.id}
+                kind={share.file.kind as MediaKind}
+                name={share.file.name}
+                url={`/api/public/shares/${encodeURIComponent(token)}/assets/${(projection as PresentationProjection).assetId}`}
+              />
+            </div>
           ) : (
             <SharedPresentation
               token={token}

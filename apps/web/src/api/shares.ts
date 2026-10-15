@@ -13,7 +13,11 @@ export type ShareStatus = {
   token?: string;
 };
 export type PublicShare = {
-  file: { id: string; name: string; kind: "doc" | "sheet" | "slide" };
+  file: {
+    id: string;
+    name: string;
+    kind: "doc" | "sheet" | "slide" | "pdf" | "video" | "image";
+  };
   content: {
     projection:
       JSONContent | Sheet[] | { sheets: Sheet[] } | PresentationProjection;
@@ -42,7 +46,7 @@ export const sharesApi = {
     (
       await request.post<{
         fileId: string;
-        kind: "doc" | "sheet" | "slide";
+        kind: "doc" | "sheet" | "slide" | "pdf" | "video" | "image";
         permission: "read" | "edit" | "manage";
       }>(`/app/shares/${encodeURIComponent(token)}/accept`, {})
     ).data,

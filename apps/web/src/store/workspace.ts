@@ -7,7 +7,8 @@ import { persist } from "zustand/middleware";
 import { canMove, siblings } from "@/utils/fileTree";
 import { deletePresentation } from "@/utils/presentationFiles";
 import { deleteSpreadsheet } from "@/utils/spreadsheetStorage";
-export type FileKind = "doc" | "sheet" | "slide" | "folder";
+export type FileKind =
+  "doc" | "sheet" | "slide" | "folder" | "pdf" | "video" | "image";
 export type Entry = {
   permission?: "read" | "edit" | "manage";
   id: string;
@@ -37,6 +38,9 @@ export const kindNames: Record<FileKind, string> = {
   sheet: "表格",
   slide: "幻灯片",
   folder: "文件夹",
+  pdf: "PDF",
+  video: "视频",
+  image: "图片",
 };
 export const spaces = [
   {

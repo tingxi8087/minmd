@@ -7,6 +7,9 @@ export const kind = Type.Union(
     Type.Literal("sheet"),
     Type.Literal("slide"),
     Type.Literal("folder"),
+    Type.Literal("pdf"),
+    Type.Literal("video"),
+    Type.Literal("image"),
   ],
   { description: "文件类型" },
 );

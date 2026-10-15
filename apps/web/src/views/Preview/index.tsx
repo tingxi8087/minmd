@@ -1,7 +1,8 @@
 import FileAccessGate from "@/components/FileAccessGate";
-import type { Entry } from "@/store/workspace";
+import { kindNames, type Entry } from "@/store/workspace";
 import { lazy, Suspense } from "react";
 import { Navigate, useParams } from "react-router-dom";
+const Media = lazy(() => import("@/views/Media"));
 const Presentation = lazy(() => import("@/views/Presentation"));
 const Spreadsheet = lazy(() => import("@/views/Spreadsheet"));
 export default function Preview() {
@@ -20,13 +21,13 @@ function EditablePreview({ file }: { file: Entry }) {
   return (
     <Suspense
       fallback={
-        <div style={{ padding: 24 }}>
-          正在打开{file.kind === "sheet" ? "表格" : "幻灯片"}…
-        </div>
+        <div style={{ padding: 24 }}>正在打开{kindNames[file.kind]}…</div>
       }
     >
       {file.kind === "sheet" ? (
         <Spreadsheet key={file.id} file={file} />
+      ) : ["pdf", "video", "image"].includes(file.kind) ? (
+        <Media key={file.id} file={file} />
       ) : (
         <Presentation key={file.id} file={file} />
       )}

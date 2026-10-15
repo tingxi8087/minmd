@@ -15,6 +15,10 @@ import {
   FolderClosed,
   Table2,
   Presentation,
+  Upload,
+  FileType2,
+  Video,
+  Image,
 } from "lucide-react";
 import {
   type Entry,
@@ -39,6 +43,9 @@ const icons = {
   folder: FolderClosed,
   sheet: Table2,
   slide: Presentation,
+  pdf: FileType2,
+  video: Video,
+  image: Image,
 };
 export default function WorkspaceTree() {
   const { files, space, relocate, patch } = useWorkspace();
@@ -67,26 +74,45 @@ export default function WorkspaceTree() {
     }
     setExpanded((keys) => [...new Set([...keys, ...ancestors])]);
   }, [selected, files]);
-  const createItems = (parent: Entry | null) =>
-    (["doc", "sheet", "slide", "folder"] as FileKind[])
+  const createItems = (parent: Entry | null) => {
+    const items: { key: string; label: string; icon: React.ReactNode }[] = (
+      ["doc", "sheet", "folder"] as FileKind[]
+    )
       .filter((kind) => !parent || canContain(parent, { kind }))
-      .map((kind) => ({
-        key: kind,
-        label:
-          kind === "slide"
-            ? "上传幻灯片"
-            : `新建${parent?.kind === "doc" ? "子" : ""}${kindNames[kind]}`,
+      .map((kind) => {
+        const Icon = icons[kind];
+        return {
+          key: kind,
+          label: `新建${parent?.kind === "doc" ? "子" : ""}${kindNames[kind]}`,
+          icon: (
+            <span className={styles.menuIcon}>
+              <Icon size={16} />
+            </span>
+          ),
+        };
+      });
+    if (!parent || parent.kind === "folder")
+      items.push({
+        key: "upload",
+        label: "上传文件",
         icon: (
           <span className={styles.menuIcon}>
-            {(() => {
-              const Icon = icons[kind];
-              return <Icon size={16} />;
-            })()}
+            <Upload size={16} />
           </span>
         ),
-      }));
-  const create = (kind: FileKind, parent: Entry | null) =>
-    setAction({ type: "create", kind, parent: parent?.id ?? null });
+      });
+    return items;
+  };
+  const create = (kind: string, parent: Entry | null) =>
+    setAction(
+      kind === "upload"
+        ? { type: "upload", parent: parent?.id ?? null }
+        : {
+            type: "create",
+            kind: kind as FileKind,
+            parent: parent?.id ?? null,
+          },
+    );
   const fileMenu = (f: Entry): ContextItem[] => [
     ...createItems(f).map((item) => ({
       ...item,
@@ -332,13 +358,13 @@ export default function WorkspaceTree() {
         action={action}
         close={() => setAction(null)}
         onCreated={(id) => {
-          if (action?.type !== "create") return;
+          if (action?.type !== "create" && action?.type !== "upload") return;
           if (action.parent)
             setExpanded((keys) => [...new Set([...keys, action.parent!])]);
           navigate(
-            action.kind === "folder"
+            action.type === "create" && action.kind === "folder"
               ? `/files?folder=${id}`
-              : `/${action.kind === "doc" ? "document" : "preview"}/${id}`,
+              : `/${action.type === "create" && action.kind === "doc" ? "document" : "preview"}/${id}`,
           );
         }}
       />

@@ -1,8 +1,9 @@
+import { sendPrivateAsset } from "./send";
+import { MEDIA_MAX_BYTES } from "./media-validation";
+import { registerMedia } from "./media";
 import multipart, { type MultipartFile } from "@fastify/multipart";
 import { Type } from "@sinclair/typebox";
 import { eq } from "drizzle-orm";
-import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { FastifyInstance } from "fastify";
 import type { Database } from "../../../../../system/server/src/database/client";
@@ -33,8 +34,9 @@ export async function registerAssets(
   await registerPresentations(app, database, config);
   await app.register(multipart, {
     attachFieldsToBody: true,
-    limits: { fileSize: 50 * 1024 * 1024, files: 1, fields: 0, parts: 1 },
+    limits: { fileSize: MEDIA_MAX_BYTES, files: 1, fields: 0, parts: 1 },
   });
+  registerMedia(app, database, settings.assetStorageDir);
   app.post<{ Params: { spaceId: string }; Body: { file: MultipartFile } }>(
     "/api/app/spaces/:spaceId/assets",
     {
@@ -156,6 +158,11 @@ export async function registerAssets(
             format: "binary",
             description: "附件原始二进制内容",
           }),
+          206: Type.String({
+            format: "binary",
+            description: "附件的部分二进制内容",
+          }),
+          416: errors[400],
           ...errors,
         },
       },
@@ -168,20 +175,13 @@ export async function registerAssets(
       if (!asset) throw new AppError("NOT_FOUND", "附件不存在", 404);
       await requireAssetAccess(database, request.appIdentity!.id, asset);
       const path = join(resolve(settings.assetStorageDir), asset.storageKey);
-      try {
-        await stat(path);
-      } catch {
-        throw new AppError("ASSET_MISSING", "附件原文件暂不可用", 404);
-      }
-      reply
-        .header("cache-control", "no-store")
-        .header("x-content-type-options", "nosniff")
-        .type(asset.mime);
-      reply.header(
-        "content-disposition",
-        `${request.query.download ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(asset.filename)}`,
+      return sendPrivateAsset(
+        request,
+        reply,
+        path,
+        asset,
+        request.query.download,
       );
-      return reply.send(createReadStream(path));
     },
   );
   const timer = setInterval(() => {

@@ -286,13 +286,18 @@ export default function Files() {
       message.error(errorMessage(error));
     }
   };
-  const newItems = (["doc", "sheet", "slide", "folder"] as FileKind[]).map(
-    (kind) => ({
-      key: kind,
-      label: kind === "slide" ? "上传幻灯片" : `新建${kindNames[kind]}`,
-      icon: <FileIcon kind={kind} small />,
-    }),
-  );
+  const newItems: { key: string; label: string; icon: React.ReactNode }[] = (
+    ["doc", "sheet", "folder"] as FileKind[]
+  ).map((kind) => ({
+    key: kind,
+    label: `新建${kindNames[kind]}`,
+    icon: <FileIcon kind={kind} small />,
+  }));
+  newItems.splice(2, 0, {
+    key: "upload",
+    label: "上传文件",
+    icon: <Upload size={17} />,
+  });
   const importController = useRef<AbortController | null>(null);
   useEffect(() => {
     const abort = () => {
@@ -475,11 +480,15 @@ export default function Files() {
                 menu={{
                   items: newItems,
                   onClick: ({ key }) =>
-                    setAction({
-                      type: "create",
-                      kind: key as FileKind,
-                      parent,
-                    }),
+                    setAction(
+                      key === "upload"
+                        ? { type: "upload", parent }
+                        : {
+                            type: "create",
+                            kind: key as FileKind,
+                            parent,
+                          },
+                    ),
                 }}
               >
                 <button className="primary-button">
@@ -532,6 +541,9 @@ export default function Files() {
               { value: "doc", label: "文档" },
               { value: "sheet", label: "表格" },
               { value: "slide", label: "幻灯片" },
+              { value: "pdf", label: "PDF" },
+              { value: "video", label: "视频" },
+              { value: "image", label: "图片" },
             ].map((t) => (
               <button
                 key={t.value}
@@ -711,8 +723,11 @@ export default function Files() {
         close={() => setAction(null)}
         onCreated={(id) => {
           if (
-            action?.type === "create" &&
-            (action.kind === "slide" || action.kind === "sheet")
+            action?.type === "upload" ||
+            (action?.type === "create" &&
+              (action.kind === "slide" ||
+                action.kind === "sheet" ||
+                ["pdf", "video", "image"].includes(action.kind)))
           )
             navigate(`/preview/${id}`);
         }}

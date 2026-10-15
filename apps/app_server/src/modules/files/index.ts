@@ -257,8 +257,14 @@ export async function registerFiles(
         response: { 200: fileSchema, ...errors },
       },
     },
-    async (request) =>
-      database.db.transaction(async (tx) =>
+    async (request) => {
+      if (["pdf", "video", "image"].includes(request.body.kind))
+        throw new AppError(
+          "FILE_KIND_INVALID",
+          "请通过上传文件创建预览文件",
+          400,
+        );
+      return database.db.transaction(async (tx) =>
         fileResponse(
           await createFile(
             tx,
@@ -268,7 +274,8 @@ export async function registerFiles(
             options.onCreated,
           ),
         ),
-      ),
+      );
+    },
   );
   app.patch<{ Params: { fileId: string }; Body: PatchBody }>(
     "/api/app/files/:fileId",

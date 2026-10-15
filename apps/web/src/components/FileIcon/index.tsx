@@ -1,4 +1,12 @@
-import { FileText, Folder, Presentation, Table2 } from "lucide-react";
+import {
+  FileText,
+  Folder,
+  Presentation,
+  Table2,
+  FileType2,
+  Image,
+  Video,
+} from "lucide-react";
 import { FileKind } from "@/store/workspace";
 import styles from "./index.module.less";
 export default function FileIcon({
@@ -13,6 +21,9 @@ export default function FileIcon({
     sheet: Table2,
     slide: Presentation,
     folder: Folder,
+    pdf: FileType2,
+    video: Video,
+    image: Image,
   }[kind];
   return (
     <span

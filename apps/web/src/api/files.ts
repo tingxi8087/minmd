@@ -3,7 +3,7 @@ export type RemoteFile = {
   permission?: "read" | "edit" | "manage";
   id: string;
   spaceId: string;
-  kind: "doc" | "sheet" | "slide" | "folder";
+  kind: "doc" | "sheet" | "slide" | "folder" | "pdf" | "video" | "image";
   name: string;
   parentId: string | null;
   position: number;

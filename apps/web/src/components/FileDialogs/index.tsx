@@ -22,6 +22,7 @@ import DestinationPicker from "./DestinationPicker";
 import { canMove } from "@/utils/fileTree";
 export type FileAction =
   | { type: "create"; kind: FileKind; parent: string | null }
+  | { type: "upload"; parent: string | null }
   | { type: "rename" | "share" | "move" | "restore"; file: Entry };
 export default function FileDialogs({
   action,
@@ -53,7 +54,7 @@ export default function FileDialogs({
     pending.current = null;
     setSaving(false);
     setPresentation(null);
-    if (action.type === "create") {
+    if (action.type === "create" || action.type === "upload") {
       setName("");
       setParent(action.parent);
     } else {
@@ -66,18 +67,23 @@ export default function FileDialogs({
     return (
       <ShareDialog key={action.file.id} file={action.file} close={close} />
     );
+  const mediaKind = action.type === "upload";
+  const mediaAccept = ".pptx,.pdf,.mp4,.webm,.png,.jpg,.jpeg,.webp,.gif";
+  const presentationUpload =
+    (action.type === "create" && action.kind === "slide") ||
+    (action.type === "upload" && /\.pptx$/i.test(presentation?.name ?? ""));
   const title =
-    action.type === "create"
-      ? action.kind === "slide"
-        ? "上传幻灯片"
-        : `新建${kindNames[action.kind]}`
-      : action.type === "rename"
-        ? "重命名"
-        : action.type === "move"
-          ? "移动文件"
-          : action.type === "restore"
-            ? "恢复文件"
-            : "分享设置";
+    action.type === "upload"
+      ? "上传文件"
+      : action.type === "create"
+        ? action.kind === "slide"
+          ? "上传幻灯片"
+          : `新建${kindNames[action.kind]}`
+        : action.type === "rename"
+          ? "重命名"
+          : action.type === "move"
+            ? "移动文件"
+            : "恢复文件";
   const destinationFile =
     action.type === "move" || action.type === "restore"
       ? (files.find((item) => item.id === action.file.id) ?? action.file)
@@ -95,7 +101,37 @@ export default function FileDialogs({
     action.type === "move" && parent === destinationFile?.parent;
   const save = async () => {
     if (saving || invalidDestination || sameLocation) return;
-    if (action.type === "create" && action.kind === "slide") {
+    if (action.type === "upload" && !presentationUpload) {
+      if (!presentation || !name.trim()) {
+        message.warning("请选择文件并输入名称");
+        return;
+      }
+      setSaving(true);
+      const operation = begin();
+      activeTask.current = operation;
+      try {
+        const result = await operation.wait(() =>
+          assetsApi.uploadMedia(
+            space,
+            presentation,
+            parent,
+            name.trim(),
+            operation.signal,
+          ),
+        );
+        await operation.wait(() => useWorkspace.getState().loadFiles());
+        operation.assertActive();
+        close();
+        onCreated?.(result.id);
+      } catch (error) {
+        if (!operation.signal.aborted) message.error(errorMessage(error));
+      } finally {
+        operation.finish();
+        if (!operation.signal.aborted) setSaving(false);
+      }
+      return;
+    }
+    if (presentationUpload) {
       if (!presentation) {
         message.warning("请选择 .pptx 文件");
         return;
@@ -221,26 +257,49 @@ export default function FileDialogs({
       cancelButtonProps={{ disabled: saving }}
       destroyOnHidden
     >
-      {action.type === "create" || action.type === "rename" ? (
+      {action.type === "create" ||
+      action.type === "rename" ||
+      action.type === "upload" ? (
         <div className="field">
-          {action.type === "create" && action.kind === "slide" && (
+          {(mediaKind ||
+            (action.type === "create" && action.kind === "slide")) && (
             <Upload.Dragger
               disabled={saving}
-              accept=".pptx"
+              accept={mediaKind ? mediaAccept : ".pptx"}
               maxCount={1}
               showUploadList={false}
               beforeUpload={(file) => {
-                if (!/\.pptx$/i.test(file.name)) {
-                  message.warning("仅支持 .pptx 文件");
+                const extension =
+                  "." + file.name.split(".").pop()?.toLowerCase();
+                if (
+                  mediaKind
+                    ? !mediaAccept.split(",").includes(extension)
+                    : !/\.pptx$/i.test(file.name)
+                ) {
+                  message.warning(
+                    mediaKind
+                      ? `请选择 ${mediaAccept} 文件`
+                      : "仅支持 .pptx 文件",
+                  );
                   return Upload.LIST_IGNORE;
                 }
                 setPresentation(file);
-                setName(file.name.replace(/\.pptx$/i, ""));
+                setName(
+                  mediaKind ? file.name : file.name.replace(/\.pptx$/i, ""),
+                );
                 return false;
               }}
             >
-              {presentation ? presentation.name : "点击选择或拖入 .pptx 文件"}
-              <p className="muted">最多 50 MB · 只读预览</p>
+              {presentation
+                ? presentation.name
+                : mediaKind
+                  ? "点击选择或拖入文件，自动识别类型"
+                  : "点击选择或拖入 .pptx 文件"}
+              <p className="muted">
+                {mediaKind
+                  ? "PPTX / PDF ≤ 50 MB · 视频（MP4 / WebM）≤ 200 MB · 图片（PNG / JPEG / WebP / GIF）≤ 20 MB"
+                  : "最多 50 MB · 只读预览"}
+              </p>
             </Upload.Dragger>
           )}
           <label>名称</label>
@@ -252,9 +311,11 @@ export default function FileDialogs({
             onChange={(e) => setName(e.target.value)}
             onPressEnter={save}
             placeholder={
-              action.type === "create"
-                ? `输入${kindNames[action.kind]}名称`
-                : ""
+              action.type === "upload"
+                ? "输入文件名称"
+                : action.type === "create"
+                  ? `输入${kindNames[action.kind]}名称`
+                  : ""
             }
           />
         </div>

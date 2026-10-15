@@ -61,7 +61,14 @@ export const publicResponse = Type.Object({
       id,
       name: Type.String({ description: "文件名称" }),
       kind: Type.Union(
-        [Type.Literal("doc"), Type.Literal("sheet"), Type.Literal("slide")],
+        [
+          Type.Literal("doc"),
+          Type.Literal("sheet"),
+          Type.Literal("slide"),
+          Type.Literal("pdf"),
+          Type.Literal("video"),
+          Type.Literal("image"),
+        ],
         { description: "只读文件类型" },
       ),
     },

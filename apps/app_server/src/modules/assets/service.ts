@@ -14,6 +14,7 @@ import { fileVersions } from "../../database/schema/contents";
 import { files } from "../../database/schema/files";
 import { requireFileAccess } from "../files/service";
 import { requireSpaceAccess } from "../spaces/service";
+import { validateMediaAsset } from "./media-validation";
 import { validateAsset } from "./validate";
 
 export async function storeAsset(
@@ -26,6 +27,7 @@ export async function storeAsset(
   bytes: Buffer,
   hooks: {
     fileId?: string;
+    media?: boolean;
     authorize?: (tx: Transaction) => Promise<void>;
     onCommitted?: (
       tx: Transaction,
@@ -50,7 +52,9 @@ export async function storeAsset(
     } else await requireSpaceAccess(db, userId, spaceId);
   };
   await authorizeTarget(database);
-  const parsed = await validateAsset(bytes, filename, suppliedMime);
+  const parsed = hooks.media
+    ? validateMediaAsset(bytes, filename, suppliedMime)
+    : await validateAsset(bytes, filename, suppliedMime);
   const storageKey = crypto.randomUUID();
   await mkdir(directory, { recursive: true });
   const path = join(resolve(directory), storageKey);

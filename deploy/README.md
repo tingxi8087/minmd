@@ -6,7 +6,7 @@
 
 - `web` 提供前台 `/`、后台 `/admin/`，反向代理 `/api/` 与 `/mcp`。
 - `app` 同时运行 HTTP、文档 Hocuspocus 房间和表格权威房间。**只能运行一个 app 实例**，不能使用 `--scale app=2`；房间在内存中串行处理，持久状态、更新日志、历史版本在 PostgreSQL 中。
-- `postgres_data` 保存整个数据库，`asset_data` 保存私有图片和 PPTX。Nginx 不挂载附件卷，公开分享图片也通过分享授权接口读取。
+- `postgres_data` 保存整个数据库，`asset_data` 保存私有图片、PPTX、PDF 和视频。Nginx 不挂载附件卷，公开分享图片也通过分享授权接口读取。
 - `migrate` 是显式的一次性任务，不在应用启动时自动迁移。
 - web HTTP 端口只绑定宿主 `127.0.0.1`；app 和 PostgreSQL 不发布宿主端口。宿主机 HTTPS 代理负责证书和对外入口。
 - app 仅信任固定 web 内网 IP；代理网络、web IP 和宿主代理网关可配置；web 只信任指定网关传入的 X-Forwarded-For，向 app 传已解析的客户端地址。不同部署、恢复演练项目必须选择不同且不冲突的子网。
@@ -28,7 +28,7 @@ openssl rand -hex 32
 
 将随机值填入 `POSTGRES_PASSWORD`，另设独立的 `ADMIN_PASSWORD`。数据库密码使用随机十六进制，避免数据库连接 URL 中需要转义的字符。配置实际 `PUBLIC_ORIGIN=https://你的域名`，不含路径或末尾斜杠；前后台同源。首次管理员密码在新库初始化时使用，已有超管不会被覆盖。首次登录后修改密码，并由后台创建前台账号；公开注册默认关闭。
 
-填写镜像标签 `MINMD_IMAGE_TAG`、Compose 项目名和不冲突的网络。文件中 JSON 上限默认 16 MiB；Nginx 请求上限 51 MiB，PPTX 后端 multipart 上限 50 MiB，图片 1 MiB。Nginx 协作和 MCP 响应等待上限 3600 秒，保持 WebSocket Upgrade 和 MCP 流式响应，应用身份与会话校验继续生效。
+填写镜像标签 `MINMD_IMAGE_TAG`、Compose 项目名和不冲突的网络。文件中 JSON 上限默认 16 MiB；Nginx 请求上限 201 MiB；独立视频上传上限 200 MiB、PDF 50 MiB、图片 20 MiB，原有文档内图片仍为 1 MiB、PPTX 50 MiB。Nginx 协作和 MCP 响应等待上限 3600 秒，保持 WebSocket Upgrade 和 MCP 流式响应，应用身份与会话校验继续生效。
 
 ```sh
 docker compose --env-file deploy/.env.production -f deploy/compose.production.yaml config --quiet
@@ -53,7 +53,7 @@ location / {
   proxy_set_header Connection "upgrade";
   proxy_read_timeout 3600s;
   proxy_buffering off;
-  client_max_body_size 51m;
+  client_max_body_size 201m;
 }
 ```
 

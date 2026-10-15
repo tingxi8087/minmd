@@ -1,8 +1,7 @@
+import { sendPrivateAsset } from "../assets/send";
 import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import { and, eq, sql } from "drizzle-orm";
-import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { Database } from "../../../../../system/server/src/database/client";
 import type { AppConfig } from "../../../../../system/server/src/config/env";
@@ -586,6 +585,11 @@ export async function registerShares(
             format: "binary",
             description: "当前正文实际引用的附件原文件",
           }),
+          206: Type.String({
+            format: "binary",
+            description: "附件的部分二进制内容",
+          }),
+          416: errors[400],
           ...errors,
         },
       },
@@ -624,19 +628,13 @@ export async function registerShares(
         resolve(loadMinmdConfig(config).assetStorageDir),
         asset.asset.storageKey,
       );
-      try {
-        await stat(path);
-      } catch {
-        throw new AppError("ASSET_MISSING", "附件原文件暂不可用", 404);
-      }
-      reply
-        .type(asset.asset.mime)
-        .header("x-content-type-options", "nosniff")
-        .header(
-          "content-disposition",
-          `${request.query.download ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(asset.asset.filename)}`,
-        );
-      return reply.send(createReadStream(path));
+      return sendPrivateAsset(
+        request,
+        reply,
+        path,
+        asset.asset,
+        request.query.download,
+      );
     },
   );
 }
