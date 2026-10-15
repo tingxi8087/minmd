@@ -27,7 +27,8 @@ done
 printf 'MINMD_IMAGE_PREFIX=%s\nMINMD_IMAGE_TAG=%s\n' "$1" "$2" > "$MINMD_BUNDLE/deploy/release.env"
 printf 'MINMD_IMAGE_SOURCE=%s\n' "$MINMD_CHANNEL" >> "$MINMD_BUNDLE/deploy/release.env"
 if [ "$MINMD_CHANNEL" = china ]; then
-  printf 'POSTGRES_IMAGE=%s-postgres:18\nCADDY_IMAGE=%s-caddy:2.11.4-alpine\n' "$1" "$1" >> "$MINMD_BUNDLE/deploy/release.env"
+  printf 'POSTGRES_IMAGE=m.daocloud.io/docker.io/library/postgres:18\nCADDY_IMAGE=m.daocloud.io/docker.io/library/caddy:2.11.4-alpine\n' >> "$MINMD_BUNDLE/deploy/release.env"
+  printf 'POSTGRES_IMAGE_FALLBACK=%s-postgres:18\nCADDY_IMAGE_FALLBACK=%s-caddy:2.11.4-alpine\n' "$1" "$1" >> "$MINMD_BUNDLE/deploy/release.env"
 fi
 chmod +x "$MINMD_BUNDLE/minmd.sh"
 # macOS 的 AppleDouble/PAX 元数据会被 GNU tar 列成额外路径，触发安装器边界校验。

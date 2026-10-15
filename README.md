@@ -90,7 +90,7 @@ minmd 是一个开源、可自行部署的轻量文档协作系统。你可以�
 
 **方式一：一行命令安装**
 
-国内服务器可使用腾讯云公开镜像源，应用、迁移、PostgreSQL 和 Caddy 都从国内仓库拉取，用户无需登录镜像仓库：
+国内服务器可使用国内镜像源：应用和迁移镜像来自腾讯云，PostgreSQL 和 Caddy 优先使用 DaoCloud，腾讯云副本作为备用。均可公开拉取，无需登录镜像仓库：
 
 ```sh
 curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install-china.sh | sh

@@ -22,13 +22,13 @@ MinMD 前台、后台 `/admin/`、API、MCP 和文档 / 表格协作均由同一
 
 ### 方式一：一行命令安装
 
-国内镜像源（腾讯云 TCR，公开匿名拉取）：
+国内镜像源（应用使用腾讯云 TCR，基础镜像使用 DaoCloud，公开匿名拉取）：
 
 ```sh
 curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install-china.sh | sh
 ```
 
-这个入口下载独立的 `minmd-v版本-china.tar.gz`，其中 app、migrate、PostgreSQL 和 Caddy 镜像均使用 `ccr.ccs.tencentyun.com/tingxi8087/minmd-*`。脚本及部署包仍从 GitHub 下载；国内镜像源不会替代 GitHub 文件下载。国内同步尚未完成的版本不会悄悄回退到其他镜像源。
+这个入口下载独立的 `minmd-v版本-china.tar.gz`，其中 app、migrate 使用 `ccr.ccs.tencentyun.com/tingxi8087/minmd-*`；PostgreSQL 使用 `m.daocloud.io/docker.io/library/postgres:18`，Caddy 使用 `m.daocloud.io/docker.io/library/caddy:2.11.4-alpine`。脚本及部署包仍从 GitHub 下载；国内镜像源不会替代 GitHub 文件下载。应用和迁移镜像的国内同步尚未完成时，安装会失败，不会换用其他应用版本。
 
 下载当前源码的通用入口后，也可用 `sh install.sh --image-source china` 选择国内包；显式指定版本使用 `--version v0.1.0`。国内入口 `install-china.sh` 默认选择 china，官方入口默认选择 official。已有部署目录不允许用重复安装跨源改写配置。
 
@@ -77,6 +77,10 @@ curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install.
 从 [GitHub Releases](https://github.com/tingxi8087/minmd/releases) 下载同一版本的部署包和校验文件。以下文件名是示例，使用时替换为实际发布版本；首次发布包含安装资源的 Release 之前，一行命令下载地址也不可用。
 
 国内源下载带 `-china` 后缀的部署包及校验文件，其他操作相同。官方包与国内包分开发布，不会覆盖对方附件。基础镜像由包内元数据写入部署配置的 `POSTGRES_IMAGE`、`CADDY_IMAGE`；旧配置未填写时，仍使用 `postgres:18`、`caddy:2.11.4-alpine`。这两个字段接受带固定标签的镜像地址，不接受 `latest`；Compose、端口检查、数据库连接检查和附件备份恢复都沿用配置中的镜像，不受 Shell 导出同名变量覆盖。
+
+国内包另外写入 `POSTGRES_IMAGE_FALLBACK=ccr.ccs.tencentyun.com/tingxi8087/minmd-postgres:18` 和 `CADDY_IMAGE_FALLBACK=ccr.ccs.tencentyun.com/tingxi8087/minmd-caddy:2.11.4-alpine`。安装器启动或升级准备镜像时，优先使用主源；主源拉取失败再尝试备用源。成功后将实际地址写回对应 `*_IMAGE`，后续启动、升级、诊断和备份恢复沿用所选源，避免反复切换。`--offline` 不联网，仅在主源缓存缺失时选择已缓存的备用镜像；两者均不可用则退出。备用值留空可禁用，备用标签必须与主源一致，不允许自动跨 PostgreSQL 大版本。
+
+已有安装不会因更新安装包而改写镜像地址；原腾讯云配置仍可继续使用。使用新版维护脚本后，需要切换的实例可在维护前编辑原 `.minmd/.env` 的上述四个字段，然后执行 `./minmd.sh restart`；不要修改数据库密码、安装标识或数据卷。底层 `docker compose` 和备份恢复脚本沿用已选地址，不自行选源。DaoCloud 的服务规则及支持镜像见 [官方项目](https://github.com/DaoCloud/public-image-mirror)。
 
 先校验再解压，SHA 文件使用对应归档的真实名称：
 
@@ -216,9 +220,17 @@ docker compose --env-file deploy/.env.production \
 
 ## 维护者发布
 
-国内源在 GitHub 仓库配置变量 `TCR_NAMESPACE`，并配置 `TCR_USERNAME`、`TCR_PASSWORD` 两个 Actions Secrets；密码使用腾讯云镜像仓库登录密码，不提交源码。命名空间下需有四个公有仓库：`minmd-app`、`minmd-migrate`、`minmd-postgres`、`minmd-caddy`。
+国内源在 GitHub 仓库配置变量 `TCR_NAMESPACE`，并配置 `TCR_USERNAME`、`TCR_PASSWORD` 两个 Actions Secrets；密码使用腾讯云镜像仓库登录密码，不提交源码。自动发布只需两个公有仓库：`minmd-app`、`minmd-migrate`。现有 `minmd-postgres`、`minmd-caddy` 公有副本保留用于备用，不随每次应用发布同步。
 
-`.github/workflows/china-images.yml` 跟随成功的 Release 工作流，也可手动指定已发布版本执行。它先锁定来源清单摘要，再复制 linux/amd64 和 linux/arm64，使用 Docker v2 清单兼容个人版仓库；保留镜像内容，不重复构建应用。公开双架构检查通过后，测试并追加国内部署包、校验文件、`install-china.sh`、`release-china.env`，最后执行不登录镜像仓库的真实安装与首次账号初始化验收。官方源的既有附件保持原样。
+`.github/workflows/china-images.yml` 跟随成功的 Release 工作流，也可手动指定已发布版本执行。它仅同步 app、migrate 两个镜像，先锁定来源清单摘要，再复制 linux/amd64 和 linux/arm64，使用 Docker v2 清单兼容个人版仓库；保留镜像内容，不重复构建应用。公开双架构检查通过后，测试并追加国内部署包、校验文件、`install-china.sh`、`release-china.env`，最后执行不登录镜像仓库的真实安装与首次账号初始化验收。官方源的既有附件保持原样。
+
+基础镜像备用副本仅在明确更新基础镜像版本时手动维护。fork 或更换命名空间时，若需要备用能力，需先创建对应公有仓库并完成以下同步；未准备备用仓库时应将包内备用地址留空。修改基础镜像版本后，包元数据、Compose 缺省值及测试应保持一致。
+
+```sh
+# 先登录目标腾讯云镜像仓库；需安装 skopeo 和 Docker Buildx
+sh deploy/scripts/mirror-images.sh tingxi8087/minmd v0.1.0 tingxi8087 postgres
+sh deploy/scripts/mirror-images.sh tingxi8087/minmd v0.1.0 tingxi8087 caddy
+```
 
 个人版采用共享服务，首次从海外同步镜像可能较慢，按仓库串行复制以降低推拉并发。每个应用版本含合并清单和两个架构标签，会占用三个版本名；配额以腾讯云控制台为准。腾讯云不兼容的 OCI 附加证明不会进入国内副本，国内副本的清单摘要可与 GHCR 不同，镜像层内容由复制工具校验。
 
@@ -244,4 +256,4 @@ DEPLOY_APP_IMAGE=minmd-app:local DEPLOY_MIGRATE_IMAGE=minmd-migrate:local \
 bun test tests/deploy-runtime.test.ts
 ```
 
-测试创建专用实例并清理自己的容器、数据卷和别名镜像；自动 HTTPS 验收使用测试 CA，正常验证证书和域名，不安装系统根证书、不关闭 TLS 校验。需要本机 80/443 空闲；不会停止占用端口的其他服务。排查 TLS 时可额外设置 `DEPLOY_RUNTIME_TLS_ONLY=true` 只运行该部分，不能将其视为完整部署验收。
+测试创建专用实例并清理自己的容器、数据卷和别名镜像；自动 HTTPS 验收使用测试 CA，正常验证证书和域名，不安装系统根证书、不关闭 TLS 校验。需要本机 80/443 空闲；不会停止占用端口的其他服务。验证基础镜像缓存回退可额外设置 `DEPLOY_RUNTIME_IMAGE_FALLBACK=true`，三种模式会用独立镜像别名模拟主源缺失并实际使用备用镜像。排查 TLS 时可额外设置 `DEPLOY_RUNTIME_TLS_ONLY=true` 只运行该部分，不能将其视为完整部署验收。

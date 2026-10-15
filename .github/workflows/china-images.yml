@@ -24,7 +24,7 @@ jobs:
       # 个人版有推拉并发配额，按仓库串行复制。
       max-parallel: 1
       matrix:
-        target: [app, migrate, postgres, caddy]
+        target: [app, migrate]
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq skopeo

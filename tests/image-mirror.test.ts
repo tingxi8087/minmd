@@ -145,3 +145,18 @@ test("未知目标、可变版本与非法命名空间在联网前拒绝", async
     await rm(f.dir, { recursive: true, force: true });
   }
 });
+
+test("自动同步仅包含应用和迁移，基础镜像保留手动维护入口", async () => {
+  const workflow = Bun.YAML.parse(
+    await readFile(
+      join(import.meta.dir, "../.github/workflows/china-images.yml"),
+      "utf8",
+    ),
+  ) as {
+    jobs: { mirror: { strategy: { matrix: { target: string[] } } } };
+  };
+  expect(workflow.jobs.mirror.strategy.matrix.target).toEqual([
+    "app",
+    "migrate",
+  ]);
+});

@@ -74,7 +74,20 @@ jobs:
             exit 1
           fi
           python3 - <<'PY'
-          import http.cookiejar, json, secrets, urllib.request
+          import http.cookiejar, json, os, pathlib, secrets, urllib.request
+          if os.environ["IMAGE_SOURCE"] == "china":
+              root = pathlib.Path(os.environ["ROOT"]) / "minmd"
+              def config(path):
+                  return dict(line.split("=", 1) for line in path.read_text().splitlines() if line and not line.startswith("#"))
+              metadata = config(root / "deploy/release.env")
+              selected = config(root / ".minmd/.env")
+              for key, image in [("POSTGRES", "postgres:18"), ("CADDY", "caddy:2.11.4-alpine")]:
+                  primary = "m.daocloud.io/docker.io/library/" + image
+                  backup = metadata["MINMD_IMAGE_PREFIX"] + "-" + image
+                  assert metadata[key + "_IMAGE"] == primary
+                  assert metadata[key + "_IMAGE_FALLBACK"] == backup
+                  assert selected[key + "_IMAGE"] in (primary, backup)
+                  print(key + " 镜像：" + selected[key + "_IMAGE"])
           origin = "http://127.0.0.1:19811"
           jar = http.cookiejar.CookieJar()
           client = urllib.request.build_opener(

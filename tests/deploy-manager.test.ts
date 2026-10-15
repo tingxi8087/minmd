@@ -24,8 +24,8 @@ const env=envIndex<0?{}:Object.fromEntries(readFileSync(args[envIndex+1],"utf8")
 const foreign=state.foreign;
 if(args[0]==="info")process.exit(0);
 if(args[0]==="compose" && args[1]==="version"){console.log("2.40.3");process.exit(0);}
-if(args[0]==="image" && args[1]==="inspect")process.exit(state.missingImage?1:0);
-if(args[0]==="pull")process.exit(state.pullFail?1:0);
+if(args[0]==="image" && args[1]==="inspect")process.exit(state.cachedImages?state.cachedImages.includes(args[2])?0:1:state.missingImage?1:0);
+if(args[0]==="pull")process.exit(state.pullFail||state.failImages?.includes(args[1])?1:0);
 if(args[0]==="ps"){
  if(foreign==="container")console.log("foreign");
  else if(state.created)console.log(args.includes("-aq")?"fake-pg\\nfake-app":state.app?"fake-app":"");
@@ -669,7 +669,7 @@ test("发布资源绑定实际仓库，一行安装和手动 Release 均调用�
       expect(await readFile(join(assets, metadata), "utf8")).toBe(
         `MINMD_IMAGE_PREFIX=${prefix}\nMINMD_IMAGE_TAG=v0.1.0\nMINMD_IMAGE_SOURCE=${china ? "china" : "official"}\n` +
           (china
-            ? `POSTGRES_IMAGE=${prefix}-postgres:18\nCADDY_IMAGE=${prefix}-caddy:2.11.4-alpine\n`
+            ? `POSTGRES_IMAGE=m.daocloud.io/docker.io/library/postgres:18\nCADDY_IMAGE=m.daocloud.io/docker.io/library/caddy:2.11.4-alpine\nPOSTGRES_IMAGE_FALLBACK=${prefix}-postgres:18\nCADDY_IMAGE_FALLBACK=${prefix}-caddy:2.11.4-alpine\n`
             : ""),
       );
       expect(await readFile(join(assets, bootstrap), "utf8")).toContain(
@@ -741,10 +741,10 @@ cp "$MINMD_BOOT_ASSETS/$name" "$output"
       }
       if (china) {
         expect(await f.config()).toContain(
-          `POSTGRES_IMAGE=${prefix}-postgres:18`,
+          "POSTGRES_IMAGE=m.daocloud.io/docker.io/library/postgres:18",
         );
         expect(await f.config()).toContain(
-          `CADDY_IMAGE=${prefix}-caddy:2.11.4-alpine`,
+          "CADDY_IMAGE=m.daocloud.io/docker.io/library/caddy:2.11.4-alpine",
         );
         await f.change({ missingImage: true });
         expect((await f.run(["upgrade", "v0.1.1", "--yes"])).code).toBe(0);
@@ -755,7 +755,8 @@ cp "$MINMD_BOOT_ASSETS/$name" "$output"
         expect(
           calls.some(
             (c) =>
-              c.args[0] === "pull" && c.args[1] === `${prefix}-postgres:18`,
+              c.args[0] === "pull" &&
+              c.args[1] === "m.daocloud.io/docker.io/library/postgres:18",
           ),
         ).toBe(true);
         expect(
@@ -770,6 +771,119 @@ cp "$MINMD_BOOT_ASSETS/$name" "$output"
       expect(
         (await f.config()).match(/^POSTGRES_PASSWORD=[a-f0-9]{64}$/m),
       ).not.toBeNull();
+    } finally {
+      await clean(f);
+    }
+  }
+}, 60000);
+
+// 实际执行维护入口，验证切换后的配置同时用于后续启动和附件备份恢复。
+test("国内基础镜像优先主源，失败使用同版本备用源；离线仅用缓存且记住所选源", async () => {
+  const pg = "m.daocloud.io/docker.io/library/postgres:18";
+  const caddy = "m.daocloud.io/docker.io/library/caddy:2.11.4-alpine";
+  const backupPg = "ccr.ccs.tencentyun.com/tingxi8087/minmd-postgres:18";
+  const backupCaddy =
+    "ccr.ccs.tencentyun.com/tingxi8087/minmd-caddy:2.11.4-alpine";
+  for (const scenario of [
+    "primary",
+    "fallback",
+    "offline",
+    "both-fail",
+    "invalid",
+    "upgrade",
+  ]) {
+    const f = await fixture();
+    try {
+      expect((await f.install("https")).code).toBe(0);
+      const original = (await f.config())
+        .replace(/^POSTGRES_IMAGE=.*$/m, `POSTGRES_IMAGE=${pg}`)
+        .replace(/^CADDY_IMAGE=.*$/m, `CADDY_IMAGE=${caddy}`)
+        .replace(
+          /^POSTGRES_IMAGE_FALLBACK=.*$/m,
+          `POSTGRES_IMAGE_FALLBACK=${scenario === "invalid" ? backupPg.replace(":18", ":17") : backupPg}`,
+        )
+        .replace(
+          /^CADDY_IMAGE_FALLBACK=.*$/m,
+          `CADDY_IMAGE_FALLBACK=${backupCaddy}`,
+        );
+      await writeFile(join(f.data, ".env"), original);
+      await writeFile(f.trace, "");
+      await f.change({
+        missingImage: true,
+        failImages:
+          scenario === "primary"
+            ? []
+            : [
+                pg,
+                caddy,
+                ...(scenario === "both-fail" ? [backupPg, backupCaddy] : []),
+              ],
+        ...(scenario === "offline"
+          ? {
+              cachedImages: [
+                backupPg,
+                backupCaddy,
+                "minmd-unit-app:v0.1.0",
+                "minmd-unit-migrate:v0.1.0",
+              ],
+            }
+          : {}),
+      });
+      const result = await f.run(
+        scenario === "upgrade"
+          ? ["upgrade", "v0.1.1", "--yes"]
+          : ["restart", ...(scenario === "offline" ? ["--offline"] : [])],
+      );
+      const calls = await f.commands();
+      if (["both-fail", "invalid"].includes(scenario)) {
+        expect(result.code, scenario).not.toBe(0);
+        expect(result.err).toContain(
+          scenario === "invalid" ? "备用基础镜像" : "基础镜像不可用",
+        );
+        expect(await f.config()).toBe(original);
+        expect(
+          calls.some((c) => c.args.includes("stop") || c.args.includes("up")),
+        ).toBe(false);
+        if (scenario === "invalid")
+          expect(calls.some((c) => c.args[0] === "pull")).toBe(false);
+        continue;
+      }
+      expect(result.code).toBe(0);
+      const selectedPg = scenario === "primary" ? pg : backupPg;
+      const selectedCaddy = scenario === "primary" ? caddy : backupCaddy;
+      expect(await f.config()).toContain(`POSTGRES_IMAGE=${selectedPg}\n`);
+      expect(await f.config()).toContain(`CADDY_IMAGE=${selectedCaddy}\n`);
+      const pulls = calls
+        .filter((c) => c.args[0] === "pull")
+        .map((c) => c.args[1]);
+      if (scenario === "offline") expect(pulls).toEqual([]);
+      else if (scenario === "primary") {
+        expect(pulls).toContain(pg);
+        expect(pulls).toContain(caddy);
+        expect(pulls).not.toContain(backupPg);
+        expect(pulls).not.toContain(backupCaddy);
+      } else {
+        expect(pulls.indexOf(pg)).toBeLessThan(pulls.indexOf(backupPg));
+        expect(pulls.indexOf(caddy)).toBeLessThan(pulls.indexOf(backupCaddy));
+      }
+      const before = await f.config();
+      await f.change({ missingImage: false, cachedImages: null });
+      await writeFile(f.trace, "");
+      const backup = join(f.dir, "backup");
+      expect((await f.run(["backup", backup])).code).toBe(0);
+      expect(
+        (await f.run(["restore", backup, "--offline", "--yes"])).code,
+      ).toBe(0);
+      expect(await f.config()).toBe(before);
+      const helpers = (await f.commands()).filter(
+        (c) =>
+          c.args[0] === "run" &&
+          (c.args.includes("tar") ||
+            c.args.includes("psql") ||
+            c.args.some((a) => a.includes("exec psql"))),
+      );
+      expect(helpers.length).toBeGreaterThan(0);
+      expect(helpers.every((c) => c.args.includes(selectedPg))).toBe(true);
     } finally {
       await clean(f);
     }

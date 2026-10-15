@@ -17,6 +17,7 @@ const runtimeTest =
   process.env.DEPLOY_RUNTIME_TEST === "true" ? test : test.skip;
 const source = join(import.meta.dir, "..");
 const tlsOnly = process.env.DEPLOY_RUNTIME_TLS_ONLY === "true";
+const fallbackImages = process.env.DEPLOY_RUNTIME_IMAGE_FALLBACK === "true";
 const wait = async (check: () => boolean | Promise<boolean>, label: string) => {
   const end = Date.now() + 20000;
   while (!(await check())) {
@@ -206,6 +207,26 @@ runtimeTest(
         if ((await command(["docker", "image", "inspect", image])).code)
           await must(["docker", "pull", image]);
       }
+      if (fallbackImages) {
+        const metadata: string[] = [];
+        for (const [target, tag] of [
+          ["postgres", "18"],
+          ["caddy", "2.11.4-alpine"],
+        ]) {
+          const primary = `${prefix}-${target}-primary:${tag}`;
+          const backup = `${prefix}-${target}-backup:${tag}`;
+          await must(["docker", "tag", `${target}:${tag}`, backup]);
+          images.push(backup);
+          metadata.push(
+            `${target!.toUpperCase()}_IMAGE=${primary}`,
+            `${target!.toUpperCase()}_IMAGE_FALLBACK=${backup}`,
+          );
+        }
+        await writeFile(
+          join(bundle, "deploy/release.env"),
+          metadata.join("\n") + "\n",
+        );
+      }
       for (const version of ["v0.0.1", "v0.0.2", "v0.0.3"]) {
         for (const [target, original] of [
           ["app", appImage],
@@ -278,7 +299,9 @@ runtimeTest(
         ).not.toBe(0);
         expect(await Bun.file(join(conflictDir, ".env")).exists()).toBe(false);
         const request = api(port, origin);
-        expect((await request("/")).raw).toContain('id="root"');
+        const home = await request("/");
+        expect(home.status).toBe(200);
+        expect(home.raw).toContain('id="root"');
         expect((await request("/admin/")).raw).toContain('id="root"');
         expect((await request("/assets/missing.js")).status).toBe(404);
         const setup = await request("/api/app/auth/setup", "POST", {
@@ -689,6 +712,13 @@ runtimeTest(
         tlsHeaders,
       );
       expect(checkpoint.status).toBe(200);
+      if (fallbackImages) {
+        const selected = await cfg(tls);
+        expect(selected.POSTGRES_IMAGE).toBe(`${prefix}-postgres-backup:18`);
+        expect(selected.CADDY_IMAGE).toBe(
+          `${prefix}-caddy-backup:2.11.4-alpine`,
+        );
+      }
       const originalKey = (await cfg(tls)).AI_KEY_ENCRYPTION_KEY;
       await run(tls, ["restart", "--offline"]);
       expect((await cfg(tls)).AI_KEY_ENCRYPTION_KEY).toBe(originalKey);

@@ -142,6 +142,11 @@ validate_config() {
   PREFIX=$(value MINMD_IMAGE_PREFIX); VERSION=$(value MINMD_IMAGE_TAG); INSTALLATION=$(value MINMD_INSTALLATION_ID)
   POSTGRES_IMAGE=$(minmd_postgres_image); CADDY_IMAGE=$(minmd_caddy_image)
   valid_image "$POSTGRES_IMAGE" && valid_image "$CADDY_IMAGE" || fail '基础镜像必须是带固定标签的有效镜像地址，不能使用 latest'
+  POSTGRES_IMAGE_FALLBACK=$(value POSTGRES_IMAGE_FALLBACK); CADDY_IMAGE_FALLBACK=$(value CADDY_IMAGE_FALLBACK)
+  for minmd_pair in "$POSTGRES_IMAGE|$POSTGRES_IMAGE_FALLBACK" "$CADDY_IMAGE|$CADDY_IMAGE_FALLBACK"; do
+    minmd_primary=${minmd_pair%%|*}; minmd_fallback=${minmd_pair#*|}
+    [ -z "$minmd_fallback" ] || { valid_image "$minmd_fallback" && [ "${minmd_primary##*:}" = "${minmd_fallback##*:}" ]; } || fail '备用基础镜像必须是有效固定标签，且与主镜像标签一致'
+  done
   PORT=$(value APP_BIND_PORT); BIND=$(value APP_BIND_HOST); TRUST=$(value TRUST_PROXY_ADDRESSES)
   case "$(value MINMD_TRUST_AUTOMATIC)" in true|false) ;; *) fail 'MINMD_TRUST_AUTOMATIC 必须为 true 或 false' ;; esac
   case "$TRUST" in *0.0.0.0/0*|*::/0*) fail '不能信任任意来源代理地址' ;; esac
@@ -212,21 +217,35 @@ check_ownership() {
   fi
 }
 image_ready() { docker image inspect "$1" >/dev/null 2>&1; }
-ensure_base_image() { image_ready "$POSTGRES_IMAGE" || docker pull "$POSTGRES_IMAGE"; }
+ensure_image() {
+  minmd_image_key=$1; minmd_primary=$2; minmd_fallback=$3; minmd_refresh=${4:-false}
+  if image_ready "$minmd_primary" && { [ "$OFFLINE" = true ] || [ "$minmd_refresh" = false ]; }; then return; fi
+  if [ "$OFFLINE" = false ] && docker pull "$minmd_primary"; then return; fi
+  if [ -n "$minmd_fallback" ] && [ "$minmd_fallback" != "$minmd_primary" ]; then
+    note "主镜像不可用，尝试备用镜像：$minmd_fallback"
+    if image_ready "$minmd_fallback" || { [ "$OFFLINE" = false ] && docker pull "$minmd_fallback"; }; then
+      # 成功后才记住所选源，后续 Compose、数据库检查和附件备份恢复使用同一地址。
+      write_value "$minmd_image_key" "$minmd_fallback"
+      case "$minmd_image_key" in POSTGRES_IMAGE) POSTGRES_IMAGE=$minmd_fallback ;; CADDY_IMAGE) CADDY_IMAGE=$minmd_fallback ;; esac
+      return
+    fi
+  fi
+  fail "基础镜像不可用：${minmd_primary}；请检查网络，离线模式需提前导入镜像"
+}
+ensure_base_image() { ensure_image POSTGRES_IMAGE "$POSTGRES_IMAGE" "$POSTGRES_IMAGE_FALLBACK"; }
 prepare_images() {
   if [ "$BUILD" = true ]; then
     [ -f "$MINMD_DEPLOY_ROOT/Dockerfile" ] && [ -f "$MINMD_ROOT/package.json" ] || fail '发布包不包含源码，不能使用 --build'
     compose --profile tools build app migrate
   elif [ "$OFFLINE" = false ]; then
-    for minmd_image in "$PREFIX-app:$VERSION" "$PREFIX-migrate:$VERSION" "$POSTGRES_IMAGE"; do
+    for minmd_image in "$PREFIX-app:$VERSION" "$PREFIX-migrate:$VERSION"; do
       if [ "$COMMAND" = upgrade ] || ! image_ready "$minmd_image"; then docker pull "$minmd_image"; fi
     done
   else
-    for minmd_image in "$PREFIX-app:$VERSION" "$PREFIX-migrate:$VERSION" "$POSTGRES_IMAGE"; do image_ready "$minmd_image" || fail "缺少离线镜像：$minmd_image"; done
+    for minmd_image in "$PREFIX-app:$VERSION" "$PREFIX-migrate:$VERSION"; do image_ready "$minmd_image" || fail "缺少离线镜像：$minmd_image"; done
   fi
-  if [ "$MODE" = https ]; then
-    if [ "$OFFLINE" = false ]; then image_ready "$CADDY_IMAGE" || compose pull caddy; else image_ready "$CADDY_IMAGE" || fail '缺少离线 Caddy 镜像'; fi
-  fi
+  ensure_image POSTGRES_IMAGE "$POSTGRES_IMAGE" "$POSTGRES_IMAGE_FALLBACK" "$([ "$COMMAND" = upgrade ] && echo true || echo false)"
+  if [ "$MODE" = https ]; then ensure_image CADDY_IMAGE "$CADDY_IMAGE" "$CADDY_IMAGE_FALLBACK"; fi
 }
 own_port() {
   minmd_port=$1; minmd_host=$2
@@ -355,7 +374,10 @@ new_install() {
   if [ "$BUILD" = true ]; then minmd_default_prefix=minmd; minmd_default_version=local; fi
   PREFIX=${PREFIX_ARG:-$minmd_default_prefix}; VERSION=${VERSION_ARG:-$minmd_default_version}
   POSTGRES_IMAGE=postgres:18; CADDY_IMAGE=caddy:2.11.4-alpine
+  POSTGRES_IMAGE_FALLBACK=; CADDY_IMAGE_FALLBACK=
   if [ -f "$MINMD_DEPLOY_ROOT/release.env" ]; then
+    POSTGRES_IMAGE_FALLBACK=$(minmd_value POSTGRES_IMAGE_FALLBACK "$MINMD_DEPLOY_ROOT/release.env")
+    CADDY_IMAGE_FALLBACK=$(minmd_value CADDY_IMAGE_FALLBACK "$MINMD_DEPLOY_ROOT/release.env")
     minmd_release_postgres=$(minmd_value POSTGRES_IMAGE "$MINMD_DEPLOY_ROOT/release.env")
     minmd_release_caddy=$(minmd_value CADDY_IMAGE "$MINMD_DEPLOY_ROOT/release.env")
     POSTGRES_IMAGE=${minmd_release_postgres:-$POSTGRES_IMAGE}; CADDY_IMAGE=${minmd_release_caddy:-$CADDY_IMAGE}
@@ -370,7 +392,7 @@ new_install() {
     printf 'MINMD_MANAGED=1\nMINMD_INSTALL_DIR=%s\n' "$MINMD_DIR"
     printf 'MINMD_INSTALLATION_ID=%s\nMINMD_DEPLOY_MODE=%s\n' "$INSTALLATION" "$MODE"
     printf 'COMPOSE_PROJECT_NAME=%s\nMINMD_IMAGE_PREFIX=%s\nMINMD_IMAGE_TAG=%s\n' "$PROJECT" "$PREFIX" "$VERSION"
-    printf 'POSTGRES_IMAGE=%s\nCADDY_IMAGE=%s\n' "$POSTGRES_IMAGE" "$CADDY_IMAGE"
+    printf 'POSTGRES_IMAGE=%s\nCADDY_IMAGE=%s\nPOSTGRES_IMAGE_FALLBACK=%s\nCADDY_IMAGE_FALLBACK=%s\n' "$POSTGRES_IMAGE" "$CADDY_IMAGE" "$POSTGRES_IMAGE_FALLBACK" "$CADDY_IMAGE_FALLBACK"
     printf 'PUBLIC_ORIGIN=%s\nAPP_BIND_HOST=%s\nAPP_BIND_PORT=%s\n' "$ORIGIN" "$BIND" "$PORT"
     printf 'MINMD_TRUST_AUTOMATIC=%s\nTRUST_PROXY_ADDRESSES=%s\n' "$([ "$MODE" != direct ] && [ -z "$TRUST_ARG" ] && echo true || echo false)" "$TRUST_ARG"
     printf 'POSTGRES_DB=minmd\nPOSTGRES_PASSWORD=%s\nADMIN_ACCOUNT=admin\nADMIN_PASSWORD=%s\nAI_KEY_ENCRYPTION_KEY=%s\n' "$minmd_db_secret" "$minmd_admin_secret" "$minmd_key_secret"
@@ -504,6 +526,8 @@ case "$COMMAND" in
       { printf 'OPERATION=upgrade\nTARGET=%s\nBACKUP=%s\n' "$VERSION" "$minmd_backup"; } > "$PENDING"
     fi
     stop_app
+    write_value POSTGRES_IMAGE "$POSTGRES_IMAGE"
+    write_value CADDY_IMAGE "$CADDY_IMAGE"
     write_value MINMD_IMAGE_TAG "$VERSION"
     start_infrastructure
     compose run --rm -T migrate
