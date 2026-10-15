@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
 
 const root = join(import.meta.dir, "..");
 const stub = `#!/usr/bin/env bun
@@ -651,6 +652,20 @@ test("发布资源绑定实际仓库，一行安装和手动 Release 均调用�
         { stdout: "pipe", stderr: "pipe" },
       );
       expect(await pack.exited).toBe(0);
+      // BSD tar 的列表会隐藏 AppleDouble；直接检查归档头，确保 Linux 也能安全解压。
+      const tar = gunzipSync(await readFile(archive));
+      for (let offset = 0; tar[offset];) {
+        const header = tar.subarray(offset, offset + 512);
+        const name = header.subarray(0, 100).toString().split("\0")[0];
+        const type = String.fromCharCode(header[156] || 48);
+        expect(name).toMatch(/^minmd(?:\/[A-Za-z0-9_.-]+)*\/?$/);
+        expect(["0", "5"]).toContain(type);
+        const size = Number.parseInt(
+          header.subarray(124, 136).toString().replace(/\0/g, "").trim(),
+          8,
+        );
+        offset += 512 + Math.ceil(size / 512) * 512;
+      }
       expect(await readFile(join(assets, metadata), "utf8")).toBe(
         `MINMD_IMAGE_PREFIX=${prefix}\nMINMD_IMAGE_TAG=v0.1.0\nMINMD_IMAGE_SOURCE=${china ? "china" : "official"}\n` +
           (china

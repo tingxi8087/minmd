@@ -30,7 +30,8 @@ if [ "$MINMD_CHANNEL" = china ]; then
   printf 'POSTGRES_IMAGE=%s-postgres:18\nCADDY_IMAGE=%s-caddy:2.11.4-alpine\n' "$1" "$1" >> "$MINMD_BUNDLE/deploy/release.env"
 fi
 chmod +x "$MINMD_BUNDLE/minmd.sh"
-tar czf "$3" -C "$MINMD_STAGE" minmd
+# macOS 的 AppleDouble/PAX 元数据会被 GNU tar 列成额外路径，触发安装器边界校验。
+COPYFILE_DISABLE=1 tar --format=ustar -czf "$3" -C "$MINMD_STAGE" minmd
 MINMD_OUTPUT_DIR=$(CDPATH= cd -- "$(dirname "$3")" && pwd)
 MINMD_OUTPUT_FILE=$(basename "$3")
 (cd "$MINMD_OUTPUT_DIR" && if command -v sha256sum >/dev/null 2>&1; then sha256sum "$MINMD_OUTPUT_FILE" > "$MINMD_OUTPUT_FILE.sha256"; else shasum -a 256 "$MINMD_OUTPUT_FILE" > "$MINMD_OUTPUT_FILE.sha256"; fi)
