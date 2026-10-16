@@ -4,7 +4,7 @@
 
 minmd 是一个开源、可自行部署的轻量文档协作系统。你可以用它写笔记、整理知识库、和伙伴一起编辑文档与表格，也可以上传 PPT、PDF、图片和视频，在浏览器中直接查看。
 
-[在线演示](https://tingxi8087.github.io/minmd/) · [开始部署](#部署运行) · [上手使用](#怎么用) · [开发指南](docs/DEVELOPMENT.md) · [部署与维护](deploy/README.md) · [维护者发布](docs/RELEASING.md)
+[GitHub](https://github.com/tingxi8087/minmd) · [Gitee](https://gitee.com/tingxi8087/minmd) · [在线演示](https://tingxi8087.github.io/minmd/) · [开始部署](#部署运行) · [上手使用](#怎么用) · [开发指南](docs/DEVELOPMENT.md) · [部署与维护](deploy/README.md) · [维护者发布](docs/RELEASING.md)
 
 ![文档编辑：待办、章节目录和 Mermaid 图表](docs/images/document.jpg)
 
@@ -110,7 +110,7 @@ minmd 是一个开源、可自行部署的轻量文档协作系统。你可以�
 国内镜像：
 
 ```sh
-curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install-china.sh | sh
+curl -fsSL https://gitee.com/tingxi8087/minmd/raw/main/install.sh | sh -s -- --image-source china
 ```
 
 官方镜像：
@@ -129,7 +129,7 @@ wget -qO- https://github.com/tingxi8087/minmd/releases/latest/download/install.s
 
 **方式二：Release 部署包安装**
 
-国内镜像源选择 `minmd-v版本-china.tar.gz` 和对应 `.sha256`；官方源选择无 `-china` 后缀的部署包。两套包的应用版本相同，安装配置分别绑定各自镜像源，不要混用校验文件。
+国内从 [Gitee Releases](https://gitee.com/tingxi8087/minmd/releases) 选择 `minmd-v版本-china.tar.gz` 和对应 `.sha256`；官方源选择无 `-china` 后缀的部署包。两套包的应用版本相同，安装配置分别绑定各自镜像源，不要混用校验文件。
 
 在 [Releases](https://github.com/tingxi8087/minmd/releases) 下载同一版本的 `minmd-v版本.tar.gz` 和 `.sha256`。以下以 `v0.1.0` 为例，替换为实际发布版本：
 

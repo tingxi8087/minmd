@@ -53,14 +53,21 @@ jobs:
           printf '{}\n' > "$DOCKER_CONFIG/config.json"
           VERSION=${RELEASE_VERSION:-latest}
           case "$IMAGE_SOURCE" in official) INSTALL_ENTRY=install.sh ;; china) INSTALL_ENTRY=install-china.sh ;; *) exit 2 ;; esac
-          if [ "$VERSION" = latest ]; then
+          if [ "$IMAGE_SOURCE" = china ]; then
+            if [ "$VERSION" = latest ]; then
+              ENTRY="https://gitee.com/$RELEASE_REPOSITORY/raw/main/install.sh"
+            else
+              printf '%s\n' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$'
+              ENTRY="https://gitee.com/$RELEASE_REPOSITORY/releases/download/$VERSION/$INSTALL_ENTRY"
+            fi
+          elif [ "$VERSION" = latest ]; then
             ENTRY="https://github.com/$RELEASE_REPOSITORY/releases/latest/download/$INSTALL_ENTRY"
           else
             printf '%s\n' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$'
             ENTRY="https://github.com/$RELEASE_REPOSITORY/releases/download/$VERSION/$INSTALL_ENTRY"
           fi
           if ! curl -q -fsSL --max-time 90 "$ENTRY" | sh -s -- \
-            --version "$VERSION" --install-dir "$ROOT/minmd" -- \
+            --image-source "$IMAGE_SOURCE" --version "$VERSION" --install-dir "$ROOT/minmd" -- \
             --mode direct --origin http://127.0.0.1:19811 \
             --bind-host 127.0.0.1 --project minmd-published-smoke --yes \
             > "$ROOT/install.log" 2>&1; then

@@ -25,10 +25,10 @@ MinMD 前台、后台 `/admin/`、API、MCP 和文档 / 表格协作均由同一
 国内镜像：
 
 ```sh
-curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install-china.sh | sh
+curl -fsSL https://gitee.com/tingxi8087/minmd/raw/main/install.sh | sh -s -- --image-source china
 ```
 
-下载当前源码的通用入口后，也可用 `sh install.sh --image-source china` 选择国内包；显式指定版本使用 `--version v0.1.0`。国内入口 `install-china.sh` 默认选择 china，官方入口默认选择 official。已有部署目录不允许用重复安装跨源改写配置。
+下载当前源码的通用入口后，也可用 `sh install.sh --image-source china` 选择国内包；显式指定版本使用 `--version v0.1.0`。Gitee 源码入口通过 `--image-source china` 选择国内链路；Release 附件 `install-china.sh` 已默认选择 china，官方入口默认选择 official。国内安装的最新版本查询、部署包和校验文件均访问 Gitee，不回退 GitHub。已有部署目录不允许用重复安装跨源改写配置。
 
 官方镜像：
 
@@ -52,7 +52,7 @@ curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install.
     --mode direct --origin http://192.168.1.10:9811 --yes
 ```
 
-`--install-dir` 是部署脚本目录，须为尚不存在的目录或已有的 Release 部署目录；安装器的高级 `--dir` 是凭证与部署状态目录，两者用途不同。目录可含空格和中文，不能使用 dotenv 插值 / 转义字符、符号链接或根目录。fork 发布的入口绑定实际 GitHub 仓库，也可在入口参数中指定 `--repo 用户/仓库`。
+`--install-dir` 是部署脚本目录，须为尚不存在的目录或已有的 Release 部署目录；安装器的高级 `--dir` 是凭证与部署状态目录，两者用途不同。目录可含空格和中文，不能使用 dotenv 插值 / 转义字符、符号链接或根目录。fork 发布的入口绑定实际发布仓库，official 对应 GitHub、china 对应 Gitee，也可在入口参数中指定 `--repo 用户/仓库`。
 
 重复执行时保留已下载部署文件及凭证，继续原版本安装，不自动覆盖或升级；指定了其他版本则拒绝并提示使用 `./minmd.sh upgrade <版本>`。下载 / 校验失败不会生成目标部署目录；向导失败会保留已经校验的部署包，以便重新执行。安装结束后进入该目录维护，例如 `cd /opt/minmd`。
 
@@ -74,7 +74,7 @@ curl -fsSL https://github.com/tingxi8087/minmd/releases/latest/download/install.
 
 从 [GitHub Releases](https://github.com/tingxi8087/minmd/releases) 下载同一版本的部署包和校验文件。以下文件名是示例，使用时替换为实际发布版本；首次发布包含安装资源的 Release 之前，一行命令下载地址也不可用。
 
-国内源下载带 `-china` 后缀的部署包及校验文件，其他操作相同。官方包与国内包分开发布，不会覆盖对方附件。基础镜像由包内元数据写入部署配置的 `POSTGRES_IMAGE`、`CADDY_IMAGE`；旧配置未填写时，仍使用 `postgres:18`、`caddy:2.11.4-alpine`。这两个字段接受带固定标签的镜像地址，不接受 `latest`；Compose、端口检查、数据库连接检查和附件备份恢复都沿用配置中的镜像，不受 Shell 导出同名变量覆盖。
+国内源从 [Gitee Releases](https://gitee.com/tingxi8087/minmd/releases) 下载带 `-china` 后缀的部署包及校验文件，其他操作相同。官方包与国内包分开发布，不会覆盖对方附件。基础镜像由包内元数据写入部署配置的 `POSTGRES_IMAGE`、`CADDY_IMAGE`；旧配置未填写时，仍使用 `postgres:18`、`caddy:2.11.4-alpine`。这两个字段接受带固定标签的镜像地址，不接受 `latest`；Compose、端口检查、数据库连接检查和附件备份恢复都沿用配置中的镜像，不受 Shell 导出同名变量覆盖。
 
 国内包另外写入 `POSTGRES_IMAGE_FALLBACK=ccr.ccs.tencentyun.com/tingxi8087/minmd-postgres:18` 和 `CADDY_IMAGE_FALLBACK=ccr.ccs.tencentyun.com/tingxi8087/minmd-caddy:2.11.4-alpine`。安装器启动或升级准备镜像时，优先使用主源；主源拉取失败再尝试备用源。成功后将实际地址写回对应 `*_IMAGE`，后续启动、升级、诊断和备份恢复沿用所选源，避免反复切换。`--offline` 不联网，仅在主源缓存缺失时选择已缓存的备用镜像；两者均不可用则退出。备用值留空可禁用，备用标签必须与主源一致，不允许自动跨 PostgreSQL 大版本。
 

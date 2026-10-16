@@ -23,7 +23,8 @@
     "scripts/release.ts",
     "scripts/release-verify.ts",
     "scripts/release-dependencies.ts",
-    "scripts/release-auth.ts"
+    "scripts/release-auth.ts",
+    "scripts/gitee-release.ts"
   ],
   "exclude": ["apps/web-cms", "apps/web"]
 }

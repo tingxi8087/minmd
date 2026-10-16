@@ -151,6 +151,7 @@ export async function release(
   let anonymous: string | undefined;
   let snapshot: string | undefined;
   let remoteTagExists = false;
+  let giteeTagExists = false;
   try {
     if (!verifyOnly) {
       const status = await execute(["git", "status", "--porcelain"], {
@@ -204,6 +205,38 @@ export async function release(
       )
         throw new Error("远端同名标签指向其他提交，不能覆盖");
       remoteTagExists = Boolean(tag);
+      await execute([
+        "bun",
+        "--no-env-file",
+        "scripts/gitee-release.ts",
+        "check",
+        repository,
+        revision,
+        version,
+      ]);
+      await execute([
+        "git",
+        "push",
+        "--dry-run",
+        "gitee",
+        `${revision}:refs/heads/main`,
+      ]);
+      const giteeTag = await execute(
+        [
+          "git",
+          "ls-remote",
+          "gitee",
+          `refs/tags/${version}`,
+          `refs/tags/${version}^{}`,
+        ],
+        { quiet: true },
+      );
+      if (
+        giteeTag &&
+        !giteeTag.split("\n").some((line) => line.split(/\s+/)[0] === revision)
+      )
+        throw new Error("Gitee 同名标签指向其他提交，不能覆盖");
+      giteeTagExists = Boolean(giteeTag);
       console.log(
         "请确保 Docker 已登录 GHCR 和腾讯云；推送失败将保留草稿，重跑同版本即可重试。",
       );
@@ -307,6 +340,14 @@ export async function release(
       revision
     )
       throw new Error("验收期间源码提交发生变化，请重新发布");
+    // 普通推送保留 Gitee 上的提交，不使用强推或镜像删除。
+    await execute([
+      "git",
+      "push",
+      "gitee",
+      `${revision}:refs/heads/main`,
+      ...(giteeTagExists ? [] : [`${revision}:refs/tags/${version}`]),
+    ]);
     // Draft 是断点；所有镜像和附件通过后才对外发布，失败时不更新 latest。
     const releaseData = JSON.parse(
       await execute(
@@ -414,6 +455,21 @@ export async function release(
         "origin",
         `${revision}:refs/tags/${version}`,
       ]);
+    await retry(() =>
+      execute(
+        [
+          "bun",
+          "--no-env-file",
+          "scripts/gitee-release.ts",
+          "publish",
+          repository,
+          revision,
+          version,
+          output,
+        ],
+        { timeout: 600000 },
+      ),
+    );
     await execute([
       "gh",
       "release",

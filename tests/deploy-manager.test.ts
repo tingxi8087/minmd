@@ -652,6 +652,10 @@ test("发布资源绑定实际仓库，一行安装和手动 Release 均调用�
         { stdout: "pipe", stderr: "pipe" },
       );
       expect(await pack.exited).toBe(0);
+      await writeFile(
+        join(assets, "latest"),
+        JSON.stringify({ tag_name: "v0.1.0", prerelease: false }),
+      );
       // BSD tar 的列表会隐藏 AppleDouble；直接检查归档头，确保 Linux 也能安全解压。
       const tar = gunzipSync(await readFile(archive));
       for (let offset = 0; tar[offset];) {
@@ -686,11 +690,16 @@ while [ "$#" -gt 0 ]; do
   case "$1" in --output) output=$2; shift 2 ;; https://*) url=$1; shift ;; *) shift ;; esac
 done
 printf '%s\\n' "$url" >> "$MINMD_BOOT_TRACE"
+[ "$MINMD_BOOT_CHINA" != true ] || case "$url" in https://gitee.com/*) ;; *) exit 99 ;; esac
 name=REPLACE_SHELL_NAME
 cp "$MINMD_BOOT_ASSETS/$name" "$output"
 `.replace("REPLACE_SHELL_NAME", "$" + "{url##*/}"),
       );
-      const env = { MINMD_BOOT_TRACE: bootTrace, MINMD_BOOT_ASSETS: assets };
+      const env = {
+        MINMD_BOOT_TRACE: bootTrace,
+        MINMD_BOOT_ASSETS: assets,
+        MINMD_BOOT_CHINA: String(china),
+      };
       const options = [
         "--mode",
         "direct",
@@ -708,7 +717,9 @@ cp "$MINMD_BOOT_ASSETS/$name" "$output"
         if (result.code) throw new Error(result.err);
         expect(result.code).toBe(0);
         expect(await readFile(bootTrace, "utf8")).toContain(
-          `https://github.com/example/fork/releases/latest/download/${metadata}`,
+          china
+            ? "https://gitee.com/api/v5/repos/example/fork/releases/latest"
+            : `https://github.com/example/fork/releases/latest/download/${metadata}`,
         );
         const config = await f.config();
         await writeFile(bootTrace, "");

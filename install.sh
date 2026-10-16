@@ -15,7 +15,7 @@ fail() { printf '错误：%s\n' "$*" >&2; exit 1; }
 usage() {
   cat <<'HELP'
 用法：sh install.sh [入口选项] [-- 安装向导选项]
-  --repo <用户/仓库>       GitHub 仓库，默认当前发布仓库
+  --repo <用户/仓库>       当前下载平台的仓库，默认当前发布仓库
   --version <版本>         默认 latest（最新稳定版），也可指定 v0.1.0
   --image-source <源>      official：官方镜像；china：腾讯云国内镜像及国内部署包
   --install-dir <目录>     部署文件目录，默认当前目录下的 minmd
@@ -49,7 +49,7 @@ for minmd_tool in sh cat uname awk grep sed tr tar gzip mktemp mkdir mv rm rmdir
   command -v "$minmd_tool" >/dev/null 2>&1 || fail "缺少工具 ${minmd_tool}，请安装后重新执行；Linux 通常由系统基础工具包提供，Windows 请使用 WSL2"
 done
 case "$(uname -s)" in Linux|Darwin) ;; *) fail '此安装入口支持 Linux / macOS；Windows 请在 WSL2 内执行' ;; esac
-printf '%s\n' "$MINMD_REPOSITORY" | LC_ALL=C grep -Eq '^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$' || fail '--repo 格式应为 GitHub 用户/仓库'
+printf '%s\n' "$MINMD_REPOSITORY" | LC_ALL=C grep -Eq '^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$' || fail '--repo 格式应为用户/仓库'
 [ "$MINMD_VERSION" = latest ] || valid_version "$MINMD_VERSION" || fail '--version 应为 latest 或固定版本，例如 v0.1.0'
 if command -v curl >/dev/null 2>&1; then MINMD_DOWNLOADER=curl
 elif command -v wget >/dev/null 2>&1; then MINMD_DOWNLOADER=wget
@@ -120,17 +120,27 @@ fi
 MINMD_STAGE=$(mktemp -d "$minmd_parent/.minmd-download.XXXXXX") || fail '无法创建临时下载目录'
 download() {
   if [ "$MINMD_DOWNLOADER" = curl ]; then
-    curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 --max-time 300 --proto '=https' --proto-redir '=https' --output "$2" "$1" || fail '下载失败：请检查网络、GitHub 访问、仓库及版本是否已正式发布；安装目录未写入'
+    curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 --max-time 300 --proto '=https' --proto-redir '=https' --output "$2" "$1" || fail '下载失败：请检查网络、下载源访问、仓库及版本是否已正式发布；安装目录未写入'
   else
-    wget --https-only --timeout=30 --tries=3 --max-redirect=10 -q -O "$2" "$1" || fail '下载失败：请检查网络、GitHub 访问、仓库及版本是否已正式发布；安装目录未写入'
+    wget --https-only --timeout=30 --tries=3 --max-redirect=10 -q -O "$2" "$1" || fail '下载失败：请检查网络、下载源访问、仓库及版本是否已正式发布；安装目录未写入'
   fi
   [ -s "$2" ] || fail '下载结果为空，未继续安装'
 }
 MINMD_RELEASE_URL="https://github.com/$MINMD_REPOSITORY/releases"
+if [ "$MINMD_IMAGE_SOURCE" = china ]; then MINMD_RELEASE_URL="https://gitee.com/$MINMD_REPOSITORY/releases"; fi
 if [ "$MINMD_VERSION" = latest ]; then
-  download "$MINMD_RELEASE_URL/latest/download/$MINMD_META" "$MINMD_STAGE/release.env"
-  # 只读取版本字段，不 source 网络文件，也不依赖 jq、Node、Bun 或 Git。
-  MINMD_VERSION=$(awk 'index($0,"MINMD_IMAGE_TAG=")==1 {count++;value=substr($0,17)} END{if(count!=1)exit 1;print value}' "$MINMD_STAGE/release.env") || fail 'Release 版本元数据无效或重复'
+  if [ "$MINMD_IMAGE_SOURCE" = china ]; then
+    # Gitee 没有 GitHub 的 latest/download 路由；公开 API 只用于解析固定版本。
+    download "https://gitee.com/api/v5/repos/$MINMD_REPOSITORY/releases/latest" "$MINMD_STAGE/latest.json"
+    tr ',' '\n' < "$MINMD_STAGE/latest.json" > "$MINMD_STAGE/latest.fields"
+    MINMD_VERSION=$(sed -n 's/^[[:space:]{]*"tag_name"[[:space:]]*:[[:space:]]*"\(v[0-9][A-Za-z0-9.-]*\)"[[:space:]}]*$/\1/p' "$MINMD_STAGE/latest.fields" | awk 'NF{count++;value=$0} END{if(count!=1)exit 1;print value}') || fail 'Gitee Release 版本元数据无效或重复'
+    minmd_preview=$(sed -n 's/^[[:space:]{]*"prerelease"[[:space:]]*:[[:space:]]*\([a-z][a-z]*\)[[:space:]}]*$/\1/p' "$MINMD_STAGE/latest.fields" | awk 'NF{count++;value=$0} END{if(count!=1)exit 1;print value}') || fail 'Gitee Release 发布状态无效'
+    [ "$minmd_preview" = false ] || fail 'Gitee 最新版本尚未完成正式发布，请稍后重试或指定已发布版本'
+  else
+    download "$MINMD_RELEASE_URL/latest/download/$MINMD_META" "$MINMD_STAGE/release.env"
+    # 不 source 网络文件，也不依赖 jq、Node、Bun 或 Git。
+    MINMD_VERSION=$(awk 'index($0,"MINMD_IMAGE_TAG=")==1 {count++;value=substr($0,17)} END{if(count!=1)exit 1;print value}' "$MINMD_STAGE/release.env") || fail 'Release 版本元数据无效或重复'
+  fi
   valid_version "$MINMD_VERSION" || fail 'Release 没有有效的固定版本信息'
   printf '%s\n' "$MINMD_VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail 'latest 必须指向稳定版；测试版请显式指定 --version'
 fi

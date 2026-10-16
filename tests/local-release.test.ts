@@ -121,7 +121,21 @@ test("本机发布只编译一次，四个架构镜像直接推双仓库，匿�
     ).toHaveLength(4);
     expect(
       calls.findIndex((a) => a[1] === "scripts/release-verify.ts"),
-    ).toBeLessThan(calls.findIndex((a) => a[1] === "push"));
+    ).toBeLessThan(
+      calls.findIndex((a) => a[1] === "push" && !a.includes("--dry-run")),
+    );
+    expect(
+      calls.some(
+        (a) =>
+          a.includes("gitee") &&
+          a.includes(`${"a".repeat(40)}:refs/heads/main`),
+      ),
+    ).toBe(true);
+    expect(
+      calls.findIndex(
+        (a) => a.includes("scripts/gitee-release.ts") && a.includes("publish"),
+      ),
+    ).toBeLessThan(calls.length - 1);
     const upload = calls.find((a) => a[0] === "gh" && a[2] === "upload")!;
     expect(upload.filter((a) => a.startsWith(f.workspace))).toHaveLength(8);
     expect(calls.at(-1)).toContain("--draft=false");
@@ -143,7 +157,9 @@ test("仅验收不执行远端写入；失败验收、脏工作区和已发布�
       else await task;
       expect(
         f.calls.some(
-          (a) => a[1] === "push" || (a[2] === "create" && a[0] === "gh"),
+          (a) =>
+            (a[1] === "push" && !a.includes("--dry-run")) ||
+            (a[2] === "create" && a[0] === "gh"),
         ),
       ).toBe(false);
       // finally 释放锁，失败后允许重新执行。
@@ -245,7 +261,12 @@ test("已存在且指向相同提交的注解标签不会被改写", async () =>
       f.workspace,
     );
     expect(
-      f.calls.some((args) => args[0] === "git" && args[1] === "push"),
+      f.calls.some(
+        (args) =>
+          args[0] === "git" &&
+          args[1] === "push" &&
+          args.some((value) => value.includes(":refs/tags/")),
+      ),
     ).toBe(false);
     expect(f.calls.at(-1)).toContain("--draft=false");
   } finally {

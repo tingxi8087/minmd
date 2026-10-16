@@ -37,8 +37,24 @@ jobs:
           registry: ccr.ccs.tencentyun.com
           username: ${{ secrets.TCR_USERNAME }}
           password: ${{ secrets.TCR_PASSWORD }}
+      - name: 配置 Gitee 仓库认证
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
+        run: |
+          test -n "$GITEE_TOKEN" && test -n "$GITEE_USERNAME" || { echo '请配置 GITEE_TOKEN 和 GITEE_USERNAME Secrets'; exit 1; }
+          git remote add gitee https://gitee.com/tingxi8087/minmd.git
+          cat > "$RUNNER_TEMP/gitee-askpass.sh" <<'SH'
+          #!/bin/sh
+          case "$1" in *Username*) printf '%s\n' "$GITEE_USERNAME" ;; *Password*) printf '%s\n' "$GITEE_TOKEN" ;; *) exit 1 ;; esac
+          SH
+          chmod 700 "$RUNNER_TEMP/gitee-askpass.sh"
       - name: 使用与本机相同的一键发布入口
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_VERSION: ${{ inputs.version }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
+          GIT_ASKPASS: ${{ runner.temp }}/gitee-askpass.sh
+          GIT_TERMINAL_PROMPT: "0"
         run: bun run release "$RELEASE_VERSION"

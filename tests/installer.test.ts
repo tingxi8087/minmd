@@ -103,6 +103,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in --output|-O) output=$2; shift 2 ;; https://*) url=$1; shift ;; *) shift ;; esac
 done
 printf '%s\\n' "$url" >> "$MINMD_TEST_TRACE"
+[ "$MINMD_TEST_IMAGE_SOURCE" != china ] || case "$url" in https://gitee.com/*) ;; *) exit 99 ;; esac
 [ ! -f "$MINMD_TEST_ASSETS/fail-download" ] || exit 22
 name=\${url##*/}
 [ -f "$MINMD_TEST_ASSETS/$name" ] || exit 22
@@ -118,6 +119,10 @@ cat "$MINMD_TEST_ASSETS/$name" > "$output"
   await writeFile(
     join(bundle, "deploy/release.env"),
     "MINMD_IMAGE_PREFIX=ghcr.io/example/minmd\nMINMD_IMAGE_TAG=v0.1.0\n",
+  );
+  await writeFile(
+    join(assets, "latest"),
+    JSON.stringify({ tag_name: "v0.1.0", prerelease: false }),
   );
   await writeFile(
     join(bundle, "minmd.sh"),
@@ -172,6 +177,7 @@ printf '安装向导完成\\n'
     MINMD_TEST_ARGUMENTS: join(dir, "args"),
     MINMD_TEST_ANSWER: join(dir, "answer"),
     MINMD_TEST_INTERACTIVE: "false",
+    MINMD_TEST_IMAGE_SOURCE: options.imageSource ?? "official",
   };
   const run = (
     args: string[] = [
@@ -194,7 +200,10 @@ test("国内入口下载独立部署包，重复安装不跨镜像源改写已�
   try {
     expect((await f.run(args)).code).toBe(0);
     const downloads = await readFile(f.trace, "utf8");
-    expect(downloads).toContain("/latest/download/release-china.env");
+    expect(downloads).toContain(
+      "https://gitee.com/api/v5/repos/tingxi8087/minmd/releases/latest",
+    );
+    expect(downloads).not.toContain("github.com");
     expect(downloads).toContain("/download/v0.1.0/minmd-v0.1.0-china.tar.gz\n");
     expect(downloads).toContain("minmd-v0.1.0-china.tar.gz.sha256");
     expect(await readFile(join(f.dir, "args"), "utf8")).toBe(
@@ -538,6 +547,7 @@ sys.exit(os.waitstatus_to_exitcode(status))
       ...f.env,
       MINMD_TEST_INTERACTIVE: "true",
     });
+
     if (result.code) throw new Error(result.err + result.out);
     expect(result.code).toBe(0);
     expect(result.out).toContain("安装向导完成");
@@ -571,3 +581,50 @@ test("磁盘不足和无效安装目录在下载前拒绝", async () => {
     await clean(g);
   }
 }, 30000);
+
+test("国内固定版本、fork 和 wget 不访问 GitHub；无效 latest 不下载安装包", async () => {
+  for (const downloader of ["curl", "wget"] as const) {
+    const f = await fixture({ imageSource: "china", downloader });
+    try {
+      expect(
+        (
+          await f.run([
+            "--image-source",
+            "china",
+            "--repo",
+            "example/fork",
+            "--version",
+            "v0.1.0",
+            "--",
+            "--yes",
+          ])
+        ).code,
+      ).toBe(0);
+      const calls = await readFile(f.trace, "utf8");
+      expect(calls).toContain(
+        "https://gitee.com/example/fork/releases/download/v0.1.0/",
+      );
+      expect(calls).not.toContain("/latest");
+      expect(calls).not.toContain("github");
+    } finally {
+      await clean(f);
+    }
+  }
+  for (const metadata of [
+    "<html>登录</html>",
+    '{"tag_name":"v0.1.0","prerelease":true}',
+    '{"tag_name":"v0.1.0","tag_name":"v0.2.0","prerelease":false}',
+    '{"tag_name":"../../bad","prerelease":false}',
+  ]) {
+    const f = await fixture({ imageSource: "china" });
+    try {
+      await writeFile(join(f.assets, "latest"), metadata);
+      expect(
+        (await f.run(["--image-source", "china", "--", "--yes"])).code,
+      ).not.toBe(0);
+      expect(await readFile(f.trace, "utf8")).not.toContain("tar.gz");
+    } finally {
+      await clean(f);
+    }
+  }
+});
