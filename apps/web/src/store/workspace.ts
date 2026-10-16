@@ -1,3 +1,4 @@
+import { isDemo } from "@/runtime";
 import type { JSONContent } from "@tiptap/core";
 import { filesApi, type RemoteFile } from "@/api/files";
 import { errorMessage } from "@/http";
@@ -315,8 +316,11 @@ export const useWorkspace = create<State>()(
         const file = get().files.find((item) => item.id === id);
         if (!file) throw new Error("文件不存在");
         await filesApi.purge(file.space, id);
-        if (file.presentation) await deletePresentation(file.presentation.key);
-        await deleteSpreadsheet(id);
+        if (!isDemo) {
+          if (file.presentation)
+            await deletePresentation(file.presentation.key);
+          await deleteSpreadsheet(id);
+        }
         await get().loadFiles();
       },
       addKey: (key) => set({ keys: [key, ...get().keys] }),
@@ -340,8 +344,11 @@ export const useWorkspace = create<State>()(
       },
     }),
     {
-      name: "minmd-preferences-v2",
-      partialize: (state) => ({ theme: state.theme, space: state.space }),
+      name: isDemo ? "minmd-demo-preferences" : "minmd-preferences-v2",
+      partialize: (state) => ({
+        theme: state.theme,
+        ...(!isDemo ? { space: state.space } : {}),
+      }),
     },
   ),
 );

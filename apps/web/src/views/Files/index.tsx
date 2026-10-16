@@ -1,3 +1,4 @@
+import { isDemo, FullVersion } from "@/runtime";
 import { v4 as createId } from "uuid";
 import { usePageTitle } from "@/components/PageTitles";
 import { assertUploadSize } from "@/utils/uploadLimits";
@@ -410,9 +411,11 @@ export default function Files() {
       setFailedImport(null);
       navigate(isSheet ? `/preview/${id}` : `/document/${id}`);
       message.success(
-        isSheet
-          ? "Excel 已保存到服务器，图表等高级对象暂不支持转换"
-          : "Markdown 已保存到服务器，可打开编辑",
+        isDemo
+          ? "已导入到当前演示页面，刷新后重置"
+          : isSheet
+            ? "Excel 已保存到服务器，图表等高级对象暂不支持转换"
+            : "Markdown 已保存到服务器，可打开编辑",
       );
     } catch (error) {
       if (!controller.signal.aborted) {
@@ -478,12 +481,14 @@ export default function Files() {
                 <Upload size={15} />
                 {importing ? "正在导入…" : "导入"}
               </button>
-              <button
-                className="secondary-button"
-                onClick={() => setDemoImportOpen(true)}
-              >
-                导入旧演示
-              </button>
+              <FullVersion>
+                <button
+                  className="secondary-button"
+                  onClick={() => setDemoImportOpen(true)}
+                >
+                  导入旧演示
+                </button>
+              </FullVersion>
               <Dropdown
                 trigger={["click"]}
                 menu={{
@@ -595,13 +600,18 @@ export default function Files() {
           </div>
         </div>
         {visible.length ? (
-          <div className={view === "grid" ? styles.fileGrid : styles.fileList}>
+          <div
+            data-demo={isDemo || undefined}
+            className={view === "grid" ? styles.fileGrid : styles.fileList}
+          >
             {view === "list" && (
               <div className={styles.tableHeader}>
                 <span>
                   名称 <ArrowDown size={11} />
                 </span>
-                <span>可见性</span>
+                <FullVersion>
+                  <span>可见性</span>
+                </FullVersion>
                 <span>最近修改</span>
                 <span>创建者</span>
                 <span />
@@ -637,21 +647,23 @@ export default function Files() {
                     />
                   )}
                 </button>
-                <span className={styles.visibility}>
-                  {file.kind === "folder" ? (
-                    <span className="muted">—</span>
-                  ) : file.public ? (
-                    <>
-                      <Globe2 size={13} />
-                      <span>公开</span>
-                    </>
-                  ) : (
-                    <>
-                      <LockKeyhole size={12} />
-                      <span>私有</span>
-                    </>
-                  )}
-                </span>
+                <FullVersion>
+                  <span className={styles.visibility}>
+                    {file.kind === "folder" ? (
+                      <span className="muted">—</span>
+                    ) : file.public ? (
+                      <>
+                        <Globe2 size={13} />
+                        <span>公开</span>
+                      </>
+                    ) : (
+                      <>
+                        <LockKeyhole size={12} />
+                        <span>私有</span>
+                      </>
+                    )}
+                  </span>
+                </FullVersion>
                 <span className={styles.date}>
                   {new Date(file.updated).toLocaleDateString("zh-CN", {
                     month: "2-digit",
@@ -666,7 +678,7 @@ export default function Files() {
                   {creator(file.owner)}
                 </span>
                 <div className={styles.rowActions}>
-                  {!trash && file.kind !== "folder" && (
+                  {!isDemo && !trash && file.kind !== "folder" && (
                     <button
                       className="icon-button"
                       aria-label={`分享 ${file.name}`}

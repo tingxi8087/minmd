@@ -1,3 +1,4 @@
+import { FullVersion } from "@/runtime";
 import axios from "axios";
 import { useEffect, useRef, useState } from "react";
 import { App, Dropdown } from "antd";
@@ -281,14 +282,16 @@ export default function Presentation({ file }: { file: Entry }) {
           >
             <Download size={16} />
           </TooltipButton>
-          <button
-            className={`secondary-button ${styles.shareButton}`}
-            aria-label="分享"
-            onClick={() => setAction({ type: "share", file })}
-          >
-            <Share2 size={15} />
-            <span className={styles.shareLabel}>分享</span>
-          </button>
+          <FullVersion>
+            <button
+              className={`secondary-button ${styles.shareButton}`}
+              aria-label="分享"
+              onClick={() => setAction({ type: "share", file })}
+            >
+              <Share2 size={15} />
+              <span className={styles.shareLabel}>分享</span>
+            </button>
+          </FullVersion>
           <Dropdown
             trigger={["click"]}
             getPopupContainer={() => root.current ?? document.body}

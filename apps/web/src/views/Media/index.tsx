@@ -1,3 +1,4 @@
+import { isDemo, FullVersion } from "@/runtime";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dropdown } from "antd";
@@ -12,6 +13,7 @@ import FileHeader from "@/components/FileHeader";
 import FileIcon from "@/components/FileIcon";
 import TooltipButton from "@/components/TooltipButton";
 import FileDialogs, { type FileAction } from "@/components/FileDialogs";
+import { assetUrl } from "@/utils/assetUrl";
 import { assetsApi, type PresentationProjection } from "@/api/assets";
 import { type Entry, kindNames } from "@/store/workspace";
 import { useLayout } from "@/store/layout";
@@ -38,13 +40,11 @@ export default function Media({ file }: { file: Entry }) {
       });
     return () => controller.abort();
   }, [file.id, retry]);
-  const url = projection?.assetId
-    ? `/api/app/assets/${projection.assetId}`
-    : "";
+  const url = projection?.assetId ? assetUrl(projection.assetId) : "";
   const download = () => {
     if (!url) return;
     const anchor = document.createElement("a");
-    anchor.href = `${url}?download=true`;
+    anchor.href = isDemo ? url : `${url}?download=true`;
     anchor.download = file.name;
     anchor.click();
   };
@@ -72,13 +72,15 @@ export default function Media({ file }: { file: Entry }) {
           >
             <Download size={17} />
           </TooltipButton>
-          <TooltipButton
-            className="icon-button"
-            aria-label="分享文件"
-            onClick={() => setAction({ type: "share", file })}
-          >
-            <Share2 size={17} />
-          </TooltipButton>
+          <FullVersion>
+            <TooltipButton
+              className="icon-button"
+              aria-label="分享文件"
+              onClick={() => setAction({ type: "share", file })}
+            >
+              <Share2 size={17} />
+            </TooltipButton>
+          </FullVersion>
           <Dropdown
             trigger={["click"]}
             menu={{

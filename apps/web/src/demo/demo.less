@@ -1,0 +1,67 @@
+.demo-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  min-height: 34px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: var(--text-secondary);
+  font-size: 12px;
+  .demo-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--accent);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .demo-hint {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .demo-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 12px;
+    white-space: nowrap;
+  }
+  button,
+  a {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: inherit;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: inherit;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  button:hover,
+  a:hover {
+    color: var(--accent);
+  }
+}
+html[data-demo] {
+  --header-height: 44px;
+}
+html[data-demo] main[class*="page"]:not(:fullscreen) {
+  height: calc(100dvh - var(--header-height) - 34px);
+}
+@media (max-width: 680px) {
+  .demo-banner {
+    gap: 8px;
+    padding: 0 10px;
+    font-size: 11px;
+    .demo-hint {
+      display: none;
+    }
+    .demo-actions {
+      gap: 10px;
+    }
+  }
+}

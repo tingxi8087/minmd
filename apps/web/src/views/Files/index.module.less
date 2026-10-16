@@ -60,15 +60,6 @@
   }
 }
 
-
-
-
-
-
-
-
-
-
 .listTitle {
   display: flex;
   align-items: center;
@@ -329,7 +320,6 @@
     padding: var(--page-padding);
   }
 
-
   .fileRow {
     min-height: var(--row-height);
   }
@@ -349,9 +339,6 @@
     display: none;
   }
 
-
-
-
   .tools {
     gap: 0;
   }
@@ -360,8 +347,6 @@
   }
 }
 @media (max-width: 800px) {
-
-
   .tools :global(.ant-select) {
     display: none;
   }
@@ -409,12 +394,6 @@
     gap: 12px;
   }
 
-
-
-
-
-
-
   .fileGrid {
     grid-template-columns: 1fr;
   }
@@ -428,10 +407,36 @@
     margin-bottom: var(--content-gap);
   }
 
-
   .fileRow {
     min-height: var(--row-height);
     padding-top: 9px;
     padding-bottom: 9px;
+  }
+}
+
+.fileList[data-demo] {
+  .tableHeader,
+  .fileRow {
+    grid-template-columns: minmax(220px, 1fr) 120px 110px 70px;
+  }
+  @media (max-width: 900px) {
+    .tableHeader,
+    .fileRow {
+      grid-template-columns: minmax(150px, 1fr) 75px 65px;
+    }
+    .owner,
+    .tableHeader > span:nth-child(3) {
+      display: none;
+    }
+  }
+  @media (max-width: 680px) {
+    .tableHeader,
+    .fileRow {
+      grid-template-columns: minmax(120px, 1fr) 55px;
+    }
+    .date,
+    .tableHeader > span:nth-child(2) {
+      display: none;
+    }
   }
 }

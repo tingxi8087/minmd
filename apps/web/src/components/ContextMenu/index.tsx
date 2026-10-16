@@ -1,3 +1,4 @@
+import { demoMenu } from "@/runtime";
 import {
   useEffect,
   useLayoutEffect,
@@ -41,7 +42,7 @@ export function useContextMenu() {
     setState({
       x: event.clientX,
       y: event.clientY,
-      items,
+      items: demoMenu(items),
       label,
       preserveFocus,
     });

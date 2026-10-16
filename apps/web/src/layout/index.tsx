@@ -1,3 +1,5 @@
+import { isDemo, demoMenu } from "@/runtime";
+import { lazy, Suspense } from "react";
 import { fileAccessApi } from "@/api/fileAccess";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -34,14 +36,16 @@ import { useLayout, SIDEBAR_MIN, SIDEBAR_MAX } from "@/store/layout";
 import WorkspaceTree from "./components/WorkspaceTree";
 import styles from "./index.module.less";
 import { memberReturnPath } from "@/utils/memberReturn";
+const DemoBanner = isDemo ? lazy(() => import("@/demo/Banner")) : null;
 export default function Layout() {
-  const { space, spaces, setSpace, theme, setTheme, loadSpaces } = useWorkspace();
+  const { space, spaces, setSpace, theme, setTheme, loadSpaces } =
+    useWorkspace();
   const { user, status, bootstrap, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   useEffect(() => {
     let active = true;
     setUnreadCount(0);
-    if (status !== "authenticated" || !user?.id) return;
+    if (isDemo || status !== "authenticated" || !user?.id) return;
     const load = () => {
       void fileAccessApi
         .notifications()
@@ -135,7 +139,9 @@ export default function Layout() {
     { to: "/files", icon: Home, label: "空间首页" },
     { to: "/recent", icon: Clock3, label: "最近访问" },
     { to: "/favorites", icon: Star, label: "我的收藏" },
-    { to: "/shared", icon: ArrowUpRight, label: "公开分享" },
+    ...(!isDemo
+      ? [{ to: "/shared", icon: ArrowUpRight, label: "公开分享" }]
+      : []),
   ];
   if (status !== "authenticated") {
     return <div className={styles.loggedOut}>正在连接空间…</div>;
@@ -170,8 +176,12 @@ export default function Layout() {
             selectedKeys: [space],
             items: [
               ...spaces.map((s) => ({ key: s.id, label: s.name })),
-              { type: "divider" as const },
-              { key: "create-space", label: "新建空间" },
+              ...(!isDemo
+                ? [
+                    { type: "divider" as const },
+                    { key: "create-space", label: "新建空间" },
+                  ]
+                : []),
             ],
             onClick: ({ key }) => {
               if (key === "create-space") {
@@ -241,16 +251,18 @@ export default function Layout() {
                 name: "空间设置与成员",
                 icon: Settings2,
               },
-            ].map(({ to, name, icon: Icon }) => (
-              <TooltipButton
-                key={to}
-                aria-label={name}
-                className={`icon-button ${location.pathname === to || (to === "/settings/general" && location.pathname === "/settings/members") ? styles.bottomActive : ""}`}
-                onClick={() => navigate(to)}
-              >
-                <Icon size={15} />
-              </TooltipButton>
-            ))}
+            ]
+              .filter((item) => !isDemo || item.to === "/trash")
+              .map(({ to, name, icon: Icon }) => (
+                <TooltipButton
+                  key={to}
+                  aria-label={name}
+                  className={`icon-button ${location.pathname === to || (to === "/settings/general" && location.pathname === "/settings/members") ? styles.bottomActive : ""}`}
+                  onClick={() => navigate(to)}
+                >
+                  <Icon size={15} />
+                </TooltipButton>
+              ))}
           </div>
         </div>
       </aside>
@@ -343,7 +355,7 @@ export default function Layout() {
               trigger={["click"]}
               placement="bottomRight"
               menu={{
-                items: [
+                items: demoMenu([
                   {
                     key: "account",
                     label: user?.nickname || user?.account,
@@ -370,7 +382,7 @@ export default function Layout() {
                     label: "退出账号",
                     icon: <LogOut size={15} />,
                   },
-                ],
+                ]),
                 onClick: async ({ key }) => {
                   if (key === "theme") setThemeDialogOpen(true);
                   else if (key === "shared-with-me" || key === "notifications")
@@ -406,6 +418,13 @@ export default function Layout() {
             </Dropdown>
           </div>
         </header>
+        {DemoBanner && (
+          <Suspense
+            fallback={<div aria-hidden style={{ height: 34, flexShrink: 0 }} />}
+          >
+            <DemoBanner />
+          </Suspense>
+        )}
         {current ||
         isDocument ||
         ["/shared-with-me", "/notifications"].includes(location.pathname) ? (

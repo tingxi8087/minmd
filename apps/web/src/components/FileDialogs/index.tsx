@@ -1,3 +1,4 @@
+import { isDemo } from "@/runtime";
 import { v4 as createId } from "uuid";
 import { assertUploadSize } from "@/utils/uploadLimits";
 import { documentApi } from "@/api/documents";
@@ -188,9 +189,11 @@ export default function FileDialogs({
         operation.assertActive();
         onCreated?.(id, isSheet ? "sheet" : "doc");
         message.success(
-          isSheet
-            ? "Excel 已保存到服务器，图表等高级对象暂不支持转换"
-            : "Markdown 已保存到服务器，可打开编辑",
+          isDemo
+            ? "已导入到当前演示页面，刷新后重置"
+            : isSheet
+              ? "Excel 已保存到服务器，图表等高级对象暂不支持转换"
+              : "Markdown 已保存到服务器，可打开编辑",
         );
         close();
       } catch (error) {
@@ -282,7 +285,9 @@ export default function FileDialogs({
         });
         operation.assertActive();
         onCreated?.(id);
-        message.success("幻灯片已保存到服务器");
+        message.success(
+          isDemo ? "已导入到当前演示页面，刷新后重置" : "幻灯片已保存到服务器",
+        );
         close();
       } catch (error) {
         if (!operation.signal.aborted)

@@ -29,7 +29,8 @@
     "db:reset": "bun scripts/db-reset.ts",
     "dev:web": "bun scripts/web-dev.ts",
     "preview": "bun run --cwd apps/web preview",
-    "check:web": "bun run --cwd apps/web check"
+    "check:web": "bun run --cwd apps/web check",
+    "build:demo": "bun run --cwd apps/web build:demo"
   },
   "devDependencies": {
     "@types/bun": "^1.3.13",

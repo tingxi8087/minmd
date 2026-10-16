@@ -1,0 +1,1 @@
+export { installDemo } from "./index";

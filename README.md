@@ -4,9 +4,11 @@
 
 minmd 是一个开源、可自行部署的轻量文档协作系统。你可以用它写笔记、整理知识库、和伙伴一起编辑文档与表格，也可以上传 PPT、PDF、图片和视频，在浏览器中直接查看。
 
-[开始部署](#部署运行) · [上手使用](#怎么用) · [开发指南](docs/DEVELOPMENT.md) · [部署与维护](deploy/README.md)
+[在线演示](https://tingxi8087.github.io/minmd/) · [开始部署](#部署运行) · [上手使用](#怎么用) · [开发指南](docs/DEVELOPMENT.md) · [部署与维护](deploy/README.md)
 
 ![文档编辑：待办、章节目录和 Mermaid 图表](docs/images/document.jpg)
+
+[打开在线演示](https://tingxi8087.github.io/minmd/)：无需登录，可体验文档、表格和文件预览。演示不连接后端，修改与导入文件只保留在当前页面，刷新或重置后恢复示例；完整的协作、权限与版本功能需自行部署。
 
 ## 可以做什么
 

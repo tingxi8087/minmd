@@ -1,3 +1,4 @@
+import { isDemo, demoMenu, FullVersion } from "@/runtime";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { App, Dropdown } from "antd";
 import { useNavigate, useBlocker } from "react-router-dom";
@@ -25,7 +26,7 @@ import FileHeader from "@/components/FileHeader";
 import FileDialogs, { type FileAction } from "@/components/FileDialogs";
 import { type Entry, useWorkspace } from "@/store/workspace";
 import { importXlsx, exportXlsx } from "./exchange";
-import { useSheetCollaboration } from "./useSheetCollaboration";
+import { useSheetCollaboration } from "@/sessions/sheet";
 import SheetHistory from "./SheetHistory";
 import { shouldWarnSheetLeave } from "./recovery";
 import styles from "./index.module.less";
@@ -144,7 +145,11 @@ export default function Spreadsheet({ file }: { file: Entry }) {
       );
     }
     await collaboration.checkpoint();
-    message.success("已保存到服务器");
+    message[isDemo ? "info" : "success"](
+      isDemo
+        ? "演示模式，修改不会保存；可导出 XLSX 带走内容"
+        : "已保存到服务器",
+    );
   }, [collaboration, message]);
   const saveRef = useRef(save),
     undoRef = useRef(collaboration.undo);
@@ -216,7 +221,9 @@ export default function Spreadsheet({ file }: { file: Entry }) {
     const confirmed = await new Promise<boolean>((resolve) =>
       modal.confirm({
         title: "替换当前表格？",
-        content: "当前内容会保存为历史版本，在线编辑者将重新载入新版本。",
+        content: isDemo
+          ? "将替换当前页面中的表格内容，刷新后恢复示例。"
+          : "当前内容会保存为历史版本，在线编辑者将重新载入新版本。",
         okText: "导入并替换",
         cancelText: "取消",
         onOk: () => resolve(true),
@@ -231,7 +238,11 @@ export default function Spreadsheet({ file }: { file: Entry }) {
     try {
       const sheets = await importXlsx(binary, file.id, file.name);
       await collaboration.replace(sheets);
-      message.success("已导入并保存到服务器；图表等高级对象不支持");
+      message.success(
+        isDemo
+          ? "已在当前页面导入，刷新后重置"
+          : "已导入并保存到服务器；图表等高级对象不支持",
+      );
     } catch (error) {
       message.error(error instanceof Error ? error.message : "导入失败");
     } finally {
@@ -254,43 +265,49 @@ export default function Spreadsheet({ file }: { file: Entry }) {
         </span>
         <strong>{file.name}</strong>
         <div className={styles.actions}>
-          <TooltipButton
-            className="icon-button"
-            aria-label={
-              collaboration.state === "saved" ? "保存表格" : "表格同步状态"
-            }
-            disabled={!collaboration.editable}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() =>
-              void save().catch((error: unknown) =>
-                message.warning(
-                  error instanceof Error ? error.message : "保存失败",
-                ),
-              )
-            }
-          >
-            {collaboration.state === "saved" ? (
-              <Check size={16} />
-            ) : ["error", "disconnected"].includes(collaboration.state) ? (
-              <AlertCircle size={16} />
-            ) : (
-              <LoaderCircle size={16} />
-            )}
-          </TooltipButton>
-          <span
-            className={styles.members}
-            aria-label={`在线编辑 ${collaboration.members.count}，上限 ${collaboration.members.limit}`}
-          >
-            <Users size={15} />
-            {collaboration.members.count}/{collaboration.members.limit}
-          </span>
-          <TooltipButton
-            aria-label="表格版本历史"
-            className={`icon-button ${styles.secondaryAction}`}
-            onClick={() => setHistory(true)}
-          >
-            <History size={16} />
-          </TooltipButton>
+          <FullVersion>
+            <TooltipButton
+              className="icon-button"
+              aria-label={
+                collaboration.state === "saved" ? "保存表格" : "表格同步状态"
+              }
+              disabled={!collaboration.editable}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() =>
+                void save().catch((error: unknown) =>
+                  message.warning(
+                    error instanceof Error ? error.message : "保存失败",
+                  ),
+                )
+              }
+            >
+              {collaboration.state === "saved" ? (
+                <Check size={16} />
+              ) : ["error", "disconnected"].includes(collaboration.state) ? (
+                <AlertCircle size={16} />
+              ) : (
+                <LoaderCircle size={16} />
+              )}
+            </TooltipButton>
+          </FullVersion>
+          <FullVersion>
+            <span
+              className={styles.members}
+              aria-label={`在线编辑 ${collaboration.members.count}，上限 ${collaboration.members.limit}`}
+            >
+              <Users size={15} />
+              {collaboration.members.count}/{collaboration.members.limit}
+            </span>
+          </FullVersion>
+          <FullVersion>
+            <TooltipButton
+              aria-label="表格版本历史"
+              className={`icon-button ${styles.secondaryAction}`}
+              onClick={() => setHistory(true)}
+            >
+              <History size={16} />
+            </TooltipButton>
+          </FullVersion>
           <TooltipButton
             aria-label="导入 XLSX 到当前表格"
             className={`icon-button ${styles.secondaryAction}`}
@@ -307,18 +324,20 @@ export default function Spreadsheet({ file }: { file: Entry }) {
           >
             <Download size={16} />
           </TooltipButton>
-          <button
-            className={`secondary-button ${styles.shareButton}`}
-            aria-label="分享"
-            onClick={() => setAction({ type: "share", file })}
-          >
-            <Share2 size={15} />
-            <span className={styles.shareLabel}>分享</span>
-          </button>
+          <FullVersion>
+            <button
+              className={`secondary-button ${styles.shareButton}`}
+              aria-label="分享"
+              onClick={() => setAction({ type: "share", file })}
+            >
+              <Share2 size={15} />
+              <span className={styles.shareLabel}>分享</span>
+            </button>
+          </FullVersion>
           <Dropdown
             trigger={["click"]}
             menu={{
-              items: [
+              items: demoMenu([
                 {
                   key: "history",
                   label: "版本历史",
@@ -341,7 +360,7 @@ export default function Spreadsheet({ file }: { file: Entry }) {
                   label: "主题设置",
                   icon: <Palette size={15} />,
                 },
-              ],
+              ]),
               onClick: ({ key }) => {
                 if (key === "history") setHistory(true);
                 else if (key === "import") input.current?.click();

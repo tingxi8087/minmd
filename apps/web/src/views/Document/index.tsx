@@ -1,3 +1,4 @@
+import { isDemo, FullVersion } from "@/runtime";
 import { copyText, readClipboardText } from "@/utils/clipboard";
 import { usePageTitle } from "@/components/PageTitles";
 import { UPLOAD_MAX_BYTES } from "@/utils/uploadLimits";
@@ -26,7 +27,7 @@ import {
   useDocumentCollaboration,
   type DocumentSession,
   type CollaborationView,
-} from "./collaboration";
+} from "@/sessions/document";
 import { documentApi } from "@/api/documents";
 import { useAuth } from "@/store/auth";
 import { errorMessage } from "@/http";
@@ -224,6 +225,10 @@ function DocumentEditor({
     }, 500);
   };
   const checkpoint = async () => {
+    if (isDemo) {
+      message.info("演示模式，修改不会保存；可导出 Markdown 带走内容");
+      return;
+    }
     if (checkpointBusy) return;
     setCheckpointBusy(true);
     try {
@@ -264,7 +269,7 @@ function DocumentEditor({
     extensions: [
       StarterKit.configure({
         codeBlock: false,
-        undoRedo: session ? false : {},
+        undoRedo: session && !isDemo ? false : {},
         heading: { levels: [1, 2, 3, 4, 5, 6] },
         link: { openOnClick: false },
       }),
@@ -279,7 +284,9 @@ function DocumentEditor({
       BackgroundColor,
       BlockId,
       HeadingCollapse.configure({
-        storageKey: `minmd-heading-fold/${session.scope.userId}/${file.id}`,
+        storageKey: isDemo
+          ? ""
+          : `minmd-heading-fold/${session.scope.userId}/${file.id}`,
       }),
       TableDeletePreview,
       FontSize,
@@ -287,11 +294,11 @@ function DocumentEditor({
       Fold,
       DocumentReference,
       Markdown,
-      ...(session
+      ...(session && !isDemo
         ? [
             Collaboration.configure({ document: session.document }),
             CollaborationCaret.configure({
-              provider: session.provider,
+              provider: session.provider!,
               user: {
                 name: session.userName,
                 color: "#168b78",
@@ -300,12 +307,14 @@ function DocumentEditor({
           ]
         : []),
     ],
-    content: undefined,
+    content: isDemo ? session.projection : undefined,
     contentType: "json",
     editable: verification.ready,
-    onCreate: () => {
+    onCreate: ({ editor }) => {
       editorInitialized.current = true;
-      session.provider.sendStateless("ready");
+      if (isDemo) {
+        if (session.projection) editor.commands.setContent(session.projection);
+      } else session.provider?.sendStateless("ready");
     },
     shouldRerenderOnTransaction: true,
     editorProps: {
@@ -692,47 +701,55 @@ function DocumentEditor({
       <FileText size={17} className={styles.docIcon} />
       <span className={styles.headerTitle}>{file.name}</span>
       <div className={styles.headerActions}>
-        <Tooltip title={saveNotice} mouseEnterDelay={0.1}>
-          <span
-            className={styles.saveIndicator}
-            role="status"
-            aria-label={saveNotice}
-            data-error={saveProblem}
-          >
-            {session && (verification.notice || !verification.connected) ? (
-              <button
-                className="icon-button"
-                aria-label={`${saveNotice}，点击重新连接`}
-                onClick={() => collaboration.restart()}
-              >
-                <SaveIcon size={16} />
-              </button>
-            ) : (
-              <SaveIcon
-                size={16}
-                className={
-                  SaveIcon === LoaderCircle ? styles.saving : undefined
-                }
-              />
-            )}
+        <FullVersion>
+          <Tooltip title={saveNotice} mouseEnterDelay={0.1}>
+            <span
+              className={styles.saveIndicator}
+              role="status"
+              aria-label={saveNotice}
+              data-error={saveProblem}
+            >
+              {session && (verification.notice || !verification.connected) ? (
+                <button
+                  className="icon-button"
+                  aria-label={`${saveNotice}，点击重新连接`}
+                  onClick={() => collaboration.restart()}
+                >
+                  <SaveIcon size={16} />
+                </button>
+              ) : (
+                <SaveIcon
+                  size={16}
+                  className={
+                    SaveIcon === LoaderCircle ? styles.saving : undefined
+                  }
+                />
+              )}
+            </span>
+          </Tooltip>
+        </FullVersion>
+        <FullVersion>
+          <span className={styles.documentStats} aria-label="协作会话数量">
+            <Users size={14} />
+            {verification.count}/{verification.limit}
           </span>
-        </Tooltip>
-        <span className={styles.documentStats} aria-label="协作会话数量">
-          <Users size={14} />
-          {verification.count}/{verification.limit}
-        </span>
-        <TooltipButton
-          className={`icon-button ${styles.headerSecondary}`}
-          aria-label="版本历史"
-          onClick={() => setHistoryOpen(true)}
-        >
-          <History size={17} />
-        </TooltipButton>
+        </FullVersion>
+        <FullVersion>
+          <TooltipButton
+            className={`icon-button ${styles.headerSecondary}`}
+            aria-label="版本历史"
+            onClick={() => setHistoryOpen(true)}
+          >
+            <History size={17} />
+          </TooltipButton>
+        </FullVersion>
         <span className={styles.documentStats}>{count} 字</span>
-        <span className={styles.visibility}>
-          {file.public ? <Globe2 size={13} /> : <LockKeyhole size={13} />}
-          {file.public ? "公开" : "私有"}
-        </span>
+        <FullVersion>
+          <span className={styles.visibility}>
+            {file.public ? <Globe2 size={13} /> : <LockKeyhole size={13} />}
+            {file.public ? "公开" : "私有"}
+          </span>
+        </FullVersion>
         <TooltipButton
           className={`icon-button ${styles.headerSecondary}`}
           aria-label="收藏文档"
@@ -741,14 +758,16 @@ function DocumentEditor({
         >
           <Star size={16} fill={file.favorite ? "currentColor" : "none"} />
         </TooltipButton>
-        <button
-          className={`secondary-button ${styles.shareButton}`}
-          aria-label="分享"
-          onClick={() => setAction({ type: "share", file })}
-        >
-          <Share2 size={14} />
-          <span className={styles.shareLabel}>分享</span>
-        </button>
+        <FullVersion>
+          <button
+            className={`secondary-button ${styles.shareButton}`}
+            aria-label="分享"
+            onClick={() => setAction({ type: "share", file })}
+          >
+            <Share2 size={14} />
+            <span className={styles.shareLabel}>分享</span>
+          </button>
+        </FullVersion>
         <TooltipButton
           className="icon-button"
           aria-label="文档更多操作"

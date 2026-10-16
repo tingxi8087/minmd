@@ -1,3 +1,4 @@
+import { isDemo } from "@/runtime";
 import PageTitles from "@/components/PageTitles";
 import { lazy, Suspense } from "react";
 import { createHashRouter, Navigate } from "react-router-dom";
@@ -11,6 +12,15 @@ const SharedWithMe = lazy(() => import("@/views/SharedWithMe"));
 const Notifications = lazy(() => import("@/views/Notifications"));
 const Share = lazy(() => import("@/views/Share"));
 const Document = lazy(() => import("@/views/Document"));
+const demoPaths = [
+  "/files",
+  "/recent",
+  "/favorites",
+  "/trash",
+  "/preview/:id",
+  "/document/:id",
+  "/",
+];
 export const router = createHashRouter([
   {
     element: <PageTitles />,
@@ -29,7 +39,7 @@ export const router = createHashRouter([
         path: "/",
         element: <Layout />,
         children: [
-          { index: true, element: <Navigate to="/files" replace /> },
+          { index: true as const, element: <Navigate to="/files" replace /> },
           ...["files", "recent", "favorites", "shared", "trash"].map(
             (path) => ({
               path,
@@ -65,8 +75,14 @@ export const router = createHashRouter([
           },
           { path: "preview/:id", element: <Preview /> },
           { path: "*", element: <Navigate to="/files" replace /> },
-        ],
+        ].filter(
+          (route) =>
+            !isDemo ||
+            ("index" in route && route.index) ||
+            ("path" in route &&
+              (demoPaths.includes("/" + route.path) || route.path === "*")),
+        ),
       },
-    ],
+    ].filter((route) => !isDemo || route.path === "/"),
   },
 ]);

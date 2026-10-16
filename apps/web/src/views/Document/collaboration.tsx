@@ -21,8 +21,9 @@ import {
   type RecoveryDraft,
 } from "./drafts";
 export type DocumentSession = {
+  projection?: JSONContent;
   document: Y.Doc;
-  provider: HocuspocusProvider;
+  provider: HocuspocusProvider | null;
   epoch: number;
   revision: number;
   loaded: boolean;
@@ -255,7 +256,7 @@ export function useDocumentCollaboration(file: Entry) {
     return () => {
       stopped = true;
       window.removeEventListener("beforeunload", beforeUnload);
-      current?.provider.destroy();
+      current?.provider?.destroy();
       websocket?.destroy();
       current?.document.destroy();
       sessionRef.current = null;
