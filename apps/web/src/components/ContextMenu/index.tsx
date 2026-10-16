@@ -14,6 +14,7 @@ export type ContextItem = {
   icon?: ReactNode;
   danger?: boolean;
   disabled?: boolean;
+  title?: string;
   type?: "divider";
   run?: () => void;
 };
@@ -195,9 +196,11 @@ function ContextMenu({
             role="menuitem"
             data-active={activeKey === item.key || undefined}
             disabled={item.disabled}
+            title={item.title}
             className={item.danger ? styles.danger : ""}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
+              if (item.disabled) return;
               close();
               item.run?.();
             }}

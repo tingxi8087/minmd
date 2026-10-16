@@ -678,14 +678,16 @@ export default function Files() {
                   {creator(file.owner)}
                 </span>
                 <div className={styles.rowActions}>
-                  {!isDemo && !trash && file.kind !== "folder" && (
-                    <button
-                      className="icon-button"
-                      aria-label={`分享 ${file.name}`}
-                      onClick={() => setAction({ type: "share", file })}
-                    >
-                      <Share2 size={15} />
-                    </button>
+                  {!trash && file.kind !== "folder" && (
+                    <FullVersion feature="分享">
+                      <button
+                        className="icon-button"
+                        aria-label={`分享 ${file.name}`}
+                        onClick={() => setAction({ type: "share", file })}
+                      >
+                        <Share2 size={15} />
+                      </button>
+                    </FullVersion>
                   )}
                   <button
                     className="icon-button"

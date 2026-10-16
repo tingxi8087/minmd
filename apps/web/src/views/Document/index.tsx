@@ -728,13 +728,17 @@ function DocumentEditor({
             </span>
           </Tooltip>
         </FullVersion>
-        <FullVersion>
-          <span className={styles.documentStats} aria-label="协作会话数量">
+        <FullVersion feature="多人协作">
+          <span
+            className={styles.documentStats}
+            aria-label="协作会话数量"
+            tabIndex={isDemo ? 0 : undefined}
+          >
             <Users size={14} />
-            {verification.count}/{verification.limit}
+            {!isDemo && `${verification.count}/${verification.limit}`}
           </span>
         </FullVersion>
-        <FullVersion>
+        <FullVersion feature="版本历史">
           <TooltipButton
             className={`icon-button ${styles.headerSecondary}`}
             aria-label="版本历史"
@@ -758,7 +762,7 @@ function DocumentEditor({
         >
           <Star size={16} fill={file.favorite ? "currentColor" : "none"} />
         </TooltipButton>
-        <FullVersion>
+        <FullVersion feature="分享">
           <button
             className={`secondary-button ${styles.shareButton}`}
             aria-label="分享"

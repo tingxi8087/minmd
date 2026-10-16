@@ -290,16 +290,18 @@ export default function Spreadsheet({ file }: { file: Entry }) {
               )}
             </TooltipButton>
           </FullVersion>
-          <FullVersion>
+          <FullVersion feature="多人协作">
             <span
+              tabIndex={isDemo ? 0 : undefined}
               className={styles.members}
               aria-label={`在线编辑 ${collaboration.members.count}，上限 ${collaboration.members.limit}`}
             >
               <Users size={15} />
-              {collaboration.members.count}/{collaboration.members.limit}
+              {!isDemo &&
+                `${collaboration.members.count}/${collaboration.members.limit}`}
             </span>
           </FullVersion>
-          <FullVersion>
+          <FullVersion feature="版本历史">
             <TooltipButton
               aria-label="表格版本历史"
               className={`icon-button ${styles.secondaryAction}`}
@@ -324,7 +326,7 @@ export default function Spreadsheet({ file }: { file: Entry }) {
           >
             <Download size={16} />
           </TooltipButton>
-          <FullVersion>
+          <FullVersion feature="分享">
             <button
               className={`secondary-button ${styles.shareButton}`}
               aria-label="分享"

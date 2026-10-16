@@ -139,9 +139,7 @@ export default function Layout() {
     { to: "/files", icon: Home, label: "空间首页" },
     { to: "/recent", icon: Clock3, label: "最近访问" },
     { to: "/favorites", icon: Star, label: "我的收藏" },
-    ...(!isDemo
-      ? [{ to: "/shared", icon: ArrowUpRight, label: "公开分享" }]
-      : []),
+    { to: "/shared", icon: ArrowUpRight, label: "公开分享" },
   ];
   if (status !== "authenticated") {
     return <div className={styles.loggedOut}>正在连接空间…</div>;
@@ -174,15 +172,11 @@ export default function Layout() {
           trigger={["click"]}
           menu={{
             selectedKeys: [space],
-            items: [
+            items: demoMenu([
               ...spaces.map((s) => ({ key: s.id, label: s.name })),
-              ...(!isDemo
-                ? [
-                    { type: "divider" as const },
-                    { key: "create-space", label: "新建空间" },
-                  ]
-                : []),
-            ],
+              { type: "divider" as const },
+              { key: "create-space", label: "新建空间" },
+            ]),
             onClick: ({ key }) => {
               if (key === "create-space") {
                 setCreateSpaceOpen(true);
@@ -218,7 +212,11 @@ export default function Layout() {
             <Tooltip
               key={to}
               title={
-                to === "/favorites" ? `${label}（${favoriteCount}）` : label
+                isDemo && to === "/shared"
+                  ? `${label} · 部署后可使用`
+                  : to === "/favorites"
+                    ? `${label}（${favoriteCount}）`
+                    : label
               }
               trigger={["hover", "focus"]}
               mouseEnterDelay={0.1}
@@ -231,7 +229,14 @@ export default function Layout() {
               <NavLink
                 to={to}
                 aria-label={label}
-                onClick={() => setMobile(false)}
+                aria-disabled={(isDemo && to === "/shared") || undefined}
+                onClick={(event) => {
+                  if (isDemo && to === "/shared") {
+                    event.preventDefault();
+                    return;
+                  }
+                  setMobile(false);
+                }}
                 className={({ isActive }) => (isActive ? styles.active : "")}
               >
                 <Icon size={18} strokeWidth={1.7} />
@@ -251,18 +256,22 @@ export default function Layout() {
                 name: "空间设置与成员",
                 icon: Settings2,
               },
-            ]
-              .filter((item) => !isDemo || item.to === "/trash")
-              .map(({ to, name, icon: Icon }) => (
-                <TooltipButton
-                  key={to}
-                  aria-label={name}
-                  className={`icon-button ${location.pathname === to || (to === "/settings/general" && location.pathname === "/settings/members") ? styles.bottomActive : ""}`}
-                  onClick={() => navigate(to)}
-                >
-                  <Icon size={15} />
-                </TooltipButton>
-              ))}
+            ].map(({ to, name, icon: Icon }) => (
+              <TooltipButton
+                key={to}
+                aria-label={name}
+                aria-disabled={(isDemo && to !== "/trash") || undefined}
+                tooltip={
+                  isDemo && to !== "/trash" ? `${name} · 部署后可使用` : name
+                }
+                className={`icon-button ${location.pathname === to || (to === "/settings/general" && location.pathname === "/settings/members") ? styles.bottomActive : ""}`}
+                onClick={() => {
+                  if (!isDemo || to === "/trash") navigate(to);
+                }}
+              >
+                <Icon size={15} />
+              </TooltipButton>
+            ))}
           </div>
         </div>
       </aside>

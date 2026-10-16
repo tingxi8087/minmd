@@ -72,7 +72,7 @@ export default function Media({ file }: { file: Entry }) {
           >
             <Download size={17} />
           </TooltipButton>
-          <FullVersion>
+          <FullVersion feature="分享">
             <TooltipButton
               className="icon-button"
               aria-label="分享文件"

@@ -282,7 +282,7 @@ export default function Presentation({ file }: { file: Entry }) {
           >
             <Download size={16} />
           </TooltipButton>
-          <FullVersion>
+          <FullVersion feature="分享">
             <button
               className={`secondary-button ${styles.shareButton}`}
               aria-label="分享"
