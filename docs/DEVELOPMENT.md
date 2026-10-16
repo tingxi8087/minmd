@@ -179,3 +179,7 @@ RUNTIME_PROCESS_TEST=true bun test tests/runtime-process.test.ts
 文件批量操作位于 `modules/files/batches.ts`，前端复用 `FileDialogs/BatchDestinationDialog`。移动需源子树管理权限及目标编辑权限，复制需源子树读取权限及目标编辑权限；仅在同空间内处理，父子重复选择去重，禁止自身/后代目标。两者受现有 `FILE_TRANSFER_MAX_FILES` 限制。副本创建人为当前账号、使用当前时间、默认私有，复制当前内容、子树和独立附件，不复制历史、分享和收藏。复制请求摘要写入导入幂等记录，重试复用编号，参数不同拒绝；失败不发布部分目录。
 
 目录修改与内容写入统一先取得空间锁，再锁定文件和正文，避免协作保存与批量移动反向等待。复制先捕获已持久接收的内容，再在提交时核对目录修订及正文 revision/epoch；源内容或结构变化返回冲突，用户可重试。复制会使用私有暂存和附件恢复清单；复用原有重启恢复流程。相关集成测试必须运行在独立 `_test` 数据库。
+
+## 维护者发布
+
+使用[本机一键发布指南](RELEASING.md)。`bun run release --verify-only` 执行一次前后台构建、双架构容器和完整部署验收而不发布；正式命令为 `bun run release v版本`，要求版本匹配且源码已提交并推送。发布相关 Actions 仅手动备用，Pages 演示更新保持独立。

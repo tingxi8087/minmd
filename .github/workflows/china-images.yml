@@ -6,17 +6,14 @@ on:
         description: "已发布的固定版本，例如 v0.1.0"
         required: true
         default: v0.1.0
-  workflow_run:
-    workflows: [Release]
-    types: [completed]
 permissions:
   contents: read
 concurrency:
-  group: china-images-${{ inputs.version || github.event.workflow_run.head_branch }}
+  group: china-images-${{ inputs.version }}
   cancel-in-progress: false
 jobs:
   mirror:
-    if: vars.TCR_NAMESPACE != '' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    if: vars.TCR_NAMESPACE != ''
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -37,7 +34,7 @@ jobs:
       - name: 同步已发布镜像并验证公开双架构拉取
         env:
           REPOSITORY: ${{ github.repository }}
-          VERSION: ${{ inputs.version || github.event.workflow_run.head_branch }}
+          VERSION: ${{ inputs.version }}
           NAMESPACE: ${{ vars.TCR_NAMESPACE }}
           TARGET: ${{ matrix.target }}
         run: sh deploy/scripts/mirror-images.sh "$REPOSITORY" "$VERSION" "$NAMESPACE" "$TARGET"
@@ -59,7 +56,7 @@ jobs:
         name: 添加国内部署包，保留已有官方发布附件
         env:
           REPOSITORY: ${{ github.repository }}
-          VERSION: ${{ inputs.version || github.event.workflow_run.head_branch }}
+          VERSION: ${{ inputs.version }}
           NAMESPACE: ${{ vars.TCR_NAMESPACE }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

@@ -1,3 +1,5 @@
+ARG DEPENDENCIES_STAGE=dependencies
+
 FROM node:22-bookworm-slim AS frontend-node
 
 FROM oven/bun:1.3.13 AS manifests
@@ -19,33 +21,50 @@ COPY . .
 RUN NODE_OPTIONS=--max-old-space-size=4096 bun run build
 
 FROM manifests AS dependencies
+# 源码构建保留在 Linux 内安装的入口。
+RUN bun install --frozen-lockfile --linker hoisted
+
+# 本机发布用 Bun --os linux --cpu 按架构准备依赖，不在模拟器中重复安装。
+FROM manifests AS dependencies-prebuilt
+COPY --from=release-dependencies / /workspace/
+
+FROM ${DEPENDENCIES_STAGE} AS runtime-dependencies
+COPY package.json ./package.json
 COPY deploy/scripts/check-image-dependencies.ts ./deploy/scripts/check-image-dependencies.ts
-# 运行时平铺依赖，避免旧 Linux 环境中的软链接解析差异；不改变构建工具的依赖布局。
-RUN bun install --frozen-lockfile --linker hoisted \
-    && bun --preserve-symlinks deploy/scripts/check-image-dependencies.ts
+RUN bun --preserve-symlinks deploy/scripts/check-image-dependencies.ts
 COPY scripts/generate-third-party-notices.ts ./scripts/generate-third-party-notices.ts
 COPY docs/licenses ./docs/licenses
 COPY LICENSE ./LICENSE
 RUN bun scripts/generate-third-party-notices.ts
 
 # 迁移只需要数据库工具和配置，不编译前后台网页。
-FROM dependencies AS migrate
+FROM runtime-dependencies AS migrate
 COPY database ./database
 COPY system/server/src/config ./system/server/src/config
 COPY system/server/src/database/client.ts ./system/server/src/database/client.ts
 CMD ["bun", "run", "db:migrate"]
 
-FROM oven/bun:1.3.13 AS app
+FROM oven/bun:1.3.13 AS app-runtime
 WORKDIR /app
-COPY --from=build /workspace/dist/server ./dist/server
-# 后端在同一端口提供前台、后台、接口及协作连接。
-COPY --from=build /workspace/dist/web ./dist/web
-COPY --from=build /workspace/dist/web-cms ./dist/web-cms
-COPY --from=build /workspace/package.json ./package.json
-COPY --from=dependencies /workspace/LICENSE /workspace/THIRD_PARTY_NOTICES.txt ./
-COPY --from=dependencies /workspace/node_modules ./node_modules
+COPY --from=runtime-dependencies /workspace/LICENSE /workspace/THIRD_PARTY_NOTICES.txt ./
+COPY --from=runtime-dependencies /workspace/node_modules ./node_modules
 RUN mkdir -p /var/lib/minmd/assets /app/runtime/public && chown -R bun:bun /var/lib/minmd /app/runtime
 USER bun
 EXPOSE 9811
 STOPSIGNAL SIGTERM
 CMD ["bun", "dist/server/main.js"]
+
+# 发布命令只在宿主机编译一次，两个架构共用同一份 dist。
+FROM app-runtime AS app-prebuilt
+COPY --from=release-artifacts /server ./dist/server
+COPY --from=release-artifacts /web ./dist/web
+COPY --from=release-artifacts /web-cms ./dist/web-cms
+COPY package.json ./package.json
+
+# 保留源码 Docker 构建入口，供自行构建及原有部署验收使用。
+FROM app-runtime AS app
+COPY --from=build /workspace/dist/server ./dist/server
+# 后端在同一端口提供前台、后台、接口及协作连接。
+COPY --from=build /workspace/dist/web ./dist/web
+COPY --from=build /workspace/dist/web-cms ./dist/web-cms
+COPY --from=build /workspace/package.json ./package.json

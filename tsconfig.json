@@ -19,7 +19,11 @@
     "scripts/web-cms-dev.ts",
     "scripts/web-process.ts",
     "scripts/web-dev.ts",
-    "scripts/vite-process.ts"
+    "scripts/vite-process.ts",
+    "scripts/release.ts",
+    "scripts/release-verify.ts",
+    "scripts/release-dependencies.ts",
+    "scripts/release-auth.ts"
   ],
   "exclude": ["apps/web-cms", "apps/web"]
 }

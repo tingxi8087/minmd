@@ -19,19 +19,14 @@ on:
       image_source:
         type: string
         default: official
-  # GITHUB_TOKEN 创建 Release 不会再次触发 release 事件，改为跟随发布工作流完成。
-  workflow_run:
-    workflows: [Release]
-    types: [completed]
 permissions:
   contents: read
 jobs:
   install:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      RELEASE_VERSION: ${{ inputs.version || github.event.workflow_run.head_branch }}
+      RELEASE_VERSION: ${{ inputs.version }}
       RELEASE_REPOSITORY: ${{ github.repository }}
       IMAGE_SOURCE: ${{ inputs.image_source || 'official' }}
     steps:

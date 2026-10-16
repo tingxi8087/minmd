@@ -220,9 +220,11 @@ docker compose --env-file deploy/.env.production \
 
 Docker 的运行镜像显式使用 Bun 的 hoisted 依赖布局，并在构建阶段从根目录和系统工作区检查数据库依赖；检查保留软链接路径，避免打包产物依赖宿主内核的软链接解析行为。前端构建依赖保持 workspace 隔离，避免前后台不同版本的构建工具互相影响。
 
-国内源在 GitHub 仓库配置变量 `TCR_NAMESPACE`，并配置 `TCR_USERNAME`、`TCR_PASSWORD` 两个 Actions Secrets；密码使用腾讯云镜像仓库登录密码，不提交源码。自动发布只需两个公有仓库：`minmd-app`、`minmd-migrate`。现有 `minmd-postgres`、`minmd-caddy` 公有副本保留用于备用，不随每次应用发布同步。
+默认使用[本机一键发布](../docs/RELEASING.md)：`bun run release v版本`。前后台和后端只构建一次，Linux amd64、arm64 共用静态产物，应用及迁移镜像从本机直接推送 GHCR 和腾讯云；验收通过、附件齐全且匿名双架构清单可访问后才正式发布 Release。`bun run release --verify-only` 可执行相同构建和容器验收而不发布。
 
-`.github/workflows/china-images.yml` 跟随成功的 Release 工作流，也可手动指定已发布版本执行。它仅同步 app、migrate 两个镜像，先锁定来源清单摘要，再复制 linux/amd64 和 linux/arm64，使用 Docker v2 清单兼容个人版仓库；保留镜像内容，不重复构建应用。公开双架构检查通过后，测试并追加国内部署包、校验文件、`install-china.sh`、`release-china.env`，最后执行不登录镜像仓库的真实安装与首次账号初始化验收。官方源的既有附件保持原样。
+发布相关 Actions 均为手动备用，不再随标签自动构建或自动国内同步。手动 Release 工作流调用同一本机入口；China images 用于按需从 GHCR 修复国内副本；Published installation 用于公开发布后的真实安装验收。登录、权限、失败重试和产物说明见[发布指南](../docs/RELEASING.md)。演示 Pages 的自动更新保持独立。
+
+国内源仍只需两个公有仓库：`minmd-app`、`minmd-migrate`。现有 `minmd-postgres`、`minmd-caddy` 公有副本保留用于备用，不随每次应用发布同步。
 
 基础镜像备用副本仅在明确更新基础镜像版本时手动维护。fork 或更换命名空间时，若需要备用能力，需先创建对应公有仓库并完成以下同步；未准备备用仓库时应将包内备用地址留空。修改基础镜像版本后，包元数据、Compose 缺省值及测试应保持一致。
 
@@ -233,10 +235,6 @@ sh deploy/scripts/mirror-images.sh tingxi8087/minmd v0.1.0 tingxi8087 caddy
 ```
 
 个人版采用共享服务，首次从海外同步镜像可能较慢，按仓库串行复制以降低推拉并发。每个应用版本含合并清单和两个架构标签，会占用三个版本名；配额以腾讯云控制台为准。腾讯云不兼容的 OCI 附加证明不会进入国内副本，国内副本的清单摘要可与 GHCR 不同，镜像层内容由复制工具校验。
-
-推送 `v主版本.次版本.修订号` 标签后，`.github/workflows/release.yml` 会运行类型 / 行为 / 数据库 / 真实部署测试，构建 amd64、arm64 的 app / migrate 镜像并推送 GHCR，再生成带固定镜像前缀和版本的部署包及校验文件。
-
-首次发布需要允许 GitHub Actions 写入 Packages，并在 GHCR 将 `仓库-app`、`仓库-migrate` 两个包设置为 Public。工作流在创建正式 Release 前检查匿名访问；检查失败时先修正包可见性，再重跑工作流。源仓库没有配置远端或尚未发布标签时，不存在可供用户下载的正式部署包。
 
 发布资源包括 `minmd-v版本.tar.gz`、对应 `.sha256`、`install.sh` 和 `release.env`。入口通过最新稳定 Release 的 `release.env` 读取版本后，使用固定版本地址下载部署包；不执行网络下载的环境文件。带后缀的版本发布为 prerelease，不占用 latest。发布包脚本会将实际仓库写入入口，fork 不会默认下载上游。
 

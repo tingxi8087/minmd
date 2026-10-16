@@ -30,7 +30,8 @@
     "dev:web": "bun scripts/web-dev.ts",
     "preview": "bun run --cwd apps/web preview",
     "check:web": "bun run --cwd apps/web check",
-    "build:demo": "bun run --cwd apps/web build:demo"
+    "build:demo": "bun run --cwd apps/web build:demo",
+    "release": "bun scripts/release.ts"
   },
   "devDependencies": {
     "@hocuspocus/provider": "4.7.0",
