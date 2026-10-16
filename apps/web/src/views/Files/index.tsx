@@ -4,9 +4,9 @@ import FileTransferDialog, {
 import { isDemo, FullVersion } from "@/runtime";
 import { usePageTitle } from "@/components/PageTitles";
 import axios from "axios";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { App, Dropdown, Select } from "antd";
+import { App, Checkbox, Dropdown, Select } from "antd";
 import {
   ArrowDown,
   PencilLine,
@@ -22,13 +22,14 @@ import {
   LockKeyhole,
   MoreHorizontal,
   Plus,
-  Search,
+  ListChecks,
   Share2,
   Star,
   Trash2,
   Undo2,
   Upload,
-  X,
+  Download,
+  Copy,
 } from "lucide-react";
 import { useContextMenu } from "@/components/ContextMenu";
 import FileIcon from "@/components/FileIcon";
@@ -43,7 +44,9 @@ import { errorMessage } from "@/http";
 import { useAuth } from "@/store/auth";
 import styles from "./index.module.less";
 import { loadCreatorNames, creatorName } from "./creators";
-const DemoImport = lazy(() => import("@/components/DemoImport"));
+import TooltipButton from "@/components/TooltipButton";
+import { useScopedTasks } from "@/utils/useScopedTask";
+import { deleteSelection } from "./selection";
 export default function Files() {
   const {
     files,
@@ -106,17 +109,17 @@ export default function Files() {
   const { pathname } = useLocation();
   const [params, setParams] = useSearchParams();
   const { message, modal } = App.useApp();
-  const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState<"list" | "grid">("list");
   const [action, setAction] = useState<FileAction | null>(null);
   const [selecting, setSelecting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const begin = useScopedTasks();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [transferAction, setTransferAction] = useState<TransferAction | null>(
     null,
   );
   const [sort, setSort] = useState<"updated" | "name">("updated");
-  const [demoImportOpen, setDemoImportOpen] = useState(false);
   const folderId = params.get("folder");
   const folder = files.find(
     (f) =>
@@ -133,12 +136,12 @@ export default function Files() {
   useEffect(() => {
     setSelectedIds([]);
     setSelecting(false);
+    setDeleting(false);
     setTransferAction(null);
   }, [space, parent, pathname, user]);
   const isHome = pathname === "/files" && !folder;
   const trash = pathname === "/trash";
   useEffect(() => {
-    setQuery("");
     setFilter("all");
   }, [pathname, space, folderId]);
   useEffect(() => {
@@ -161,11 +164,7 @@ export default function Files() {
               ? true
               : f.parent === parent,
     )
-    .filter(
-      (f) =>
-        (filter === "all" || f.kind === filter) &&
-        f.name.toLowerCase().includes(query.toLowerCase()),
-    )
+    .filter((f) => filter === "all" || f.kind === filter)
     .sort((a, b) =>
       sort === "name"
         ? a.name.localeCompare(b.name, "zh-CN")
@@ -178,6 +177,7 @@ export default function Files() {
     visible.some((file) => file.id === id),
   );
   const toggleSelected = (id: string) =>
+    !deleting &&
     setSelectedIds((ids) =>
       ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id],
     );
@@ -220,6 +220,45 @@ export default function Files() {
         } catch (error) {
           message.error(errorMessage(error));
           throw error;
+        }
+      },
+    });
+  };
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [filter]);
+  const removeSelected = () => {
+    if (!selected.length || deleting || isDemo) return;
+    const task = begin();
+    const ids = [...selected];
+    const snapshot = [...files];
+    const confirmation = modal.confirm({
+      keyboard: false,
+      title: `将选中的 ${ids.length} 项移入回收站？`,
+      content: "文件夹及其子文件一并移入回收站，之后可以恢复。",
+      okText: "移入回收站",
+      okButtonProps: { danger: true },
+      cancelText: "取消",
+      afterClose: () => task.finish(),
+      onOk: async () => {
+        try {
+          task.assertActive();
+          setDeleting(true);
+          confirmation.update({ cancelButtonProps: { disabled: true } });
+          const result = await deleteSelection(snapshot, ids, task);
+          await task.wait(() => loadFiles());
+          setSelectedIds(result.failed);
+          if (result.failed.length)
+            message.warning("部分文件未能移入回收站，已保留失败项供重试");
+          else {
+            message.success("已移入回收站");
+            setSelecting(false);
+          }
+        } catch (error) {
+          if (!task.signal.aborted) message.error(errorMessage(error));
+        } finally {
+          if (!task.signal.aborted) setDeleting(false);
+          task.finish();
         }
       },
     });
@@ -270,6 +309,12 @@ export default function Files() {
             label: "移动到…",
             icon: <FolderInput size={15} />,
           },
+          {
+            key: "copy",
+            disabled: isDemo,
+            label: isDemo ? "创建副本（部署后可使用）" : "创建副本",
+            icon: <Copy size={15} />,
+          },
           ...(file.kind !== "folder"
             ? [
                 {
@@ -281,6 +326,12 @@ export default function Files() {
               ]
             : []),
           {
+            key: "export",
+            label: isDemo ? "导出（部署后可使用）" : "导出",
+            disabled: isDemo,
+            icon: <Download size={15} />,
+          },
+          {
             key: "delete",
             disabled: Boolean(file.permission && file.permission !== "manage"),
             label: "移入回收站",
@@ -291,7 +342,18 @@ export default function Files() {
   const act = async (key: string, file: Entry) => {
     try {
       if (key === "open") open(file);
-      else if (key === "favorite")
+      else if (key === "export") {
+        if (isDemo) return;
+        setTransferAction({
+          type: "export",
+          spaceId: space,
+          ids: [file.id],
+          name: file.name,
+        });
+      } else if (key === "copy") {
+        if (!isDemo)
+          setAction({ type: "batch-copy", files: [file], parent: file.parent });
+      } else if (key === "favorite")
         await patch(file.id, { favorite: !file.favorite });
       else if (key === "restore") {
         try {
@@ -319,7 +381,11 @@ export default function Files() {
   newItems.splice(2, 0, {
     key: "upload",
     label: "上传文件",
-    icon: <Upload size={17} />,
+    icon: (
+      <span className={styles.menuIcon}>
+        <Upload size={17} strokeWidth={1.7} />
+      </span>
+    ),
   });
   return (
     <main className={styles.page}>
@@ -343,19 +409,6 @@ export default function Files() {
         </div>
         <div className={styles.introActions}>
           {!trash && (
-            <FullVersion feature="批量导出">
-              <button
-                className="secondary-button"
-                onClick={() => {
-                  setSelecting((value) => !value);
-                  setSelectedIds([]);
-                }}
-              >
-                {selecting ? "退出选择" : "选择"}
-              </button>
-            </FullVersion>
-          )}
-          {!trash && (
             <>
               <button
                 className="secondary-button"
@@ -364,14 +417,7 @@ export default function Files() {
                 <Upload size={15} />
                 上传文件
               </button>
-              <FullVersion>
-                <button
-                  className="secondary-button"
-                  onClick={() => setDemoImportOpen(true)}
-                >
-                  导入旧演示
-                </button>
-              </FullVersion>
+
               <Dropdown
                 trigger={["click"]}
                 menu={{
@@ -398,65 +444,192 @@ export default function Files() {
           )}
         </div>
       </section>
-      {selecting && (
-        <div className={styles.selectionBar}>
-          <label>
-            <input
-              type="checkbox"
-              aria-label="全选当前列表"
-              checked={visible.length > 0 && selected.length === visible.length}
-              onChange={(event) =>
-                setSelectedIds(
-                  event.target.checked ? visible.map((file) => file.id) : [],
-                )
-              }
-            />
-            全选当前列表
-          </label>
-          <span>已选 {selected.length} 项</span>
-          <button
-            className="secondary-button"
-            disabled={!selected.length}
-            onClick={() => setSelectedIds([])}
-          >
-            清空
-          </button>
-          <button
-            className="primary-button"
-            disabled={!selected.length}
-            onClick={() =>
-              setTransferAction({
-                type: "export",
-                spaceId: space,
-                ids: selected,
-              })
-            }
-          >
-            导出选中
-          </button>
-        </div>
-      )}
       <section className={styles.fileSection}>
         <div className={styles.sectionHeader}>
-          <div className={styles.listTitle}>
-            <h2>{isHome ? "空间里的文件" : "全部文件"}</h2>
-            <span>{visible.length}</span>
-          </div>
-          <div className={styles.viewSwitch}>
-            <button
-              className={view === "list" ? styles.selected : ""}
-              aria-label="列表视图"
-              onClick={() => setView("list")}
-            >
-              <List size={17} />
-            </button>
-            <button
-              className={view === "grid" ? styles.selected : ""}
-              aria-label="网格视图"
-              onClick={() => setView("grid")}
-            >
-              <Grid2X2 size={16} />
-            </button>
+          {selecting ? (
+            <div className={styles.selectionSummary}>
+              <Checkbox
+                aria-label="全选当前列表"
+                checked={
+                  visible.length > 0 && selected.length === visible.length
+                }
+                indeterminate={
+                  selected.length > 0 && selected.length < visible.length
+                }
+                disabled={deleting || !visible.length}
+                onChange={(event) =>
+                  setSelectedIds(
+                    event.target.checked ? visible.map((file) => file.id) : [],
+                  )
+                }
+              >
+                全选
+              </Checkbox>
+              <span role="status">已选 {selected.length} 项</span>
+            </div>
+          ) : (
+            <div className={styles.listTitle}>
+              <h2>{isHome ? "空间里的文件" : "全部文件"}</h2>
+              <span>{visible.length}</span>
+            </div>
+          )}
+          <div className={styles.listActions}>
+            {selecting && (
+              <div className={styles.bulkActions}>
+                <span className={styles.desktopBulk}>
+                  <TooltipButton
+                    className="icon-button"
+                    aria-label="移动选中"
+                    disabled={
+                      !selected.length ||
+                      deleting ||
+                      visible.some(
+                        (file) =>
+                          selected.includes(file.id) &&
+                          Boolean(
+                            file.permission && file.permission !== "manage",
+                          ),
+                      )
+                    }
+                    onClick={() =>
+                      setAction({
+                        type: "batch-move",
+                        files: visible.filter((file) =>
+                          selected.includes(file.id),
+                        ),
+                        parent,
+                      })
+                    }
+                  >
+                    <FolderInput size={17} />
+                  </TooltipButton>
+                  <TooltipButton
+                    className="icon-button"
+                    aria-label="创建选中副本"
+                    disabled={!selected.length || deleting}
+                    onClick={() =>
+                      setAction({
+                        type: "batch-copy",
+                        files: visible.filter((file) =>
+                          selected.includes(file.id),
+                        ),
+                        parent,
+                      })
+                    }
+                  >
+                    <Copy size={17} />
+                  </TooltipButton>
+                </span>
+                <Dropdown
+                  trigger={["click"]}
+                  menu={{
+                    items: [
+                      {
+                        key: "move",
+                        label: "移动到…",
+                        icon: <FolderInput size={15} />,
+                        disabled:
+                          !selected.length ||
+                          deleting ||
+                          visible.some(
+                            (file) =>
+                              selected.includes(file.id) &&
+                              Boolean(
+                                file.permission && file.permission !== "manage",
+                              ),
+                          ),
+                      },
+                      {
+                        key: "copy",
+                        label: "创建副本",
+                        icon: <Copy size={15} />,
+                        disabled: !selected.length || deleting,
+                      },
+                    ],
+                    onClick: ({ key }) =>
+                      setAction({
+                        type: key === "move" ? "batch-move" : "batch-copy",
+                        files: visible.filter((file) =>
+                          selected.includes(file.id),
+                        ),
+                        parent,
+                      }),
+                  }}
+                >
+                  <TooltipButton
+                    className={`icon-button ${styles.mobileBulk}`}
+                    aria-label="更多批量操作"
+                    disabled={deleting}
+                  >
+                    <MoreHorizontal size={17} />
+                  </TooltipButton>
+                </Dropdown>
+                <TooltipButton
+                  className="icon-button"
+                  aria-label="导出选中"
+                  disabled={!selected.length || deleting}
+                  onClick={() =>
+                    setTransferAction({
+                      type: "export",
+                      spaceId: space,
+                      ids: selected,
+                    })
+                  }
+                >
+                  <Download size={17} />
+                </TooltipButton>
+                <TooltipButton
+                  className={`icon-button ${styles.deleteAction}`}
+                  aria-label="删除选中"
+                  disabled={
+                    !selected.length ||
+                    deleting ||
+                    visible.some(
+                      (file) =>
+                        selected.includes(file.id) &&
+                        Boolean(
+                          file.permission && file.permission !== "manage",
+                        ),
+                    )
+                  }
+                  onClick={removeSelected}
+                >
+                  <Trash2 size={17} />
+                </TooltipButton>
+              </div>
+            )}
+            {!trash && (
+              <FullVersion feature="多选文件">
+                <TooltipButton
+                  className={`icon-button ${styles.selectionToggle}`}
+                  aria-label={selecting ? "退出多选" : "多选文件"}
+                  aria-pressed={selecting}
+                  disabled={deleting}
+                  onClick={() => {
+                    setSelecting(!selecting);
+                    setSelectedIds([]);
+                  }}
+                >
+                  <ListChecks size={18} />
+                </TooltipButton>
+              </FullVersion>
+            )}
+            <div className={styles.viewSwitch}>
+              <button
+                className={view === "list" ? styles.selected : ""}
+                aria-label="列表视图"
+                onClick={() => setView("list")}
+              >
+                <List size={17} />
+              </button>
+              <button
+                className={view === "grid" ? styles.selected : ""}
+                aria-label="网格视图"
+                onClick={() => setView("grid")}
+              >
+                <Grid2X2 size={16} />
+              </button>
+            </div>
           </div>
         </div>
         <div className={styles.toolbar}>
@@ -480,24 +653,6 @@ export default function Files() {
             ))}
           </div>
           <div className={styles.tools}>
-            <div className={styles.inlineSearch}>
-              <Search size={14} />
-              <input
-                aria-label="搜索文件"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="搜索文件…"
-              />
-              {query && (
-                <button
-                  className="icon-button"
-                  aria-label="清空搜索"
-                  onClick={() => setQuery("")}
-                >
-                  <X size={13} />
-                </button>
-              )}
-            </div>
             <Select
               variant="borderless"
               size="small"
@@ -549,6 +704,7 @@ export default function Files() {
                     type="checkbox"
                     className={styles.selectionCheckbox}
                     aria-label={`选择 ${file.name}`}
+                    disabled={deleting}
                     checked={selected.includes(file.id)}
                     onChange={() => toggleSelected(file.id)}
                   />
@@ -634,20 +790,20 @@ export default function Files() {
           <div className={styles.empty}>
             <FolderPlus size={35} strokeWidth={1} />
             <h3>
-              {query
-                ? "没有找到匹配的文件"
-                : trash
-                  ? "回收站是空的"
+              {trash
+                ? "回收站是空的"
+                : filter !== "all"
+                  ? "这个分类暂无文件"
                   : "这里还有很多可能"}
             </h3>
             <p>
-              {query
-                ? "试试其他关键词或文件类型"
-                : trash
-                  ? "删除的文件会暂存在这里"
+              {trash
+                ? "删除的文件会暂存在这里"
+                : filter !== "all"
+                  ? "试试其他文件类型，或上传一份文件"
                   : "新建一份文件，留下你的第一个想法"}
             </p>
-            {!trash && !query && (
+            {!trash && (
               <button
                 className="secondary-button"
                 onClick={() =>
@@ -671,6 +827,10 @@ export default function Files() {
       {contextMenu.menu}
       <FileDialogs
         action={action}
+        onCompleted={() => {
+          setSelectedIds([]);
+          setSelecting(false);
+        }}
         close={() => setAction(null)}
         onCreated={(id, kind) => {
           if (kind === "doc") {
@@ -687,11 +847,6 @@ export default function Files() {
             navigate(`/preview/${id}`);
         }}
       />
-      {demoImportOpen && (
-        <Suspense fallback={<p role="status">正在读取演示导入工具…</p>}>
-          <DemoImport close={() => setDemoImportOpen(false)} />
-        </Suspense>
-      )}
     </main>
   );
 }

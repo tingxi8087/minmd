@@ -60,6 +60,45 @@ export function jobResponse(job: TransferJob) {
     error: job.error ?? null,
   };
 }
+export async function cleanupTransferDirectory(
+  services: TransferServices,
+  directory: string,
+) {
+  const journal = Bun.file(join(directory, "pending-assets.json"));
+  if (await journal.exists()) {
+    if (journal.size > services.limits.FILE_TRANSFER_MAX_ENTRIES * 48 + 2)
+      throw new Error("文件导入暂存恢复清单过大");
+    const value: unknown = await journal.json();
+    if (
+      !Array.isArray(value) ||
+      value.length > services.limits.FILE_TRANSFER_MAX_ENTRIES ||
+      !value.every((id) => typeof id === "string" && /^[0-9a-f-]{36}$/.test(id))
+    )
+      throw new Error("文件导入暂存恢复清单无效");
+    const ids: string[] = value;
+    const rows = ids.length
+      ? await services.database.db
+          .select({ id: assets.id })
+          .from(assets)
+          .where(inArray(assets.id, ids))
+      : [];
+    const retained = new Set(rows.map((row) => row.id));
+    await Promise.all(
+      ids
+        .filter((id) => !retained.has(id))
+        .map((id) =>
+          unlink(join(services.assetDirectory, id)).catch(
+            (error: NodeJS.ErrnoException) => {
+              if (error.code !== "ENOENT") throw error;
+            },
+          ),
+        ),
+    );
+  }
+  // 数据库不可用时保留 journal，待下次恢复后判断文件是否已经提交。
+  await rm(directory, { recursive: true, force: true });
+}
+
 export class TransferJobs {
   readonly jobs = new Map<string, TransferJob>();
   private timer: ReturnType<typeof setInterval>;
@@ -73,45 +112,8 @@ export class TransferJobs {
     }, 30000);
     this.timer.unref();
   }
-  private async cleanupDirectory(directory: string) {
-    const journal = Bun.file(join(directory, "pending-assets.json"));
-    if (await journal.exists()) {
-      if (
-        journal.size >
-        this.services.limits.FILE_TRANSFER_MAX_ENTRIES * 48 + 2
-      )
-        throw new Error("文件导入暂存恢复清单过大");
-      const value: unknown = await journal.json();
-      if (
-        !Array.isArray(value) ||
-        value.length > this.services.limits.FILE_TRANSFER_MAX_ENTRIES ||
-        !value.every(
-          (id) => typeof id === "string" && /^[0-9a-f-]{36}$/.test(id),
-        )
-      )
-        throw new Error("文件导入暂存恢复清单无效");
-      const ids: string[] = value;
-      const rows = ids.length
-        ? await this.services.database.db
-            .select({ id: assets.id })
-            .from(assets)
-            .where(inArray(assets.id, ids))
-        : [];
-      const retained = new Set(rows.map((row) => row.id));
-      await Promise.all(
-        ids
-          .filter((id) => !retained.has(id))
-          .map((id) =>
-            unlink(join(this.services.assetDirectory, id)).catch(
-              (error: NodeJS.ErrnoException) => {
-                if (error.code !== "ENOENT") throw error;
-              },
-            ),
-          ),
-      );
-    }
-    // 数据库不可用时保留 journal，待下次恢复后判断文件是否已经提交。
-    await rm(directory, { recursive: true, force: true });
+  private cleanupDirectory(directory: string) {
+    return cleanupTransferDirectory(this.services, directory);
   }
   async initialize() {
     let entries;

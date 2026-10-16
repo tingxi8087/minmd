@@ -40,6 +40,8 @@ docker compose -f deploy/compose.yaml up -d
 
 此 Compose 只启动开发 PostgreSQL，默认连接与 `.env.example` 一致。生产部署由单个 app 同端口托管两个网页及接口，数据库独立运行。完整应用使用独立 [生产 Compose](../deploy/compose.production.yaml)，步骤及单实例边界见 [部署与备份恢复](../deploy/README.md)。首次管理员从 `.env` 初始化，仅在库中没有超管时生效。不要对外使用模板默认密码。
 
+开发机的 5432 端口被占用时，可在根目录 `.env` 设置 `POSTGRES_PORT=55438`，并同步修改 `DATABASE_URL` 的端口；自定义数据库密码时同时设置 `POSTGRES_PASSWORD` 和连接地址中的密码。执行 `docker compose --env-file .env -f deploy/compose.yaml up -d --wait` 启动并等待数据库就绪。数据保存在持久卷 `postgres_data` 中，停止或重新创建容器不会删除数据；修改密码环境变量不会更改已初始化数据库的密码。
+
 ## 源码构建部署
 
 需要开发自定义版本，或尚未发布可用 Release 时，可在完整源码目录执行：
@@ -96,7 +98,7 @@ TEST_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/minmd_test bun run t
 
 数据库测试必须使用独立 `_test` 库，不指向日常开发库或生产库。配置、运行日志、数据库文件、上传文件和临时验收截图不提交 Git；供项目首页使用的脱敏演示截图放在 `docs/images/`。`dist/.env.example` 仅为公开配置模板，不包含本机凭证。
 
-本机设置了全局 HTTP 代理时，验收命令需在前面加 `env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY`，确保本地健康检查直接连接。开发进程已对后端和 Vite 的本地代理设置 `NO_PROXY`。
+本机设置了全局 HTTP 代理时，验收命令需在前面加 `env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY`，确保本地健康检查直接连接。开发进程已对后端和 Vite 的本地代理设置 `NO_PROXY`。本地 `.env` 中的部署变量（例如 `POSTGRES_PASSWORD`）也可能被 Bun 编写的测试替身自动读取；可用 `BUN_OPTIONS=--no-env-file bun run check` 隔离本机配置。集成测试仍须显式传入专用测试库连接。
 
 ## 主题与工程
 
@@ -169,3 +171,11 @@ RUNTIME_PROCESS_TEST=true bun test tests/runtime-process.test.ts
 ```
 
 本机若设置了会代理回环请求的 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`，测试真实本机 HTTP 时需为该测试进程取消对应环境变量，或正确设置本机代理排除规则，不要通过修改业务鉴权来绕开请求失败。
+
+## 文档查找与文件批量操作
+
+正文查找位于 `Document/extensions/documentSearch.ts` 与 `Document/components/FindReplace/`。ProseMirror Decoration 仅用于本机高亮，替换使用单次编辑事务，沿用真实协作的撤销分组和自动保存；章节与折叠块定位展开不写入正文。只读与匿名公开文档只提供查找。第一版为普通文本匹配，支持区分大小写，不跨内容块或原子节点匹配，不搜索附件和文件标题。
+
+文件批量操作位于 `modules/files/batches.ts`，前端复用 `FileDialogs/BatchDestinationDialog`。移动需源子树管理权限及目标编辑权限，复制需源子树读取权限及目标编辑权限；仅在同空间内处理，父子重复选择去重，禁止自身/后代目标。两者受现有 `FILE_TRANSFER_MAX_FILES` 限制。副本创建人为当前账号、使用当前时间、默认私有，复制当前内容、子树和独立附件，不复制历史、分享和收藏。复制请求摘要写入导入幂等记录，重试复用编号，参数不同拒绝；失败不发布部分目录。
+
+目录修改与内容写入统一先取得空间锁，再锁定文件和正文，避免协作保存与批量移动反向等待。复制先捕获已持久接收的内容，再在提交时核对目录修订及正文 revision/epoch；源内容或结构变化返回冲突，用户可重试。复制会使用私有暂存和附件恢复清单；复用原有重启恢复流程。相关集成测试必须运行在独立 `_test` 数据库。

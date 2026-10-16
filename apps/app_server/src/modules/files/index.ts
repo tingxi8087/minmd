@@ -21,7 +21,12 @@ import {
   requireSpaceOwner,
   lockSpace,
 } from "../spaces/service";
-import { requireFileAccess, fileResponse, fileResponses } from "./service";
+import {
+  requireFileAccess,
+  fileResponse,
+  fileResponses,
+  lockFileSpace,
+} from "./service";
 import {
   childrenOf,
   createFile,
@@ -88,8 +93,7 @@ export async function registerFiles(
     deleted = false,
   ) =>
     database.db.transaction(async (tx) => {
-      const first = await requireFileAccess(tx, userId, fileId, { deleted });
-      await lockSpace(tx, first.spaceId);
+      await lockFileSpace(tx, fileId);
       const file = await requireFileAccess(tx, userId, fileId, { deleted });
       return operation(tx, file);
     });

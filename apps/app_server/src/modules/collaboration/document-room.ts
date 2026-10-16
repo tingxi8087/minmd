@@ -21,7 +21,7 @@ import {
   fileVersions,
   documentUpdates,
 } from "../../database/schema/contents";
-import { requireFileAccess } from "../files/service";
+import { requireFileAccess, lockFileSpace } from "../files/service";
 import { lockSpace } from "../spaces/service";
 import {
   documentProjection,
@@ -863,10 +863,7 @@ export class DocumentRooms {
       await this.persistBarrier(fileId);
       const result = await this.enqueue(fileId, async () =>
         this.database.db.transaction(async (tx) => {
-          const file = await requireFileAccess(tx, userId, fileId, {
-            permission: "edit",
-          });
-          await lockSpace(tx, file.spaceId);
+          await lockFileSpace(tx, fileId);
           await requireFileAccess(tx, userId, fileId, { permission: "edit" });
           const [current] = await tx
             .select()
@@ -974,10 +971,7 @@ export class DocumentRooms {
       const result = await this.enqueue(fileId, async () =>
         this.database.db.transaction(async (tx) => {
           await input.beforeTransaction?.(tx);
-          const file = await requireFileAccess(tx, userId, fileId, {
-            permission: "edit",
-          });
-          await lockSpace(tx, file.spaceId);
+          await lockFileSpace(tx, fileId);
           await requireFileAccess(tx, userId, fileId, { permission: "edit" });
           await input.authorize?.(tx);
           const [current] = await tx

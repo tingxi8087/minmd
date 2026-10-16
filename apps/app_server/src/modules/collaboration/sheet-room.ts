@@ -236,7 +236,12 @@ export class SheetRooms {
     userId: string,
     identity?: Identity,
   ) {
-    const file = await this.authorize(tx, userId, fileId, identity);
+    // 先定位空间，不持文件锁；与目录移动统一锁顺序，避免协作写入和移动相互等待。
+    const [file] = await tx
+      .select({ spaceId: files.spaceId })
+      .from(files)
+      .where(eq(files.id, fileId));
+    if (!file) throw new AppError("NOT_FOUND", "文件不存在", 404);
     await lockSpace(tx, file.spaceId);
     await this.authorize(tx, userId, fileId, identity);
     const [current] = await tx

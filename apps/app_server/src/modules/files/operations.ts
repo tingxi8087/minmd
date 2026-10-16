@@ -3,7 +3,7 @@ import type { Transaction } from "../../../../../system/server/src/modules/audit
 import { AppError } from "../../../../../system/server/src/errors";
 import { files } from "../../database/schema/files";
 import { lockSpace, requireSpaceAccess } from "../spaces/service";
-import { requireFileAccess } from "./service";
+import { requireFileAccess, lockFileSpace } from "./service";
 import type { FilePermission } from "../file-access/policy";
 import type { CreateBody, MoveBody, PatchBody, RestoreBody } from "./schemas";
 type File = typeof files.$inferSelect;
@@ -58,11 +58,7 @@ async function lockedFile(
   deleted = false,
   permission: FilePermission = "manage",
 ) {
-  const first = await requireFileAccess(tx, userId, fileId, {
-    deleted,
-    permission,
-  });
-  await lockSpace(tx, first.spaceId);
+  await lockFileSpace(tx, fileId);
   return requireFileAccess(tx, userId, fileId, { deleted, permission });
 }
 export async function createFile(

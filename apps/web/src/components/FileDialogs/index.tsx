@@ -24,18 +24,38 @@ import {
   saveImportedContent,
   type PendingImport,
 } from "@/views/Files/importFlow";
+import BatchDestinationDialog from "./BatchDestinationDialog";
 import DestinationPicker from "./DestinationPicker";
 import { canMove } from "@/utils/fileTree";
 export type FileAction =
   | { type: "create"; kind: FileKind; parent: string | null }
   | { type: "upload"; parent: string | null }
+  | { type: "batch-move"; files: Entry[]; parent: string | null }
+  | { type: "batch-copy"; files: Entry[]; parent: string | null }
   | { type: "rename" | "share" | "move" | "restore"; file: Entry };
-export default function FileDialogs({
+export default function FileDialogs(props: {
+  action: FileAction | null;
+  close: () => void;
+  onCreated?: (id: string, kind?: FileKind) => void;
+  onCompleted?: () => void;
+}) {
+  const { action, close, onCompleted } = props;
+  if (action?.type === "batch-move" || action?.type === "batch-copy")
+    return (
+      <BatchDestinationDialog
+        action={action}
+        close={close}
+        onCompleted={onCompleted}
+      />
+    );
+  return <SingleFileDialogs {...props} action={action} />;
+}
+function SingleFileDialogs({
   action,
   close,
   onCreated,
 }: {
-  action: FileAction | null;
+  action: Exclude<FileAction, { type: "batch-move" | "batch-copy" }> | null;
   close: () => void;
   onCreated?: (id: string, kind?: FileKind) => void;
 }) {

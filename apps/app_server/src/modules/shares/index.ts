@@ -18,7 +18,7 @@ import { shareUserSessions } from "../../database/schema/file-access";
 import { resolveFileAccess } from "../file-access/service";
 import { fileContents } from "../../database/schema/contents";
 import { assets, fileAssets } from "../../database/schema/assets";
-import { requireFileAccess } from "../files/service";
+import { requireFileAccess, lockFileSpace } from "../files/service";
 import { lockSpace } from "../spaces/service";
 import {
   shareStatus,
@@ -120,13 +120,7 @@ export async function registerShares(
           ? await hashValidatedPassword(request.body.password)
           : undefined;
       return database.db.transaction(async (tx) => {
-        const initial = await requireFileAccess(
-          tx,
-          request.appIdentity!.id,
-          request.params.fileId,
-          { permission: "manage" },
-        );
-        await lockSpace(tx, initial.spaceId);
+        const initial = await lockFileSpace(tx, request.params.fileId);
         const file = await requireFileAccess(
           tx,
           request.appIdentity!.id,
@@ -232,13 +226,7 @@ export async function registerShares(
     },
     async (request) =>
       database.db.transaction(async (tx) => {
-        const file = await requireFileAccess(
-          tx,
-          request.appIdentity!.id,
-          request.params.fileId,
-          { permission: "manage" },
-        );
-        await lockSpace(tx, file.spaceId);
+        const file = await lockFileSpace(tx, request.params.fileId);
         await requireFileAccess(tx, request.appIdentity!.id, file.id, {
           permission: "manage",
         });

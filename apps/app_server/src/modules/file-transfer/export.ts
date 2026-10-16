@@ -103,7 +103,7 @@ export async function exportSelection(
     await requireFileAccess(database, userId, row.id);
   return [...rows.values()];
 }
-export async function buildExport(
+export async function captureExport(
   services: TransferServices,
   userId: string,
   spaceId: string,
@@ -144,6 +144,7 @@ export async function buildExport(
   const projections = new Map<string, string>();
   const sources: { name: string; path: string }[] = [];
   const captured = new Set<string>();
+  const revisions = new Map<string, { revision: number; epoch: number }>();
   let size = 0;
   let done = 0;
   for (const row of rows) {
@@ -168,6 +169,10 @@ export async function buildExport(
           "正文尚未就绪，请稍后重试",
           409,
         );
+      revisions.set(row.id, {
+        revision: content.revision,
+        epoch: content.epoch,
+      });
       if (row.kind === "doc") completeDocument(content.projection);
       const projection = structuredClone(content.projection);
       if (["doc", "sheet"].includes(row.kind)) {
@@ -286,6 +291,26 @@ export async function buildExport(
   // 打包前再次授权，捕获后的内容和附件副本不再随源文件变化。
   for (const row of rows)
     await requireFileAccess(services.database, userId, row.id);
+  return { manifest, sources, rows, paths, allIds, revisions };
+}
+export async function buildExport(
+  services: TransferServices,
+  userId: string,
+  spaceId: string,
+  input: ExportInput,
+  directory: string,
+  signal: AbortSignal,
+  progress: (done: number, total: number) => void,
+) {
+  const { manifest, sources, rows, paths, allIds } = await captureExport(
+    services,
+    userId,
+    spaceId,
+    input,
+    directory,
+    signal,
+    progress,
+  );
   if (input.single && input.mode === "markdown" && !manifest.assets.length) {
     const source = sources.find(
       (item) => item.name === manifest.entries[0]!.contentPath,

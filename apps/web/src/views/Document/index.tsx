@@ -37,6 +37,8 @@ import { assetsApi } from "@/api/assets";
 import { BlockId } from "./extensions/blockId";
 import VersionHistory from "./components/VersionHistory";
 import DocumentDetails from "./components/DocumentDetails";
+import FindReplace, { type SearchPanelMode } from "./components/FindReplace";
+import { DocumentSearch } from "./extensions/documentSearch";
 import type { JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -47,6 +49,8 @@ import { DocumentImage } from "./components/DocumentImage";
 import { Markdown } from "@tiptap/markdown";
 import {
   ArrowLeft,
+  Search,
+  Replace,
   Users,
   Check,
   CloudOff,
@@ -167,6 +171,7 @@ function DocumentEditor({
 }) {
   const navigate = useNavigate();
   const contextMenu = useContextMenu();
+  const [searchMode, setSearchMode] = useState<SearchPanelMode>(null);
   const { message, modal } = App.useApp();
   const patchStore = useWorkspace((s) => s.patch);
   const patch = async (id: string, value: Partial<Entry>) => {
@@ -294,6 +299,7 @@ function DocumentEditor({
           : `minmd-heading-fold/${session.scope.userId}/${file.id}`,
       }),
       TableDeletePreview,
+      DocumentSearch,
       FontSize,
       Callout,
       Fold,
@@ -551,6 +557,20 @@ function DocumentEditor({
   };
   const documentItems = (): ContextItem[] => [
     {
+      key: "find",
+      label: "查找内容",
+      icon: <Search size={15} />,
+      run: () => setSearchMode("find"),
+    },
+    {
+      key: "replace",
+      label: "查找与替换",
+      icon: <Replace size={15} />,
+      disabled: !editor.isEditable,
+      run: () => setSearchMode("replace"),
+    },
+    { key: "search-divider", type: "divider" },
+    {
       key: "move",
       disabled: Boolean(file.permission && file.permission !== "manage"),
       label: "移动到…",
@@ -801,22 +821,27 @@ function DocumentEditor({
             <span className={styles.shareLabel}>分享</span>
           </button>
         </FullVersion>
-        <TooltipButton
+        <button
           className="icon-button"
           aria-label="文档更多操作"
-          tooltip={contextMenu.menu ? "" : undefined}
           onMouseDown={(e) => e.preventDefault()}
           onClick={(e) =>
             contextMenu.openButton(e, headerItems(), "文档操作", true)
           }
         >
           <MoreHorizontal size={18} />
-        </TooltipButton>
+        </button>
       </div>
     </div>
   );
   return (
     <main className={styles.page}>
+      <FindReplace
+        editor={editor}
+        mode={searchMode}
+        onModeChange={setSearchMode}
+        readonly={!verification.ready || !verification.connected}
+      />
       {detailsOpen && (
         <DocumentDetails
           fileId={file.id}

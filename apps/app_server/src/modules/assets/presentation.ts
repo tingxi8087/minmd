@@ -11,8 +11,7 @@ import { AppError } from "../../../../../system/server/src/errors";
 import { loadMinmdConfig } from "../../../../../config/minmd";
 import { fileContents, fileVersions } from "../../database/schema/contents";
 import { assets } from "../../database/schema/assets";
-import { requireFileAccess } from "../files/service";
-import { lockSpace } from "../spaces/service";
+import { requireFileAccess, lockFileSpace } from "../files/service";
 import { id, errors } from "../spaces/schemas";
 import { pptxMime, validateAsset } from "./validate";
 import { requireAssetAccess, syncContentAssets } from "./service";
@@ -89,10 +88,7 @@ export async function bindPresentation(
   fileId: string,
   input: Static<typeof presentationBody>,
 ) {
-  const first = await requireFileAccess(tx, userId, fileId, {
-    permission: "edit",
-  });
-  await lockSpace(tx, first.spaceId);
+  await lockFileSpace(tx, fileId);
   const file = await requireFileAccess(tx, userId, fileId, {
     permission: "edit",
   });

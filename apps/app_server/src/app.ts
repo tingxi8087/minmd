@@ -23,6 +23,7 @@ import {
   registerDocumentRooms,
   type DocumentRooms,
 } from "./modules/collaboration/document-room";
+import { registerFileBatches } from "./modules/files/batches";
 import { registerFileTransfers } from "./modules/file-transfer";
 import { registerContents } from "./modules/contents";
 import { registerShares } from "./modules/shares";
@@ -143,6 +144,14 @@ export function buildApp(
       rooms = await registerDocumentRooms(app, database, config, sheetRooms);
       await registerContents(app, database, rooms, sheetRooms);
       await registerFileTransfers(app, {
+        database,
+        rooms,
+        sheetRooms,
+        assetDirectory: resolve(loadMinmdConfig(config).assetStorageDir),
+        sourceOrigin: new URL(loadMinmdConfig(config).allowedOrigins[0]!)
+          .origin,
+      });
+      await registerFileBatches(app, {
         database,
         rooms,
         sheetRooms,

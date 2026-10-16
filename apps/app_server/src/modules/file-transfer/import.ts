@@ -119,9 +119,18 @@ export async function commitPackage(
   prepared: PreparedPackage,
   signal: AbortSignal,
   stagingDirectory: string,
+  options?: {
+    copy?: boolean;
+    fingerprint?: string;
+    beforeCreate?: (tx: Transaction) => Promise<void>;
+  },
 ) {
   const old = await importReceipt(services, userId, batchId);
-  if (old) return old.fileIds;
+  if (old) {
+    if (options?.fingerprint && old.requestFingerprint !== options.fingerprint)
+      throw new AppError("BATCH_CONFLICT", "操作编号已用于其他复制请求", 409);
+    return old.fileIds;
+  }
   await authorizeImport(services, userId, spaceId, input);
   const { manifest } = prepared;
   if (
@@ -175,6 +184,7 @@ export async function commitPackage(
         spaceId,
         targetFileId: input.replaceFileId,
         fileIds,
+        requestFingerprint: options?.fingerprint,
       });
     };
     const rewritten = async (entry: TransferEntry) =>
@@ -188,6 +198,7 @@ export async function commitPackage(
         ids,
         assetIds,
         manifest.sourceOrigin,
+        options?.copy,
       );
     if (input.replaceFileId) {
       const projection = await rewritten(manifest.entries[0]!);
@@ -223,7 +234,18 @@ export async function commitPackage(
             eq(fileTransferImports.userId, userId),
           ),
         );
-      if (existing) return existing.fileIds;
+      if (existing) {
+        if (
+          options?.fingerprint &&
+          existing.requestFingerprint !== options.fingerprint
+        )
+          throw new AppError(
+            "BATCH_CONFLICT",
+            "操作编号已用于其他复制请求",
+            409,
+          );
+        return existing.fileIds;
+      }
       await lockSpace(tx, spaceId);
       await requireSpaceAccess(tx, userId, spaceId);
       await validateParent(tx, spaceId, input.parentId);
@@ -231,6 +253,7 @@ export async function commitPackage(
         await requireFileAccess(tx, userId, input.parentId, {
           permission: "edit",
         });
+      await options?.beforeCreate?.(tx);
       const imported: string[] = [];
       // 先建立全树，保证正文引用和附件外键在写入时均有目标。
       for (const entry of orderTransferEntries(manifest.entries)) {
@@ -238,7 +261,11 @@ export async function commitPackage(
         const parentId = entry.parentId
           ? ids.get(entry.parentId)!
           : input.parentId;
-        const name = await uniqueName(tx, spaceId, parentId, entry.name);
+        const baseName =
+          options?.copy && !entry.parentId
+            ? `${entry.name.slice(0, 197)} 副本`
+            : entry.name;
+        const name = await uniqueName(tx, spaceId, parentId, baseName);
         const created = await createFile(tx, userId, spaceId, {
           kind: entry.kind,
           name,
@@ -249,8 +276,8 @@ export async function commitPackage(
           .update(files)
           .set({
             id: newId,
-            createdAt: new Date(entry.createdAt),
-            updatedAt: new Date(entry.updatedAt),
+            createdAt: options?.copy ? new Date() : new Date(entry.createdAt),
+            updatedAt: options?.copy ? new Date() : new Date(entry.updatedAt),
           })
           .where(eq(files.id, created.id));
         imported.push(newId);
@@ -319,7 +346,12 @@ export async function commitPackage(
   } catch (error) {
     // 提交已成功但后续通知失败时，幂等结果优先，不能误删已引用的附件。
     const receipt = await importReceipt(services, userId, batchId);
-    if (receipt) return receipt.fileIds;
+    if (
+      receipt &&
+      (!options?.fingerprint ||
+        receipt.requestFingerprint === options.fingerprint)
+    )
+      return receipt.fileIds;
     throw error;
   } finally {
     // 同批次的竞争请求可能已有赢家，只清理本次未提交的随机存储键。

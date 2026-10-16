@@ -1,0 +1,110 @@
+.panel {
+  position: fixed;
+  z-index: 1050;
+  top: calc(var(--header-height) + 8px);
+  right: 20px;
+  width: min(430px, calc(100vw - 24px));
+  padding: 10px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 12%);
+  font-size: 12px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  & + & {
+    margin-top: 7px;
+  }
+  :global(.ant-input) {
+    flex: 1;
+    min-width: 0;
+    height: 30px;
+    font-size: 12px;
+  }
+  :global(.icon-button) {
+    flex: 0 0 26px;
+    width: 26px;
+    height: 28px;
+    padding: 0;
+  }
+  :global(.secondary-button) {
+    flex: 0 0 auto;
+    height: 30px;
+    padding: 0 9px;
+    font-size: 12px;
+  }
+  button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+}
+.count {
+  flex: 0 0 auto;
+  min-width: 43px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.searchIcon {
+  margin: 0 6px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+.indent {
+  flex: 0 0 26px;
+}
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.caseButton {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 0;
+  border-radius: 4px;
+  padding: 3px 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  &[aria-pressed="true"] {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+}
+:global(.document-search-match) {
+  background: #ffe99b;
+  color: #27251d;
+  border-radius: 2px;
+  box-shadow: inset 0 -1px #e1bf4d;
+}
+:global(.document-search-current) {
+  background: #ffbf61;
+  color: #21180c;
+  outline: 1px solid #c27c1a;
+}
+:global(.doc-fold[data-search-reveal="true"] > [hidden]) {
+  display: block;
+}
+@media (max-width: 680px) {
+  .panel {
+    right: 12px;
+    padding: 8px;
+  }
+  .footer > span {
+    font-size: 10px;
+  }
+  .indent {
+    display: none;
+  }
+}

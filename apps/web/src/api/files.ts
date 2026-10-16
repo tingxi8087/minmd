@@ -71,8 +71,35 @@ export const filesApi = {
       expectedMetadataRevision,
     });
   },
-  remove: async (spaceId: string, id: string) => {
-    await request.delete(`/app/files/${id}`);
+  batchMove: async (
+    spaceId: string,
+    fileIds: string[],
+    parentId: string | null,
+    signal?: AbortSignal,
+  ) =>
+    (
+      await request.post<{ items: RemoteFile[]; total: number }>(
+        `/app/spaces/${spaceId}/files/batch-move`,
+        { fileIds, parentId },
+        { signal },
+      )
+    ).data,
+  batchCopy: async (
+    spaceId: string,
+    fileIds: string[],
+    parentId: string | null,
+    requestId: string,
+    signal?: AbortSignal,
+  ) =>
+    (
+      await request.post<{ items: RemoteFile[]; total: number }>(
+        `/app/spaces/${spaceId}/files/batch-copy`,
+        { fileIds, parentId, requestId },
+        { signal, timeout: 0 },
+      )
+    ).data,
+  remove: async (spaceId: string, id: string, signal?: AbortSignal) => {
+    await request.delete(`/app/files/${id}`, { signal });
   },
   restore: async (spaceId: string, id: string, parentId?: string | null) => {
     await request.post(

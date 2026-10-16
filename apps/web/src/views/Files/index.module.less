@@ -44,6 +44,9 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
+  min-height: 36px;
+  flex-wrap: wrap;
+  gap: 8px;
   h2 {
     font-size: 13px;
     font-weight: 600;
@@ -147,23 +150,6 @@
   align-items: center;
   :global(.ant-select) {
     font-size: 11px;
-  }
-}
-.inlineSearch {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  color: var(--text-muted);
-  input {
-    width: 110px;
-    font-size: 11px;
-    color: var(--text);
-    background: none;
-    border: 0;
-    outline: 0;
-    &::placeholder {
-      color: var(--text-muted);
-    }
   }
 }
 .tableHeader,
@@ -275,6 +261,7 @@
   }
 }
 .fileGrid {
+  margin-top: 16px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
@@ -387,9 +374,6 @@
   .fileName {
     gap: 8px;
   }
-  .inlineSearch input {
-    width: 70px;
-  }
   .tabs {
     gap: 12px;
   }
@@ -441,29 +425,37 @@
   }
 }
 
-.selectionBar {
+.listActions {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.bulkActions {
+  display: flex;
+  gap: 4px;
+  padding-right: 8px;
+  border-right: 1px solid var(--border);
+}
+.selectionSummary {
+  display: flex;
+  align-items: center;
   gap: 10px;
-  margin-bottom: 14px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  background: var(--accent-soft);
-  border-radius: 8px;
   font-size: 12px;
-  label {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-  }
+  white-space: nowrap;
   > span {
-    margin-right: auto;
     color: var(--text-secondary);
   }
-  input {
-    accent-color: var(--accent);
+  :global(.ant-checkbox-wrapper) {
+    font-size: 12px;
   }
+}
+.selectionToggle[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.deleteAction:not(:disabled) {
+  color: var(--danger);
 }
 .fileRow.selectable {
   position: relative;
@@ -493,4 +485,43 @@
 .fileGrid .selectable .selectionCheckbox {
   top: 16px;
   transform: none;
+}
+
+.menuIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 5px;
+}
+
+.desktopBulk {
+  display: inline-flex;
+  gap: 4px;
+}
+.mobileBulk {
+  display: none !important;
+}
+@media (max-width: 680px) {
+  .desktopBulk {
+    display: none;
+  }
+  .mobileBulk {
+    display: inline-flex !important;
+  }
+  .listActions {
+    gap: 3px;
+  }
+  .bulkActions {
+    gap: 0;
+    padding-right: 3px;
+  }
+  .selectionSummary {
+    gap: 6px;
+  }
+  .sectionHeader:has(.selectionSummary) .viewSwitch {
+    display: none;
+  }
 }

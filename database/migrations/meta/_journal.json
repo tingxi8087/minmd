@@ -15,6 +15,13 @@
       "when": 1792131916593,
       "tag": "0001_dear_mole_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792140584683,
+      "tag": "0002_confused_iron_monger",
+      "breakpoints": true
     }
   ]
 }

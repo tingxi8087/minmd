@@ -21,6 +21,9 @@ import type { Entry } from "@/store/workspace";
 import { Callout, Fold, DocumentReference } from "../../extensions/blocks";
 import { BlockId } from "../../extensions/blockId";
 import styles from "./index.module.less";
+import { Search } from "lucide-react";
+import FindReplace, { type SearchPanelMode } from "../FindReplace";
+import { DocumentSearch } from "../../extensions/documentSearch";
 const sourceNames: Record<string, string> = {
   manual: "手动保存",
   auto: "自动保存",
@@ -37,12 +40,15 @@ export function ReadonlyPreview({
   projection: JSONContent;
   label?: string;
 }) {
+  const [searchMode, setSearchMode] = useState<SearchPanelMode>(null);
+  const searchable = ["文档只读预览", "公开文档只读正文"].includes(label);
   const editor = useEditor({
     editable: false,
     content: projection,
     extensions: [
       StarterKit.configure({ undoRedo: false, codeBlock: false }),
       SelectableCodeBlock,
+      DocumentSearch,
       TableKit.configure({ table: { resizable: false } }),
       TaskList,
       TaskItem.configure({ nested: true }),
@@ -76,6 +82,26 @@ export function ReadonlyPreview({
   });
   return (
     <div className={styles.preview}>
+      {searchable && editor && (
+        <>
+          <div className={styles.previewTools}>
+            <button
+              className={`secondary-button ${styles.findButton}`}
+              onClick={() => setSearchMode("find")}
+              aria-label="查找文档内容"
+            >
+              <Search size={14} />
+              查找
+            </button>
+          </div>
+          <FindReplace
+            editor={editor}
+            mode={searchMode}
+            onModeChange={setSearchMode}
+            readonly
+          />
+        </>
+      )}
       <EditorContent editor={editor} />
     </div>
   );

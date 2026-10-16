@@ -1,4 +1,4 @@
-import { pgTable, uuid, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, jsonb, timestamp, varchar } from "drizzle-orm/pg-core";
 import { spaces } from "./spaces";
 import { appUsers } from "./users";
 import { files } from "./files";
@@ -16,6 +16,8 @@ export const fileTransferImports = pgTable("file_transfer_imports", {
     onDelete: "set null",
   }),
   fileIds: jsonb("file_ids").$type<string[]>().notNull(),
+  /** 复制请求的参数摘要；普通文件包导入不使用。 */
+  requestFingerprint: varchar("request_fingerprint", { length: 64 }),
   importedAt: timestamp("imported_at", { withTimezone: true, mode: "date" })
     .notNull()
     .defaultNow(),

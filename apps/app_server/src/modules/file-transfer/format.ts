@@ -233,6 +233,7 @@ export function rewriteDocument(
   fileIds: ReadonlyMap<string, string>,
   assetIds: ReadonlyMap<string, string>,
   sourceOrigin: string,
+  preserveUnmappedReferences = false,
 ): JSONContent {
   const result = structuredClone(input);
   const link = (href: string) => {
@@ -285,7 +286,7 @@ export function rewriteDocument(
       const old = node.attrs.id;
       const mapped = fileIds.get(old);
       if (mapped) node.attrs.id = mapped;
-      else {
+      else if (!preserveUnmappedReferences) {
         node.type = "text";
         node.text = String(node.attrs.name || "未命名文档");
         delete node.attrs;

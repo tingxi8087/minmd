@@ -89,6 +89,7 @@
         "@tiptap/pm": "^3.31.4",
         "@tiptap/react": "^3.31.4",
         "@tiptap/starter-kit": "^3.31.4",
+        "@tiptap/y-tiptap": "3.0.9",
         "@univerjs/core": "1.0.4",
         "antd": "^5.27.0",
         "axios": "^1.7.9",

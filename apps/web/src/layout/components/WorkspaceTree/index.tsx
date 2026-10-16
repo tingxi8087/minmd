@@ -16,6 +16,8 @@ import {
   Table2,
   Presentation,
   Upload,
+  Download,
+  Copy,
   FileType2,
   Video,
   Image,
@@ -34,6 +36,10 @@ import {
 } from "@/utils/fileTree";
 import FileDialogs, { type FileAction } from "@/components/FileDialogs";
 import { useContextMenu, type ContextItem } from "@/components/ContextMenu";
+import FileTransferDialog, {
+  type TransferAction,
+} from "@/components/FileTransferDialog";
+import { isDemo } from "@/runtime";
 import TooltipButton from "@/components/TooltipButton";
 import { errorMessage } from "@/http";
 import styles from "./index.module.less";
@@ -62,6 +68,9 @@ export default function WorkspaceTree() {
     setFolderDropTarget(null);
   }, [space]);
   const [action, setAction] = useState<FileAction | null>(null);
+  const [transferAction, setTransferAction] = useState<TransferAction | null>(
+    null,
+  );
   const selected =
     location.pathname.match(/\/(?:document|preview)\/([^/]+)/)?.[1] ||
     new URLSearchParams(location.search).get("folder");
@@ -135,6 +144,16 @@ export default function WorkspaceTree() {
       icon: <FolderInput size={15} />,
       run: () => setAction({ type: "move", file: f }),
     },
+    {
+      key: "copy",
+      disabled: isDemo,
+      label: isDemo ? "创建副本（部署后可使用）" : "创建副本",
+      icon: <Copy size={15} />,
+      run: () => {
+        if (!isDemo)
+          setAction({ type: "batch-copy", files: [f], parent: f.parent });
+      },
+    },
     ...(f.kind !== "folder"
       ? [
           {
@@ -155,6 +174,21 @@ export default function WorkspaceTree() {
           },
         ]
       : []),
+    {
+      key: "export",
+      label: isDemo ? "导出（部署后可使用）" : "导出",
+      disabled: isDemo,
+      icon: <Download size={15} />,
+      run: () => {
+        if (isDemo) return;
+        setTransferAction({
+          type: "export",
+          spaceId: space,
+          ids: [f.id],
+          name: f.name,
+        });
+      },
+    },
     { key: "delete-divider", type: "divider" },
     {
       key: "delete",
@@ -352,6 +386,12 @@ export default function WorkspaceTree() {
       />
       {!files.some((f) => f.space === space && !f.deleted) && (
         <span className={styles.empty}>暂无文件</span>
+      )}
+      {transferAction && (
+        <FileTransferDialog
+          action={transferAction}
+          close={() => setTransferAction(null)}
+        />
       )}
       {contextMenu.menu}
       <FileDialogs

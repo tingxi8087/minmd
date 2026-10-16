@@ -13,6 +13,11 @@ import {
   type NodeViewProps,
 } from "@tiptap/react";
 import styles from "./index.module.less";
+import {
+  documentSearchKey,
+  searchState,
+} from "../../extensions/documentSearch";
+import type { Transaction } from "@tiptap/pm/state";
 const languages = [
   ["", "纯文本"],
   ["mermaid", "Mermaid 图表"],
@@ -47,6 +52,7 @@ function CodeBlockView({
   updateAttributes,
   editor,
   deleteNode,
+  getPos,
 }: NodeViewProps) {
   const editable = useEditorState({
     editor,
@@ -57,6 +63,36 @@ function CodeBlockView({
   const isMermaid = language.trim().toLowerCase() === "mermaid";
   const [view, setView] = useState<"graph" | "source">("graph");
   useEffect(() => setView("graph"), [isMermaid]);
+  useEffect(() => {
+    if (!isMermaid) return;
+    const reveal = () => {
+      const { matches, active } = searchState(editor);
+      const match = matches[active];
+      const pos = getPos();
+      if (
+        match &&
+        typeof pos === "number" &&
+        match.from > pos &&
+        match.to < pos + node.nodeSize &&
+        editor.state.selection.from === match.from
+      )
+        setView("source");
+    };
+    const revealSelection = ({ transaction }: { transaction: Transaction }) => {
+      if (!transaction.docChanged) reveal();
+    };
+    const revealQuery = ({ transaction }: { transaction: Transaction }) => {
+      // Reopening a retained query may keep the exact same selection. Listen
+      // for local search metadata without changing views for remote content.
+      if (transaction.getMeta(documentSearchKey)) reveal();
+    };
+    editor.on("selectionUpdate", revealSelection);
+    editor.on("transaction", revealQuery);
+    return () => {
+      editor.off("selectionUpdate", revealSelection);
+      editor.off("transaction", revealQuery);
+    };
+  }, [editor, getPos, isMermaid, node.nodeSize]);
   const custom = search.trim();
   const options = [...languages];
   if (language && !options.some((option) => option.value === language))

@@ -8,7 +8,15 @@ import {
   resolveFileAccess,
   assertFilePermission,
 } from "../file-access/service";
+import { lockSpace } from "../spaces/service";
 import type { FilePermission } from "../file-access/policy";
+/** 树与内容写入先锁空间，再取得文件行锁；首次无锁读取只用于定位，随后须重新授权。 */
+export async function lockFileSpace(tx: Transaction, fileId: string) {
+  const [file] = await tx.select().from(files).where(eq(files.id, fileId));
+  if (!file) throw new AppError("NOT_FOUND", "文件不存在", 404);
+  await lockSpace(tx, file.spaceId);
+  return file;
+}
 /** 登录不是文件授权；每次调用都重新检查空间成员资格和软删除状态。 */
 export async function requireFileAccess(
   database: Database | Database["db"] | Transaction,

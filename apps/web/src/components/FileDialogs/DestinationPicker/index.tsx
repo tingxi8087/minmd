@@ -21,6 +21,8 @@ export default function DestinationPicker({
   spaceName,
   restore = false,
   disabled = false,
+  selection,
+  copy = false,
 }: {
   file: Entry;
   files: Entry[];
@@ -29,6 +31,8 @@ export default function DestinationPicker({
   spaceName: string;
   restore?: boolean;
   disabled?: boolean;
+  selection?: Entry[];
+  copy?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<React.Key[]>(() => {
@@ -40,9 +44,14 @@ export default function DestinationPicker({
     }
     return ids;
   });
+  const sources = selection ?? [file];
+  const allowed = (id: string | null) =>
+    sources.every((source) => canMove(files, source.id, id));
   const candidates = files.filter(
     (item) =>
-      item.space === file.space && !item.deleted && canContain(item, file),
+      item.space === file.space &&
+      !item.deleted &&
+      sources.every((source) => canContain(item, source)),
   );
   const ids = new Set(candidates.map((item) => item.id));
   const sourceParent = files.find((item) => item.id === file.parent);
@@ -57,18 +66,22 @@ export default function DestinationPicker({
         ? `${spaceName} / ${entryPath(files, selected)}`
         : "请选择有效的目标位置";
   const reason = (item: Entry) =>
-    item.id === file.id
-      ? "不能移入自身"
-      : !canMove(files, file.id, item.id)
-        ? "不能移入子目录"
+    sources.some((source) => source.id === item.id)
+      ? copy
+        ? "不能复制到自身"
+        : "不能移入自身"
+      : !allowed(item.id)
+        ? copy
+          ? "不能复制到子目录"
+          : "不能移入子目录"
         : item.id === file.parent
           ? "当前位置"
           : "";
   const title = (item: Entry) => (
     <div
       data-kind={item.kind}
-      aria-disabled={!canMove(files, file.id, item.id)}
-      className={`${styles.rowTitle} ${canMove(files, file.id, item.id) ? "" : styles.unavailable}`}
+      aria-disabled={!allowed(item.id)}
+      className={`${styles.rowTitle} ${allowed(item.id) ? "" : styles.unavailable}`}
     >
       {item.kind === "folder" ? <Folder size={17} /> : <FileText size={17} />}
       <span className={styles.name} title={item.name}>
@@ -88,7 +101,7 @@ export default function DestinationPicker({
       .map((item) => ({
         key: item.id,
         title: title(item),
-        selectable: !disabled && canMove(files, file.id, item.id),
+        selectable: !disabled && allowed(item.id),
         children: build(item.id, new Set([...visited, item.id])),
       }));
   const roots = candidates.filter(
@@ -99,7 +112,7 @@ export default function DestinationPicker({
     ...roots.map((item) => ({
       key: item.id,
       title: title(item),
-      selectable: !disabled && canMove(files, file.id, item.id),
+      selectable: !disabled && allowed(item.id),
       children: build(item.id, new Set([item.id])),
     })),
   ];
@@ -112,14 +125,22 @@ export default function DestinationPicker({
   return (
     <div className={styles.picker}>
       <div className={styles.source}>
-        <FileIcon kind={file.kind} />
+        <FileIcon kind={sources.length > 1 ? "folder" : file.kind} />
         <div>
-          <strong title={file.name}>{file.name}</strong>
+          <strong title={file.name}>
+            {sources.length > 1 ? `已选择 ${sources.length} 项` : file.name}
+          </strong>
           <p title={sourcePath}>
-            {restore ? "原位置" : "当前位置"}：{sourcePath}
+            {sources.some((source) => source.parent !== file.parent)
+              ? "来自多个位置"
+              : `${restore ? "原位置" : "当前位置"}：${sourcePath}`}
           </p>
         </div>
-        {file.kind === "folder" && <small>包含子文件</small>}
+        {sources.some(
+          (source) =>
+            source.kind === "folder" ||
+            files.some((child) => child.parent === source.id),
+        ) && <small>包含全部子文件</small>}
       </div>
       <Input
         value={query}
@@ -128,7 +149,9 @@ export default function DestinationPicker({
         allowClear
         prefix={<Search size={16} />}
         placeholder={
-          file.kind === "doc" ? "搜索文件夹或目标文档" : "搜索文件夹"
+          sources.every((source) => source.kind === "doc")
+            ? "搜索文件夹或目标文档"
+            : "搜索文件夹"
         }
         aria-label="搜索目标位置"
       />
@@ -136,7 +159,7 @@ export default function DestinationPicker({
         <button
           type="button"
           className={`${styles.root} ${value === null ? styles.selected : ""}`}
-          disabled={disabled || !canMove(files, file.id, null)}
+          disabled={disabled || !allowed(null)}
           onClick={() => onChange(null)}
           aria-pressed={value === null}
         >
@@ -153,7 +176,7 @@ export default function DestinationPicker({
                   <button
                     type="button"
                     key={item.id}
-                    disabled={disabled || !canMove(files, file.id, item.id)}
+                    disabled={disabled || !allowed(item.id)}
                     className={value === item.id ? styles.selected : ""}
                     aria-label={`选择目标 ${entryPath(files, item)}`}
                     aria-pressed={value === item.id}
@@ -183,7 +206,7 @@ export default function DestinationPicker({
               switcherIcon={<ChevronRight size={14} />}
               onSelect={(keys) => {
                 const id = keys[0];
-                if (id && !disabled && canMove(files, file.id, String(id)))
+                if (id && !disabled && allowed(String(id)))
                   onChange(String(id));
               }}
             />
@@ -193,7 +216,7 @@ export default function DestinationPicker({
         </div>
       </div>
       <div className={styles.destination}>
-        <span>{restore ? "恢复到" : "移动到"}</span>
+        <span>{restore ? "恢复到" : copy ? "复制到" : "移动到"}</span>
         <strong title={selectedPath}>{selectedPath}</strong>
       </div>
     </div>
