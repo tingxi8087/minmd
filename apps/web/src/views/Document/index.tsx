@@ -1,3 +1,6 @@
+import FileTransferDialog, {
+  type TransferAction,
+} from "@/components/FileTransferDialog";
 import { isDemo, FullVersion } from "@/runtime";
 import { copyText, readClipboardText } from "@/utils/clipboard";
 import { usePageTitle } from "@/components/PageTitles";
@@ -18,7 +21,6 @@ import {
   FontSize,
   BackgroundColor,
 } from "@tiptap/extension-text-style";
-import { hasCustomTextStyle } from "./utils/markdownExport";
 import { shouldRecordDraft } from "./collaborationState";
 import { useDocumentTitle } from "./useDocumentTitle";
 import Collaboration from "@tiptap/extension-collaboration";
@@ -89,7 +91,7 @@ import { TableDeletePreview } from "./extensions/tableDeletePreview";
 import { QuickTableView } from "./extensions/QuickTableView";
 import { HeadingCollapse, revealHeading } from "./extensions/headingCollapse";
 import { Callout, Fold, DocumentReference } from "./extensions/blocks";
-import { exportDocument, hasCustomBlocks } from "./utils/markdownExport";
+import { exportDocument } from "./utils/markdownExport";
 import { SelectableCodeBlock } from "./components/CodeBlock";
 import Formatting from "./components/Formatting";
 import { useSlashMenu } from "./components/useSlashMenu";
@@ -194,6 +196,9 @@ function DocumentEditor({
   const [title, setTitle] = useDocumentTitle(file.name);
   usePageTitle(title.trim() || "未命名文档", 2);
   const [status, setStatus] = useState<"saved" | "saving" | "failed">("saved");
+  const [transferAction, setTransferAction] = useState<TransferAction | null>(
+    null,
+  );
   const [historyOpen, setHistoryOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [checkpointBusy, setCheckpointBusy] = useState(false);
@@ -406,23 +411,47 @@ function DocumentEditor({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     message.success("Markdown 已导出");
   };
-  const exportMarkdown = () => {
-    if (
-      !hasCustomTextStyle(editor.getJSON()) &&
-      !hasCustomBlocks(editor.getJSON())
-    )
-      return downloadMarkdown();
-    modal.confirm({
-      title: "导出 Markdown",
-      content:
-        "Markdown 导出会移除自定义字体颜色、背景颜色和字号，将高亮块转成引用、折叠块展开为标题及内容，文档引用转成链接。原文档不受影响。",
-      okText: "继续导出",
-      cancelText: "取消",
-      onOk: downloadMarkdown,
+  const exportMarkdown = () =>
+    setTransferAction({
+      type: "export",
+      spaceId: file.space,
+      ids: [file.id],
+      single: true,
+      name: title,
+      beforeExport: async () => {
+        await titleWrites.current;
+        return collaboration.flush();
+      },
+      demoMarkdown: downloadMarkdown,
     });
-  };
   const importMarkdown = async (importFile?: File) => {
     if (!importFile) return;
+    if (/\.zip$/i.test(importFile.name)) {
+      if (isDemo) {
+        message.info("完整包导入部署后可使用");
+        return;
+      }
+      try {
+        if (importFile.size > UPLOAD_MAX_BYTES)
+          throw new Error("压缩包不能超过 200 MB");
+        await collaboration.flush();
+        const current = await documentApi.content(file.id);
+        setTransferAction({
+          type: "import",
+          spaceId: file.space,
+          file: importFile,
+          target: {
+            parentId: null,
+            replaceFileId: file.id,
+            expectedRevision: current.revision,
+            expectedEpoch: current.epoch,
+          },
+        });
+      } catch (error) {
+        message.error(errorMessage(error));
+      }
+      return;
+    }
     if (
       !/\.(md|markdown)$/i.test(importFile.name) ||
       importFile.size > UPLOAD_MAX_BYTES
@@ -531,13 +560,13 @@ function DocumentEditor({
     { key: "divider", type: "divider" },
     {
       key: "export",
-      label: "导出 Markdown",
+      label: "导出文档",
       icon: <Download size={15} />,
       run: exportMarkdown,
     },
     {
       key: "import",
-      label: "导入 Markdown",
+      label: "导入文档",
       icon: <Upload size={15} />,
       run: () => markdownInput.current?.click(),
     },
@@ -1098,7 +1127,7 @@ function DocumentEditor({
       <input
         type="file"
         hidden
-        accept=".md,.markdown"
+        accept=".md,.markdown,.zip"
         ref={markdownInput}
         onChange={(e) => {
           void importMarkdown(e.target.files?.[0]);
@@ -1111,6 +1140,16 @@ function DocumentEditor({
         fileId={file.id}
         close={() => setInsertKind(null)}
       />
+      {transferAction && (
+        <FileTransferDialog
+          action={transferAction}
+          close={() => setTransferAction(null)}
+          onImported={async () => {
+            collaboration.restart();
+            notifyFileAccessChanged(file.id);
+          }}
+        />
+      )}
       {contextMenu.menu}
       <TableContextMenu editor={editor} />
       <FileDialogs action={action} close={() => setAction(null)} />

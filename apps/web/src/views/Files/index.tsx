@@ -1,9 +1,10 @@
+import FileTransferDialog, {
+  type TransferAction,
+} from "@/components/FileTransferDialog";
 import { isDemo, FullVersion } from "@/runtime";
-import { v4 as createId } from "uuid";
 import { usePageTitle } from "@/components/PageTitles";
-import { assertUploadSize } from "@/utils/uploadLimits";
 import axios from "axios";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { App, Dropdown, Select } from "antd";
 import {
@@ -40,11 +41,8 @@ import {
 } from "@/store/workspace";
 import { errorMessage } from "@/http";
 import { useAuth } from "@/store/auth";
-import { documentApi } from "@/api/documents";
 import styles from "./index.module.less";
 import { loadCreatorNames, creatorName } from "./creators";
-import { sheetApi } from "@/api/sheets";
-import { saveImportedContent, type PendingImport } from "./importFlow";
 const DemoImport = lazy(() => import("@/components/DemoImport"));
 export default function Files() {
   const {
@@ -53,7 +51,6 @@ export default function Files() {
     spaces,
     patch,
     purge,
-    add,
     filesLoading,
     filesError,
     loadFiles,
@@ -113,10 +110,12 @@ export default function Files() {
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState<"list" | "grid">("list");
   const [action, setAction] = useState<FileAction | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [transferAction, setTransferAction] = useState<TransferAction | null>(
+    null,
+  );
   const [sort, setSort] = useState<"updated" | "name">("updated");
-  const upload = useRef<HTMLInputElement>(null);
-  const [failedImport, setFailedImport] = useState<PendingImport | null>(null);
-  const [importing, setImporting] = useState(false);
   const [demoImportOpen, setDemoImportOpen] = useState(false);
   const folderId = params.get("folder");
   const folder = files.find(
@@ -131,6 +130,11 @@ export default function Files() {
     folder ? [folder.name, currentSpaceName].filter(Boolean).join(" · ") : null,
   );
   const parent = folder?.id || null;
+  useEffect(() => {
+    setSelectedIds([]);
+    setSelecting(false);
+    setTransferAction(null);
+  }, [space, parent, pathname, user]);
   const isHome = pathname === "/files" && !folder;
   const trash = pathname === "/trash";
   useEffect(() => {
@@ -170,6 +174,13 @@ export default function Files() {
             ? (b.accessed || b.updated).localeCompare(a.accessed || a.updated)
             : b.updated.localeCompare(a.updated)),
     );
+  const selected = selectedIds.filter((id) =>
+    visible.some((file) => file.id === id),
+  );
+  const toggleSelected = (id: string) =>
+    setSelectedIds((ids) =>
+      ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id],
+    );
   const title =
     folder?.name ||
     {
@@ -182,6 +193,10 @@ export default function Files() {
     "空间文件";
   const open = (file: Entry) => {
     if (trash) return;
+    if (selecting) {
+      toggleSelected(file.id);
+      return;
+    }
     navigate(
       file.kind === "folder"
         ? `/files?folder=${file.id}`
@@ -306,152 +321,8 @@ export default function Files() {
     label: "上传文件",
     icon: <Upload size={17} />,
   });
-  const importController = useRef<AbortController | null>(null);
-  useEffect(() => {
-    const abort = () => {
-      importController.current?.abort();
-      importController.current = null;
-      setImporting(false);
-      setFailedImport(null);
-    };
-    const offAuth = useAuth.subscribe((next, previous) => {
-      if (next.user !== previous.user) abort();
-    });
-    const offSpace = useWorkspace.subscribe((next, previous) => {
-      if (next.space !== previous.space) abort();
-    });
-    return () => {
-      importController.current?.abort();
-      offAuth();
-      offSpace();
-    };
-  }, []);
-  const imported = async (file?: File, retry?: PendingImport) => {
-    if (!file || importing) return;
-    const isSheet = /\.xlsx$/i.test(file.name);
-    if (!isSheet && !/\.(md|markdown)$/i.test(file.name)) {
-      message.warning("支持导入 .md 和 .xlsx 文件");
-      return;
-    }
-    try {
-      assertUploadSize(file);
-    } catch (error) {
-      message.warning(errorMessage(error));
-      return;
-    }
-    const userId = useAuth.getState().user?.id;
-    if (!userId || !space) return;
-    const task = retry ?? { file, userId, spaceId: space };
-    const controller = new AbortController();
-    importController.current = controller;
-    const assertActive = () => {
-      if (
-        useAuth.getState().user?.id !== task.userId ||
-        useWorkspace.getState().space !== task.spaceId
-      )
-        controller.abort();
-      controller.signal.throwIfAborted();
-    };
-    const confirmReplace = () =>
-      new Promise<boolean>((resolve) => {
-        modal.confirm({
-          title: "导入目标已被修改",
-          content:
-            "重新导入将替换已创建文件的当前正文。原文件和历史版本仍保留，是否继续？",
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
-      });
-    setImporting(true);
-    try {
-      assertActive();
-      const name = file.name.replace(/\.(xlsx|md|markdown)$/i, "");
-      let id: string;
-      if (isSheet) {
-        const { importXlsx } = await import("@/views/Spreadsheet/exchange");
-        assertActive();
-        const sheets = await importXlsx(file, createId(), name);
-        assertActive();
-        id = await saveImportedContent(task, sheets, {
-          assertActive,
-          create: () => add(name, "sheet", parent),
-          content: (target) => sheetApi.content(target, controller.signal),
-          confirmReplace,
-          write: (target, projection, revision, epoch) =>
-            sheetApi.import(
-              target,
-              projection,
-              revision,
-              epoch,
-              controller.signal,
-            ),
-        });
-      } else {
-        const text = await file.text();
-        assertActive();
-        const { parseMarkdownDocument } =
-          await import("@/views/Document/utils/markdownImport");
-        assertActive();
-        id = await saveImportedContent(task, parseMarkdownDocument(text), {
-          assertActive,
-          create: () => add(name, "doc", parent),
-          content: (target) => documentApi.content(target, controller.signal),
-          confirmReplace,
-          write: (target, projection, revision, epoch) =>
-            documentApi.import(
-              target,
-              projection,
-              revision,
-              epoch,
-              controller.signal,
-            ),
-        });
-      }
-      assertActive();
-      setFailedImport(null);
-      navigate(isSheet ? `/preview/${id}` : `/document/${id}`);
-      message.success(
-        isDemo
-          ? "已导入到当前演示页面，刷新后重置"
-          : isSheet
-            ? "Excel 已保存到服务器，图表等高级对象暂不支持转换"
-            : "Markdown 已保存到服务器，可打开编辑",
-      );
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        setFailedImport(task);
-        message.error(errorMessage(error));
-      }
-    } finally {
-      if (importController.current === controller) {
-        importController.current = null;
-        setImporting(false);
-      }
-    }
-  };
   return (
     <main className={styles.page}>
-      {failedImport && (
-        <p role="alert">
-          {failedImport.file.name} 导入未完成，原文件已保留。
-          {failedImport.createdId
-            ? "已创建的目标文件也已保留，重试将继续保存到该文件。"
-            : ""}
-          <button
-            className="secondary-button"
-            disabled={importing}
-            onClick={() => void imported(failedImport.file, failedImport)}
-          >
-            重新导入
-          </button>
-          <button
-            className="secondary-button"
-            onClick={() => setFailedImport(null)}
-          >
-            取消
-          </button>
-        </p>
-      )}
       {filesLoading && <p role="status">正在加载文件…</p>}
       {filesError && (
         <p role="alert">
@@ -472,14 +343,26 @@ export default function Files() {
         </div>
         <div className={styles.introActions}>
           {!trash && (
+            <FullVersion feature="批量导出">
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  setSelecting((value) => !value);
+                  setSelectedIds([]);
+                }}
+              >
+                {selecting ? "退出选择" : "选择"}
+              </button>
+            </FullVersion>
+          )}
+          {!trash && (
             <>
               <button
                 className="secondary-button"
-                disabled={importing}
-                onClick={() => upload.current?.click()}
+                onClick={() => setAction({ type: "upload", parent })}
               >
                 <Upload size={15} />
-                {importing ? "正在导入…" : "导入"}
+                上传文件
               </button>
               <FullVersion>
                 <button
@@ -515,16 +398,44 @@ export default function Files() {
           )}
         </div>
       </section>
-      <input
-        hidden
-        type="file"
-        ref={upload}
-        accept=".md,.markdown,.xlsx"
-        onChange={(e) => {
-          void imported(e.target.files?.[0]);
-          e.target.value = "";
-        }}
-      />
+      {selecting && (
+        <div className={styles.selectionBar}>
+          <label>
+            <input
+              type="checkbox"
+              aria-label="全选当前列表"
+              checked={visible.length > 0 && selected.length === visible.length}
+              onChange={(event) =>
+                setSelectedIds(
+                  event.target.checked ? visible.map((file) => file.id) : [],
+                )
+              }
+            />
+            全选当前列表
+          </label>
+          <span>已选 {selected.length} 项</span>
+          <button
+            className="secondary-button"
+            disabled={!selected.length}
+            onClick={() => setSelectedIds([])}
+          >
+            清空
+          </button>
+          <button
+            className="primary-button"
+            disabled={!selected.length}
+            onClick={() =>
+              setTransferAction({
+                type: "export",
+                spaceId: space,
+                ids: selected,
+              })
+            }
+          >
+            导出选中
+          </button>
+        </div>
+      )}
       <section className={styles.fileSection}>
         <div className={styles.sectionHeader}>
           <div className={styles.listTitle}>
@@ -620,7 +531,8 @@ export default function Files() {
             {visible.map((file) => (
               <div
                 key={file.id}
-                className={styles.fileRow}
+                className={`${styles.fileRow} ${selecting ? styles.selectable : ""}`}
+                data-selected={selected.includes(file.id) || undefined}
                 onContextMenu={(e) =>
                   contextMenu.open(
                     e,
@@ -632,6 +544,15 @@ export default function Files() {
                   )
                 }
               >
+                {selecting && (
+                  <input
+                    type="checkbox"
+                    className={styles.selectionCheckbox}
+                    aria-label={`选择 ${file.name}`}
+                    checked={selected.includes(file.id)}
+                    onChange={() => toggleSelected(file.id)}
+                  />
+                )}
                 <button
                   className={styles.fileName}
                   onClick={() => open(file)}
@@ -740,6 +661,13 @@ export default function Files() {
           </div>
         )}
       </section>
+      {transferAction && (
+        <FileTransferDialog
+          action={transferAction}
+          close={() => setTransferAction(null)}
+          onImported={loadFiles}
+        />
+      )}
       {contextMenu.menu}
       <FileDialogs
         action={action}

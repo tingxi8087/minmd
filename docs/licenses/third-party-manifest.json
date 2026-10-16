@@ -1,5 +1,5 @@
 {
-  "lockHash": "a8a050132ce7a2ad8056ee13c5cb119f96bc60ba59e0d7c8ea1a1bc8d3d6f22b",
+  "lockHash": "c3f276923927a277b1d54c72cc0ecae270a58c125744c5bfc4b0a61002645a47",
   "packages": [
     {
       "name": "@aiden0z/pptx-renderer",
@@ -3469,6 +3469,20 @@
       ],
       "hashes": [
         "14895b82e3367b66bdb127fe91505f8615491f2a23eb1c0b7d8f7c54be67f57a"
+      ]
+    },
+    {
+      "name": "buffer-crc32",
+      "version": "1.0.0",
+      "license": "MIT",
+      "sources": [
+        "npm:buffer-crc32@1.0.0/LICENSE"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ],
+      "hashes": [
+        "ddc9158fa20e427bc12fa8e1e6d07c642ed4d2c618607df768b30ae2986b3b7c"
       ]
     },
     {
@@ -8474,6 +8488,20 @@
       ]
     },
     {
+      "name": "pend",
+      "version": "1.2.0",
+      "license": "MIT",
+      "sources": [
+        "npm:pend@1.2.0/LICENSE"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ],
+      "hashes": [
+        "7e64acffcb0d20d33f5a86949ffd4a99ae045b10c7332a9c3a58635876c16880"
+      ]
+    },
+    {
       "name": "periscopic",
       "version": "3.1.0",
       "license": "MIT",
@@ -11415,6 +11443,34 @@
       ],
       "hashes": [
         "365496ca1f56da40b23c9815fc40fa9005847b2f8f8fd1c1a4929ef25ec8cd1d"
+      ]
+    },
+    {
+      "name": "yauzl",
+      "version": "3.4.0",
+      "license": "MIT",
+      "sources": [
+        "npm:yauzl@3.4.0/LICENSE"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ],
+      "hashes": [
+        "b303783d5eb7ca50b853ffa5f145e4e7998fab339831d848f507ca6cd970577a"
+      ]
+    },
+    {
+      "name": "yazl",
+      "version": "3.3.1",
+      "license": "MIT",
+      "sources": [
+        "npm:yazl@3.3.1/LICENSE"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ],
+      "hashes": [
+        "b303783d5eb7ca50b853ffa5f145e4e7998fab339831d848f507ca6cd970577a"
       ]
     },
     {

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/web/**"
+      - "shared/**"
       - "config/dev.ts"
       - "patches/**"
       - "package.json"

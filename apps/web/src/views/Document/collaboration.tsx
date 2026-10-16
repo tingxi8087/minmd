@@ -278,7 +278,7 @@ export function useDocumentCollaboration(file: Entry) {
       })),
     );
   };
-  const checkpoint = async (note?: string) => {
+  const checkpoint = async (note?: string, manual = true) => {
     const current = sessionRef.current;
     if (!current || !view.ready || !view.connected)
       throw new Error("文档尚未连接，暂不能创建版本");
@@ -288,7 +288,7 @@ export function useDocumentCollaboration(file: Entry) {
       if (sessionRef.current !== current)
         throw new Error("文档版本已变化，请重新保存");
       try {
-        result = await documentApi.checkpoint(file.id, snapshot, note);
+        result = await documentApi.checkpoint(file.id, snapshot, note, manual);
         break;
       } catch (error) {
         if (
@@ -311,6 +311,7 @@ export function useDocumentCollaboration(file: Entry) {
     restart,
     recordDraft,
     checkpoint,
+    flush: () => checkpoint(undefined, false),
     drafts,
     dismissDraft: async (draft: RecoveryDraft) => {
       await removeDraft(draft);

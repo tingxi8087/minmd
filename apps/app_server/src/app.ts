@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { installWebFrontend } from "../../../system/server/src/plugins/web-frontend";
 import { pruneExistingFileVersions } from "./modules/versions/retention";
 import { createApp, type AppConfig, type AppOptions } from "@mas/system-server";
@@ -22,6 +23,7 @@ import {
   registerDocumentRooms,
   type DocumentRooms,
 } from "./modules/collaboration/document-room";
+import { registerFileTransfers } from "./modules/file-transfer";
 import { registerContents } from "./modules/contents";
 import { registerShares } from "./modules/shares";
 import { registerDemoImports } from "./modules/demo-import";
@@ -140,6 +142,14 @@ export function buildApp(
       sheetRooms = await registerSheetRooms(app, database, config);
       rooms = await registerDocumentRooms(app, database, config, sheetRooms);
       await registerContents(app, database, rooms, sheetRooms);
+      await registerFileTransfers(app, {
+        database,
+        rooms,
+        sheetRooms,
+        assetDirectory: resolve(loadMinmdConfig(config).assetStorageDir),
+        sourceOrigin: new URL(loadMinmdConfig(config).allowedOrigins[0]!)
+          .origin,
+      });
       await registerFileAccess(app, database, {
         changed: async (fileId) => {
           await Promise.all([

@@ -150,3 +150,22 @@ API 密钥的认证使用哈希，完整值采用 AES-256-GCM 加密保存。`AI
 演示通过构建时替换编辑会话和 Axios 内存适配器复用界面，预置数据位于 `apps/web/src/demo/`。文档、表格及导入文件只保留在页面内存中，刷新或点击重置恢复示例；主题等界面偏好仍可在浏览器本地记忆。后端接口不会回退到网络，设置、AI 接入、分享、通知、多人协作与版本历史等后端功能入口以禁用态展示，并提示“部署后可使用”；在线人数与服务端保存状态不显示。
 
 `.github/workflows/pages.yml` 单独构建并发布 Pages；仓库 Pages 的发布来源设为 GitHub Actions。前端相关文件推送到 main 或手动运行该工作流即可更新演示。不触发版本发布，也不构建后端、后台或 Docker 镜像。现有 `bun run build`、Release、国内镜像同步及部署脚本继续使用正式构建，输出目录保持不变。
+
+## 文件包导入导出
+
+业务入口位于 `apps/app_server/src/modules/file-transfer/`，转换逻辑位于 `shared/document/` 与 `shared/spreadsheet/`。前台、服务端和演示构建复用这些转换；修改 `shared/` 会触发演示构建工作流。详细格式和边界见 [专项 TRD](FILE_TRANSFER_TRD.md)。
+
+新增表通过 `bun run db:migrate` 应用，既有迁移保持不变。传输配置见 `.env.example` 的 `FILE_TRANSFER_*`：默认 ZIP 200 MiB、解压 1 GiB、1,000 个业务条目、5,000 个 ZIP 条目、32 层目录；每账号一个处理中或待确认的任务，累计处理限时 10 分钟，导出下载有效期 30 分钟。
+
+压缩包与解压暂存位于私有附件目录的 `.file-transfers/`。逐文件读写正文，附件逐个校验，不在任务内存中保留整批正文；暂存包不通过静态目录公开。进程启动时对照已提交附件记录清理崩溃暂存，成功导入结果单独持久化，响应丢失或重启后重试不会重复新建。停止服务会先中止上传与任务，再关闭连接。
+
+相关验证使用独立 `_test` 数据库；浏览器验收另建一份专用库，不复用集成测试库：
+
+```sh
+bun test tests/file-transfer-format.test.ts
+bun run --cwd apps/web test:ui
+TEST_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/minmd_test SHEET_COLLAB_VERIFY_ENABLED=false DOC_COLLAB_VERIFY_ENABLED=false bun run test:integration
+RUNTIME_PROCESS_TEST=true bun test tests/runtime-process.test.ts
+```
+
+本机若设置了会代理回环请求的 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`，测试真实本机 HTTP 时需为该测试进程取消对应环境变量，或正确设置本机代理排除规则，不要通过修改业务鉴权来绕开请求失败。

@@ -833,7 +833,24 @@ export class DocumentRooms {
     });
     return latest;
   }
-  async replaceDocument(fileId: string, userId: string, input: Replacement) {
+  async replaceDocument(
+    fileId: string,
+    userId: string,
+    input: Replacement,
+    hooks: {
+      prepare?: (tx: Transaction) => Promise<void>;
+      completed?: (
+        tx: Transaction,
+        result: {
+          fileId: string;
+          revision: number;
+          epoch: number;
+          savedAt: string;
+          versionId: string;
+        },
+      ) => Promise<void>;
+    } = {},
+  ) {
     const normalized = normalizeDocument(input.projection);
     this.checkProjection(normalized);
     const doc = createDocumentState(normalized);
@@ -871,6 +888,7 @@ export class DocumentRooms {
                 currentEpoch: current.epoch,
               },
             );
+          await hooks.prepare?.(tx);
           await this.version(tx, current, "before-replace", userId);
           const revision = current.revision + 1,
             epoch = current.epoch + 1;
@@ -902,13 +920,15 @@ export class DocumentRooms {
             input.note ?? "",
             true,
           );
-          return {
+          const result = {
             fileId,
             revision,
             epoch,
             savedAt: saved!.updatedAt.toISOString(),
             versionId,
           };
+          await hooks.completed?.(tx, result);
+          return result;
         }),
       );
       this.server.documents

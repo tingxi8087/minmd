@@ -1,0 +1,139 @@
+.intro {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 4px 0 20px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  > span {
+    display: grid;
+    place-items: center;
+    height: 42px;
+    width: 42px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  strong {
+    display: block;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  > div {
+    min-width: 0;
+    flex: 1;
+  }
+}
+.formats {
+  display: grid;
+  gap: 10px;
+}
+.option {
+  display: flex;
+  align-items: flex-start;
+  text-align: left;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  > svg {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  strong {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  small {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.7;
+    margin-top: 3px;
+  }
+  &[aria-checked="true"] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    > svg {
+      color: var(--accent);
+    }
+  }
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+.badge {
+  margin-left: 8px;
+  color: var(--accent);
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--surface);
+}
+.note {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  margin: 16px 0 4px;
+}
+.summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  > div {
+    padding: 12px 14px;
+    background: var(--surface-soft);
+  }
+  dt {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  dd {
+    font-size: 14px;
+    margin: 5px 0 0;
+    color: var(--text);
+  }
+}
+.progress {
+  padding: 12px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  p {
+    margin: 0 0 8px;
+  }
+}
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.error {
+  padding: 10px 12px;
+  border-radius: 7px;
+  color: var(--danger, #b42318);
+  background: var(--surface-soft);
+  margin-top: 12px;
+  font-size: 12px;
+}
+.summary .destination {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--border);
+  dd {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+}

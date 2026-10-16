@@ -7,7 +7,7 @@ export const pptxMime =
 const invalid = () =>
   new AppError("ASSET_INVALID", "文件类型无效或文件已损坏", 400);
 /** 先读取中央目录尺寸，阻止在解压前分配异常大的 OOXML 内容。 */
-function validateZipDirectory(bytes: Buffer) {
+export function validateZipDirectory(bytes: Buffer) {
   let end = -1;
   for (
     let at = bytes.length - 22;

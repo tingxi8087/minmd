@@ -57,6 +57,12 @@ export function useDocumentCollaboration(
       revision: 1,
       savedAt: new Date().toISOString(),
     }),
+    flush: async () => ({
+      fileId: file.id,
+      epoch: session.epoch,
+      revision: 1,
+      savedAt: new Date().toISOString(),
+    }),
     drafts: [],
     dismissDraft: async () => {},
   };

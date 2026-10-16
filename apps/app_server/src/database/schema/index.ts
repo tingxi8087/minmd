@@ -7,3 +7,5 @@ export * from "./ai";
 export * from "./shares";
 export * from "./demo-imports";
 export * from "./file-access";
+
+export * from "./file-transfers";

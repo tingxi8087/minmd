@@ -39,7 +39,12 @@ export const documentApi = {
   content: async (id: string, signal?: AbortSignal) =>
     (await request.get<DocumentContent>(`/app/files/${id}/content`, { signal }))
       .data,
-  checkpoint: async (id: string, snapshot: number[], note?: string) =>
+  checkpoint: async (
+    id: string,
+    snapshot: number[],
+    note?: string,
+    manual = true,
+  ) =>
     (
       await request.post<{
         fileId: string;
@@ -49,7 +54,7 @@ export const documentApi = {
         versionId?: string;
       }>(`/app/files/${id}/checkpoint`, {
         snapshot,
-        manual: true,
+        manual,
         ...(note ? { note } : {}),
       })
     ).data,

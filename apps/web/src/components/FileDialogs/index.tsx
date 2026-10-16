@@ -1,3 +1,4 @@
+import FileTransferDialog from "@/components/FileTransferDialog";
 import { isDemo } from "@/runtime";
 import { v4 as createId } from "uuid";
 import { assertUploadSize } from "@/utils/uploadLimits";
@@ -52,9 +53,11 @@ export default function FileDialogs({
   const [name, setName] = useState("");
   const [parent, setParent] = useState<string | null>(null);
   const [presentation, setPresentation] = useState<File | null>(null);
+  const [archive, setArchive] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     activeTask.current?.controller.abort();
+    setArchive(null);
     if (!action) return;
     pending.current = null;
     setSaving(false);
@@ -72,9 +75,24 @@ export default function FileDialogs({
     return (
       <ShareDialog key={action.file.id} file={action.file} close={close} />
     );
+  if (archive && action.type === "upload")
+    return (
+      <FileTransferDialog
+        action={{
+          type: "import",
+          spaceId: space,
+          file: archive,
+          target: { parentId: action.parent, replaceFileId: null },
+        }}
+        close={close}
+        onImported={async () => {
+          await useWorkspace.getState().loadFiles();
+        }}
+      />
+    );
   const mediaKind = action.type === "upload";
   const mediaAccept =
-    ".xlsx,.md,.markdown,.pptx,.pdf,.mp4,.webm,.png,.jpg,.jpeg,.webp,.gif";
+    ".zip,.xlsx,.md,.markdown,.pptx,.pdf,.mp4,.webm,.png,.jpg,.jpeg,.webp,.gif";
   const presentationUpload =
     (action.type === "create" && action.kind === "slide") ||
     (action.type === "upload" && /\.pptx$/i.test(presentation?.name ?? ""));
@@ -114,6 +132,18 @@ export default function FileDialogs({
         message.warning(errorMessage(error));
         return;
       }
+    }
+    if (
+      action.type === "upload" &&
+      presentation &&
+      /\.zip$/i.test(presentation.name)
+    ) {
+      if (isDemo) {
+        message.info("压缩包批量导入部署后可使用");
+        return;
+      }
+      setArchive(presentation);
+      return;
     }
     if (
       action.type === "upload" &&
@@ -407,27 +437,36 @@ export default function FileDialogs({
                   : "点击选择或拖入 .pptx 文件"}
               <p className="muted">
                 {mediaKind
-                  ? "支持 XLSX、MD / Markdown、PPTX、PDF、MP4 / WebM、PNG / JPEG / WebP / GIF · 单个文件最大 200 MB"
+                  ? "支持 minmd / Markdown 导出 ZIP、XLSX、MD、PPTX、PDF、MP4 / WebM、PNG / JPEG / WebP / GIF · 单个文件最大 200 MB。普通 ZIP 暂不支持。"
                   : "最多 200 MB · 只读预览"}
               </p>
             </Upload.Dragger>
           )}
-          <label>名称</label>
-          <Input
-            disabled={saving}
-            autoFocus
-            maxLength={100}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onPressEnter={save}
-            placeholder={
-              action.type === "upload"
-                ? "输入文件名称"
-                : action.type === "create"
-                  ? `输入${kindNames[action.kind]}名称`
-                  : ""
-            }
-          />
+          {mediaKind && /\.zip$/i.test(presentation?.name ?? "") ? (
+            <p className="muted">
+              压缩包将保留内部目录和名称，下一步检查内容并确认导入。
+              {isDemo && "批量导入部署后可使用。"}
+            </p>
+          ) : (
+            <>
+              <label>名称</label>
+              <Input
+                disabled={saving}
+                autoFocus
+                maxLength={100}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onPressEnter={save}
+                placeholder={
+                  action.type === "upload"
+                    ? "输入文件名称"
+                    : action.type === "create"
+                      ? `输入${kindNames[action.kind]}名称`
+                      : ""
+                }
+              />
+            </>
+          )}
         </div>
       ) : action.type === "move" || action.type === "restore" ? (
         <DestinationPicker
